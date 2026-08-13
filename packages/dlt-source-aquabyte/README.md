@@ -1,6 +1,6 @@
 # dlt-source-aquabyte
 
-An installable [dlt](https://dlthub.com/) source package that ingests aquaculture data from the [Aquabyte API v3](https://api.aquabyte.ai/v3/docs) into DuckDB (dev) or Snowflake (prod).
+An installable [dlt](https://dlthub.com/) source package that ingests aquaculture data from the [Aquabyte API v3](https://api.aquabyte.ai/v3/docs) into any dlt destination (the examples use DuckDB).
 
 Covers all 10 stable GET endpoints using a transformer-based architecture: `sites → pens → per-pen data`. The `/sites` endpoint is fetched once, active pens are extracted, and all 7 per-pen endpoints consume from the shared `pens` transformer.
 
