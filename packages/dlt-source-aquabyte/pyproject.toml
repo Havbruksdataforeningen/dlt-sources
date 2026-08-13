@@ -1,0 +1,65 @@
+[project]
+name = "dlt-source-aquabyte"
+version = "0.1.0"
+description = "dlt source package for the Aquabyte API v3"
+requires-python = ">=3.11"
+dependencies = [
+    "dlt>=1.0",
+    "pydantic>=2.0",
+]
+
+[dependency-groups]
+dev = [
+    "bandit>=1.8",
+    "dlt[duckdb]>=1.0",
+    "pytest>=8.0",
+    "pytest-cov>=6.0",
+    "pyright>=1.1",
+    "rich>=14.3.2",
+    "pytest-timeout>=2.0",
+    "ruff>=0.8",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "B", "C4", "UP", "SIM", "RUF"]
+ignore = ["E501", "B008"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["dlt_source_aquabyte"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.pyright]
+pythonVersion = "3.11"
+typeCheckingMode = "basic"
+include = ["src", "tests"]
+exclude = [".venv", ".dlt", ".agent"]
+venvPath = "."
+venv = ".venv"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "integration: marks tests that hit the real Aquabyte API (deselect with '-m \"not integration\"')",
+]
+filterwarnings = [
+    "ignore::DeprecationWarning:dlt.common.libs.pydantic",
+    "ignore::DeprecationWarning:dlt.extract.validation",
+]
+
+[tool.bandit]
+exclude_dirs = ["tests"]
+
+[build-system]
+requires = ["setuptools>=75.0"]
+build-backend = "setuptools.build_meta"

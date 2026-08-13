@@ -1,0 +1,66 @@
+{
+  "reports": [
+    {
+      "penId": "pen-001",
+      "mainReport": true,
+      "asOfDate": "2026-01-15",
+      "lastFeedingDate": "2026-01-10",
+      "slaughterStartDate": "2026-01-12",
+      "slaughterEndDate": "2026-01-14",
+      "temperature": 8.5,
+      "lossFactor": 0.12,
+      "packingMethod": "HOG",
+      "measurementCount": 5000,
+      "coefficientOfVariation": 0.18,
+      "avgPackedWeightGrams": 4200.0,
+      "avgRoundWeightGrams": 4800.0,
+      "superiorRate": 0.75,
+      "packedWeightDistribution": {
+        "2-3": 5.0,
+        "3-4": 25.0,
+        "4-5": 45.0,
+        "5-6": 20.0,
+        "6-7": 5.0
+      },
+      "roundWeightDistribution": {
+        "3-4": 10.0,
+        "4-5": 30.0,
+        "5-6": 40.0,
+        "6-7": 15.0,
+        "7-8": 5.0
+      },
+      "createdAt": "2026-01-15T10:00:00Z"
+    },
+    {
+      "penId": "pen-001",
+      "mainReport": false,
+      "asOfDate": "2026-01-20",
+      "lastFeedingDate": "2026-01-18",
+      "slaughterStartDate": "2026-01-19",
+      "slaughterEndDate": "2026-01-20",
+      "temperature": 7.2,
+      "lossFactor": 0.10,
+      "packingMethod": null,
+      "measurementCount": 3000,
+      "coefficientOfVariation": 0.15,
+      "avgPackedWeightGrams": 3800.0,
+      "avgRoundWeightGrams": 4300.0,
+      "superiorRate": 0.68,
+      "packedWeightDistribution": {
+        "2-3": 8.0,
+        "3-4": 30.0,
+        "4-5": 40.0,
+        "5-6": 18.0,
+        "6-7": 4.0
+      },
+      "roundWeightDistribution": {
+        "3-4": 12.0,
+        "4-5": 35.0,
+        "5-6": 35.0,
+        "6-7": 13.0,
+        "7-8": 5.0
+      },
+      "createdAt": "2026-01-20T14:30:00Z"
+    }
+  ]
+}

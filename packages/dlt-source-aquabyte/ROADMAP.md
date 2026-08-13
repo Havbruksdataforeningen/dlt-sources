@@ -1,0 +1,4 @@
+- Can we remove the _resource suffix for all resource functions?
+- Use pens resource and transformers to get data from this resource to use in resource definitions that depend on Pen IDs.
+- Maybe default value for initial_value can be a config variable instead of having it repeated throughout the codebase? It will probably differ for those implementing this repo in their data platform.
+- Implement integration tests, that actually test with live data.

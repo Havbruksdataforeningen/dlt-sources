@@ -1,0 +1,29 @@
+{
+  "penId": "pen-001",
+  "fromTime": "2026-01-01T00:00:00Z",
+  "toTime": "2026-01-03T00:00:00Z",
+  "data": [
+    {
+      "fromTime": "2026-01-01T00:00:00Z",
+      "toTime": "2026-01-02T00:00:00Z",
+      "temperatureAvg": 8.5,
+      "cameraDepthAvg": 5.2,
+      "cameraDepthMin": 4.8,
+      "cameraDepthMax": 5.9,
+      "oxygenPct": 92.3,
+      "salinity": 33.1,
+      "fishDensity": 0.72
+    },
+    {
+      "fromTime": "2026-01-02T00:00:00Z",
+      "toTime": "2026-01-03T00:00:00Z",
+      "temperatureAvg": 8.8,
+      "cameraDepthAvg": 5.0,
+      "cameraDepthMin": 4.5,
+      "cameraDepthMax": 5.6,
+      "oxygenPct": null,
+      "salinity": 33.5,
+      "fishDensity": null
+    }
+  ]
+}

@@ -1,0 +1,55 @@
+{
+  "sites": [
+    {
+      "id": "site-001",
+      "name": "Nordfjord Farm",
+      "governmentSiteNumber": 12345,
+      "external_site_id": "ext-site-001",
+      "pens": [
+        {
+          "id": "pen-001",
+          "name": "Pen A",
+          "penCode": "PA",
+          "isActive": true,
+          "external_id": "ext-pen-001"
+        },
+        {
+          "id": "pen-002",
+          "name": "Pen B",
+          "penCode": "PB",
+          "isActive": false,
+          "external_id": null
+        },
+        {
+          "id": "pen-003",
+          "name": "Pen C",
+          "penCode": "PC",
+          "isActive": true,
+          "external_id": null
+        }
+      ]
+    },
+    {
+      "id": "site-002",
+      "name": "Sognefjord Farm",
+      "governmentSiteNumber": null,
+      "external_site_id": null,
+      "pens": [
+        {
+          "id": "pen-004",
+          "name": "Pen D",
+          "penCode": null,
+          "isActive": true,
+          "external_id": null
+        },
+        {
+          "id": "pen-005",
+          "name": "Pen E",
+          "penCode": "PE",
+          "isActive": true,
+          "external_id": null
+        }
+      ]
+    }
+  ]
+}

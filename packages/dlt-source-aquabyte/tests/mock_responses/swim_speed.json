@@ -1,0 +1,31 @@
+{
+  "swimSpeed": [
+    {
+      "penId": "pen-001",
+      "fromTime": "2026-01-10T00:00:00Z",
+      "toTime": "2026-01-11T00:00:00Z",
+      "swimSpeedsampleSize": 150,
+      "swimSpeed": 1.23,
+      "swimTiltsampleSize": 140,
+      "swimTilt": -5.4
+    },
+    {
+      "penId": "pen-001",
+      "fromTime": "2026-01-11T00:00:00Z",
+      "toTime": "2026-01-12T00:00:00Z",
+      "swimSpeedsampleSize": 120,
+      "swimSpeed": null,
+      "swimTiltsampleSize": 110,
+      "swimTilt": null
+    },
+    {
+      "penId": "pen-001",
+      "fromTime": "2026-01-12T00:00:00Z",
+      "toTime": "2026-01-13T00:00:00Z",
+      "swimSpeedsampleSize": 180,
+      "swimSpeed": 1.45,
+      "swimTiltsampleSize": 170,
+      "swimTilt": -3.2
+    }
+  ]
+}

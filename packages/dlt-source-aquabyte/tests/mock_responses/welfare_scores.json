@@ -1,0 +1,92 @@
+{
+  "welfareScores": [
+    {
+      "penId": "pen-001",
+      "date": "2026-01-15",
+      "welfareScores": {
+        "bodyWound": {
+          "active": {"1": 0.05, "2": 0.02, "3": 0.01},
+          "nothing": 0.92,
+          "sampleSize": 200,
+          "healed": {"1": 0.03, "2": 0.01, "3": 0.0}
+        },
+        "scaleLoss": {
+          "active": {"1": 0.1, "2": 0.03, "3": 0.0},
+          "nothing": 0.87,
+          "sampleSize": 200,
+          "healed": {"1": 0.04, "2": 0.01, "3": 0.0}
+        },
+        "snoutWound": {
+          "active": {"1": 0.02, "2": 0.01, "3": 0.0},
+          "nothing": 0.97,
+          "sampleSize": 200,
+          "healed": null
+        },
+        "maturation": {
+          "active": {"1": 0.01, "2": 0.0, "3": 0.0},
+          "nothing": 0.99,
+          "sampleSize": 200,
+          "healed": null
+        },
+        "eyeBleeding": null,
+        "eyeClouding": null,
+        "exophthalmos": null,
+        "opercularDamage": {
+          "active": {"1": 0.03, "2": 0.01, "3": 0.0},
+          "nothing": 0.96,
+          "sampleSize": 200,
+          "healed": {"1": 0.02, "2": 0.0, "3": 0.0}
+        },
+        "backDeformity": null,
+        "pelvicFin": null,
+        "pectoralFin": null,
+        "caudalFin": null,
+        "analFin": null,
+        "dorsalFin": {
+          "active": {"1": 0.08, "2": 0.02, "3": 0.01},
+          "nothing": 0.89,
+          "sampleSize": 200,
+          "healed": {"1": 0.05, "2": 0.01, "3": 0.0}
+        },
+        "upperJawDeformity": null,
+        "lowerJawDeformity": null,
+        "breathingMouth": null,
+        "mechHeadWound": null
+      }
+    },
+    {
+      "penId": "pen-001",
+      "date": "2026-01-16",
+      "welfareScores": {
+        "bodyWound": {
+          "active": {"1": 0.04, "2": 0.01, "3": 0.01},
+          "nothing": 0.94,
+          "sampleSize": 180,
+          "healed": {"1": 0.02, "2": 0.01, "3": 0.0}
+        },
+        "scaleLoss": {
+          "active": {"1": 0.09, "2": 0.02, "3": 0.0},
+          "nothing": 0.89,
+          "sampleSize": 180,
+          "healed": null
+        },
+        "snoutWound": null,
+        "maturation": null,
+        "eyeBleeding": null,
+        "eyeClouding": null,
+        "exophthalmos": null,
+        "opercularDamage": null,
+        "backDeformity": null,
+        "pelvicFin": null,
+        "pectoralFin": null,
+        "caudalFin": null,
+        "analFin": null,
+        "dorsalFin": null,
+        "upperJawDeformity": null,
+        "lowerJawDeformity": null,
+        "breathingMouth": null,
+        "mechHeadWound": null
+      }
+    }
+  ]
+}
