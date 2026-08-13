@@ -1,35 +1,4 @@
-"""Backfill pipeline for the Aquabyte data platform.
-
-Re-loads historical data for specific resources and date ranges.
-Useful for filling gaps, reprocessing after schema changes, or
-loading data for a new pen.
-
-Usage examples:
-
-    # Backfill all date-based resources for January 2026:
-    python examples/backfill.py --from-date 2026-01-01 --to-date 2026-01-31
-
-    # Backfill only biomass and lice_count:
-    python examples/backfill.py --from-date 2026-01-01 --to-date 2026-01-31 \
-        --resources biomass lice_count
-
-    # Backfill time-based resources (environmental, swim speed, breathing index):
-    python examples/backfill.py --from-time 2026-01-01T00:00:00Z --to-time 2026-01-31T23:59:59Z \
-        --resources environmental behaviour_swim_speed behaviour_breathing_index
-
-    # Backfill specific pens only:
-    python examples/backfill.py --from-date 2026-01-01 --to-date 2026-01-31 \
-        --pen-ids pen-abc-123 pen-def-456
-
-    # Backfill everything (all resources, all pens) from a specific date:
-    python examples/backfill.py --from-date 2025-06-01 --to-date 2025-12-31 \
-        --from-time 2025-06-01T00:00:00Z --to-time 2025-12-31T23:59:59Z
-
-Available resources:
-    Date-based:  biomass, harvest_report, lice_count, welfare_scores
-    Time-based:  environmental, behaviour_swim_speed, behaviour_breathing_index
-    Reference:   sites, pens (no date filtering, always full replace)
-"""
+"""Re-load historical data for chosen resources and date/time windows. See --help."""
 
 import argparse
 import sys
@@ -38,47 +7,31 @@ import dlt
 
 from dlt_source_aquabyte import aquabyte_source
 
-ALL_RESOURCES = [
-    "sites",
-    "pens",
-    "environmental",
-    "biomass",
-    "harvest_report",
-    "lice_count",
-    "behaviour_swim_speed",
-    "behaviour_breathing_index",
-    "welfare_scores",
-]
+DATE_BASED = ["biomass", "harvest_report", "lice_count", "welfare_scores"]
+TIME_BASED = ["environmental", "behaviour_swim_speed", "behaviour_breathing_index"]
+REFERENCE = ["sites", "pens"]
+ALL_RESOURCES = REFERENCE + DATE_BASED + TIME_BASED
 
 
-def main() -> None:
-    """Run the Aquabyte backfill pipeline."""
+def parse_backfill_window() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Aquabyte backfill pipeline",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog=(
-            "Examples:\n"
-            "  python examples/backfill.py --from-date 2026-01-01 --to-date 2026-01-31\n"
-            "  python examples/backfill.py --from-date 2026-01-01 --resources biomass lice_count\n"
-            "  python examples/backfill.py --from-time 2026-01-01T00:00:00Z --resources environmental\n"
-        ),
+        epilog="Example: python examples/backfill.py --from-date 2026-01-01 --to-date 2026-01-31 --resources biomass lice_count",
     )
-    parser.add_argument("--from-date", help="Start date (YYYY-MM-DD) for date-based resources")
-    parser.add_argument("--to-date", help="End date (YYYY-MM-DD) for date-based resources")
-    parser.add_argument("--from-time", help="Start time (ISO 8601) for time-based resources")
-    parser.add_argument("--to-time", help="End time (ISO 8601) for time-based resources")
+    parser.add_argument("--from-date", help=f"Start date (YYYY-MM-DD) for {', '.join(DATE_BASED)}")
+    parser.add_argument("--to-date", help="End date (YYYY-MM-DD)")
+    parser.add_argument("--from-time", help=f"Start time (ISO 8601) for {', '.join(TIME_BASED)}")
+    parser.add_argument("--to-time", help="End time (ISO 8601)")
     parser.add_argument("--pen-ids", nargs="+", help="Specific pen IDs to fetch (default: all)")
-    parser.add_argument(
-        "--resources",
-        nargs="+",
-        choices=ALL_RESOURCES,
-        default=ALL_RESOURCES,
-        help="Resources to backfill (default: all)",
-    )
+    parser.add_argument("--resources", nargs="+", choices=ALL_RESOURCES, default=ALL_RESOURCES)
     args = parser.parse_args()
-
     if not any([args.from_date, args.to_date, args.from_time, args.to_time]):
         parser.error("At least one of --from-date, --to-date, --from-time, --to-time is required")
+    return args
+
+
+def run_backfill() -> None:
+    args = parse_backfill_window()
 
     pipeline = dlt.pipeline(
         pipeline_name="aquabyte_backfill",
@@ -99,4 +52,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    sys.exit(main() or 0)
+    sys.exit(run_backfill() or 0)

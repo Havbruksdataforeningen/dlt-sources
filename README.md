@@ -11,6 +11,21 @@ Shared [dlt](https://dlthub.com/) source packages for Havbruksdataforeningen mem
 |---|---|
 | [`dlt-source-aquabyte`](packages/dlt-source-aquabyte/) | Aquabyte API v3 (sites, pens, biomass, lice, welfare, environment) |
 
+## Layout
+
+One folder per source; each is its own package with its own version. The root is never published.
+
+```
+dlt-sources/
+├── pyproject.toml                    ← workspace root
+└── packages/
+    └── dlt-source-aquabyte/
+        ├── pyproject.toml
+        ├── src/dlt_source_aquabyte/  ← what a consumer installs
+        ├── tests/
+        └── examples/
+```
+
 ## More
 
 - [Repo layout](docs/layout.md) — how the workspace is organised
