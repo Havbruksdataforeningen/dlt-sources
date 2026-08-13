@@ -13,7 +13,7 @@ Shared [dlt](https://dlthub.com/) source packages for Havbruksdataforeningen mem
 
 ## Layout
 
-One folder per source; each is its own package with its own version. The root is never published.
+A [uv workspace](https://docs.astral.sh/uv/concepts/projects/workspaces/): each source is a folder with its **own** `pyproject.toml` — own name, own dependencies, own independent version. The root is never published, and the monorepo is invisible to consumers.
 
 ```
 dlt-sources/
@@ -26,8 +26,19 @@ dlt-sources/
         └── examples/
 ```
 
-## More
+Adding a source = adding a folder; CI and conventions are inherited.
 
-- [Repo layout](docs/layout.md) — how the workspace is organised
-- [Developing](docs/development.md) — setup, running tests, adding a source
-- [Releasing](docs/releasing.md) — how packages would reach PyPI (not wired up yet)
+## Developing
+
+```bash
+uv sync --all-packages --all-groups   # one shared dev environment
+
+cd packages/dlt-source-aquabyte       # each package has its own tests and lint config
+uv run pytest -m "not integration"
+```
+
+Build one package: `uv build --package dlt-source-aquabyte` (from the root). CI runs every package's format check, lint, and tests on every PR.
+
+## Releasing
+
+Not wired up yet — a concrete workflow sketch lives in [Ingest-Barentswatch#20](https://github.com/Havbruksdataforeningen/Ingest-Barentswatch/pull/20). The short version: versions are independent per package, and a tag names what it releases — `dlt-source-aquabyte/v0.2.0` → PyPI (maintainer approves), `…/v0.2.0-rc1` → TestPyPI rehearsal. Trusted Publishing, no stored tokens.
