@@ -6,4 +6,4 @@ All notable changes to `dlt-source-aquabyte`, written for people using the packa
 
 ### Added
 
-- Initial source for Aquabyte API v3: sites, pens, biomass, lice counts, welfare scores, behaviour (swim speed, breathing index), environmental readings and harvest reports.
+- Initial source for the Aquabyte API: sites, pens, biomass, lice counts, welfare scores, behaviour (swim speed, breathing index), environmental readings and harvest reports.

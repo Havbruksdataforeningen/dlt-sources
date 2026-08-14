@@ -9,7 +9,7 @@ Shared [dlt](https://dlthub.com/) source packages for Havbruksdataforeningen mem
 
 | Package | Description |
 |---|---|
-| [`dlt-source-aquabyte`](packages/dlt-source-aquabyte/) | Aquabyte API v3 (sites, pens, biomass, lice, welfare, environment) |
+| [`dlt-source-aquabyte`](packages/dlt-source-aquabyte/) | Aquabyte — camera-based monitoring of farmed salmon (sites, pens, biomass, lice, welfare, environment) |
 
 ## Layout
 
