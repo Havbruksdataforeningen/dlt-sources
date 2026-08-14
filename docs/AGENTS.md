@@ -2,8 +2,8 @@
 
 Style rules for every document in this repo — the files here, the README, the glossaries and the changelogs. Docs are read by developers at member companies who are new to this repo, not by us. Optimise for a low barrier to entry.
 
-- **Write for a junior developer who knows Python and dlt, but is not an expert.** Assume the language and the framework; explain our decisions. Explain the why before the what.
-- **Keep a document short enough that someone actually reads it.** If it outgrows one sitting, split it: a short main document, with detail in linked sub-files. Do not let a document grow past the point of being read.
+- **Write for a junior developer who knows Python and dlt.** Assume the language and the framework; explain our decisions. Explain the why before the what, as if onboarding a new developer.
+- **Keep a document short enough that someone actually reads it.** If it outgrows one sitting, split it into a short main document, with detail in linked sub-files. Do not let a document grow past the point of being read.
 - **Plain sentences, active voice, no metaphors or idioms.** Prefer a table or a list over a paragraph.
 - **Use the terms in `CONTEXT-MAP.md` and the package's `CONTEXT.md`.** Do not invent synonyms for things that already have a name.
 - **Prefer the simple mechanism.** When a rule needs machinery to follow, that machinery is a cost every contributor pays — say what it buys, or drop it.
