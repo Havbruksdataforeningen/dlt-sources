@@ -1,23 +1,6 @@
-# Release one workspace package to PyPI.
-#
-# How-to and rules: docs/release.md.
-#
-#   1. In a PR: `uv version --package <pkg> --bump minor`, move the CHANGELOG
-#      entry out of Unreleased. Merge.
-#   2. git tag -a dlt-source-aquabyte/v0.2.0 -m 'dlt-source-aquabyte 0.2.0'
-#      git push origin dlt-source-aquabyte/v0.2.0
-#
-#      Push the ONE tag by name. `git push --tags` is unsafe here: GitHub
-#      creates no push event at all when more than three tags arrive at once,
-#      so the release would silently never run.
-#   3. A maintainer approves the run on the `pypi` environment.
-#
-# Rehearsal: tag `dlt-source-aquabyte/v0.2.0rc1` -> TestPyPI, no approval.
-#
-# Routing is decided by PEP 440 (`Version.is_prerelease`), never by substring
-# matching on the ref. Substring matching gets this wrong in both directions: a
-# package named `dlt-source-devices` looks like a dev release, and `v1.0.0b2` —
-# a real prerelease — looks like a final one.
+# Release one workspace package to PyPI, triggered by pushing a tag like
+# dlt-source-aquabyte/v0.2.0. Final versions go to PyPI, pre-release versions
+# to TestPyPI. How-to and rules: docs/release.md.
 
 name: Release
 
@@ -121,7 +104,7 @@ jobs:
           path: dist/
           if-no-files-found: error
 
-  # Prerelease versions -> TestPyPI. No approval; this is the rehearsal.
+  # Pre-release versions -> TestPyPI. No approval; this is the test release.
   publish-testpypi:
     name: Publish to TestPyPI
     needs: build
