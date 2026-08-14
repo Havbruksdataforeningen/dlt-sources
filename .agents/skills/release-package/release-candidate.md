@@ -1,6 +1,6 @@
 # Release candidate
 
-Loaded from [`SKILL.md`](SKILL.md) when the developer accepts the release-candidate offer. A release candidate is a rehearsal: the same tag-driven workflow, but the pre-release version routes it to **TestPyPI**, with no approval step, and nothing lands on the real index.
+Loaded from [`SKILL.md`](SKILL.md) when the developer accepts the test-release offer. Publishing a release candidate is how a test release is done: the same tag-driven workflow, but the pre-release version routes it to **TestPyPI**, with no approval step, and nothing lands on the real index.
 
 The human gates hold here too: **you never push a tag**, release-candidate or not. You prepare the commit and hand over the commands.
 
@@ -40,7 +40,7 @@ Have the developer install it from TestPyPI — dependencies still come from PyP
 uv run --with '<package>==<rc-version>' --index https://test.pypi.org/simple/ --index-strategy unsafe-best-match python -c 'import <module>'
 ```
 
-and run whatever smoke test makes sense for the change — an example pipeline, an import, a call against recorded data.
+and run whatever check makes sense for the change — an example pipeline, an import, a call against recorded data.
 
 **If something is wrong**: fix it on the branch, then repeat from step 1's bump with `--bump rc` alone (giving `rc2`). Both indexes permanently refuse a version number that has been used, so every attempt needs a fresh candidate number.
 

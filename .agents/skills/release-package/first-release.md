@@ -10,7 +10,7 @@ This is the one thing the preflight cannot check for you — pending publishers 
 
 ## What the developer must confirm
 
-Ask the developer to confirm, explicitly, that **both** registrations exist — TestPyPI is a separate service with its own account, and the release-candidate rehearsal publishes there:
+Ask the developer to confirm, explicitly, that **both** registrations exist — TestPyPI is a separate service with its own account, and a test release publishes there:
 
 1. A pending publisher on **pypi.org**: owner `Havbruksdataforeningen`, repository `dlt-sources`, workflow `release.yml`, environment `pypi`.
 2. A pending publisher on **test.pypi.org**: same owner, repository and workflow, environment `testpypi`.
@@ -19,7 +19,7 @@ They are added under *Publishing* in the account settings of each index. A pendi
 
 ## Two more things about a first release
 
-- **Recommend the release candidate.** The rehearsal to TestPyPI proves the whole chain — tag, workflow, publisher, install — before anything lands permanently on PyPI.
+- **A test release proves the whole chain** — tag, workflow, publisher, install — before anything lands permanently on PyPI. Say so when the offer comes up in step 4; the developer still decides.
 - **The first version is whatever `pyproject.toml` already says** if the package has never been released; bump from there like any other release.
 
-Done when the developer has confirmed both pending publishers in so many words. Then return to the preflight in [`SKILL.md`](SKILL.md) and continue.
+Done when the developer has explicitly confirmed both pending publishers. Then return to the preflight in [`SKILL.md`](SKILL.md) and continue.

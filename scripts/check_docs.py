@@ -101,26 +101,35 @@ def check_links(md_files: list[Path]) -> list[str]:
 
 
 def parse_frontmatter(path: Path) -> tuple[dict[str, str], list[str]]:
-    """Frontmatter as key -> value; simple `key: value` scalars only."""
+    """Frontmatter as key -> value: `key: value` scalars and block lists."""
     errors: list[str] = []
     fields: dict[str, str] = {}
+    rel = path.relative_to(REPO_ROOT)
     lines = path.read_text(encoding="utf-8").splitlines()
     if not lines or lines[0].strip() != "---":
-        return fields, [f"{path.relative_to(REPO_ROOT)}: no frontmatter block"]
+        return fields, [f"{rel}: no frontmatter block"]
+    open_list: str | None = None  # key of a `key:` line collecting `- item`s
     for line in lines[1:]:
         if line.strip() == "---":
             return fields, errors
         if not line.strip() or line.lstrip().startswith("#"):
             continue
-        key, sep, value = line.partition(":")
-        if not sep or not key or key != key.strip() or not value.strip():
-            errors.append(
-                f"{path.relative_to(REPO_ROOT)}: frontmatter line is not a "
-                f"'key: value' scalar: {line!r}"
-            )
+        if open_list and re.match(r"^\s+-\s+\S", line):
+            item = line.strip()[1:].strip().strip("'\"")
+            fields[open_list] = f"{fields[open_list]}, {item}".lstrip(", ")
             continue
-        fields[key] = value.strip().strip("'\"")
-    return fields, [f"{path.relative_to(REPO_ROOT)}: frontmatter never closed"]
+        open_list = None
+        key, sep, value = line.partition(":")
+        if not sep or not key or key != key.strip():
+            errors.append(f"{rel}: frontmatter line is not YAML we accept: {line!r}")
+            continue
+        if value.strip():
+            fields[key] = value.strip().strip("'\"")
+        else:
+            fields[key] = ""
+            open_list = key
+    errors.append(f"{rel}: frontmatter never closed")
+    return fields, errors
 
 
 def check_skills() -> list[str]:

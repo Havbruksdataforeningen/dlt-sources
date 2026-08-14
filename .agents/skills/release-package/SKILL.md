@@ -1,7 +1,7 @@
 ---
 name: release-package
 description: Walk a developer through releasing a new version of an existing source package to PyPI. Use when asked to release, publish, or bump the version of a package, or when a release pull request has merged and needs its tag.
-allowed-tools: Read, Grep, Glob, Edit, Write, AskUserQuestion, Bash(git status:*), Bash(git log:*), Bash(git diff:*), Bash(git show:*), Bash(git fetch:*), Bash(git pull:*), Bash(git switch:*), Bash(git add:*), Bash(git commit:*), Bash(git push origin HEAD:*), Bash(git tag --list:*), Bash(git ls-remote:*), Bash(uv version:*), Bash(uv build:*), Bash(gh pr create:*), Bash(gh pr view:*), Bash(gh pr checks:*), Bash(gh issue view:*), Bash(curl:*)
+allowed-tools: Read, Grep, Glob, Edit, Write, AskUserQuestion, Bash(git status:*), Bash(git log:*), Bash(git diff:*), Bash(git show:*), Bash(git fetch:*), Bash(git pull:*), Bash(git switch:*), Bash(git add:*), Bash(git commit:*), Bash(git push origin HEAD), Bash(git tag --list:*), Bash(git ls-remote:*), Bash(uv version:*), Bash(uv build:*), Bash(gh pr create:*), Bash(gh pr view:*), Bash(gh pr checks:*), Bash(gh issue view:*), Bash(curl:*)
 ---
 
 # release-package
@@ -22,7 +22,7 @@ The standards that constrain the release workflow file — tag format, PEP 440 r
 Fetch, then compare three things for the package: the version in `packages/<package>/pyproject.toml` on `origin/main` (`git show origin/main:packages/<package>/pyproject.toml`), the package's newest `<package>/v*` tag, and any open release pull request.
 
 - pyproject on `main` is **ahead of the newest tag** → the release PR has merged. Go to **Phase 2**.
-- a release PR is **open** → phase 1 is mid-flight; resume it where it stopped.
+- a release PR is **open** → phase 1 already started; resume it where it stopped.
 - pyproject on `main` **equals the newest tag** (or the package has no tags) → a new release. Start **Phase 1**.
 
 ## Phase 1 — prepare the release
@@ -41,7 +41,7 @@ Done when every check passed, or the run stopped at the first-release confirmati
 
 ### 2. Ask what changed
 
-Ground yourself first: read the `Unreleased` section of the changelog, and `git log <newest-tag>..origin/main -- packages/<package>/` (from the beginning of history if there is no tag yet).
+Before asking anything, read the `Unreleased` section of the changelog and `git log <newest-tag>..origin/main -- packages/<package>/` (from the beginning of history if there is no tag yet).
 
 Then ask the developer what changed **for someone who has the package installed** — the bump measures impact on consumers, not effort spent. If any change might be breaking and the developer is unsure, ask questions that surface it:
 
@@ -57,9 +57,9 @@ Recommend one of `patch` (fixes, no interface change), `minor` (new capability, 
 
 One rule from [`docs/research/ci-cd.md`](../../../docs/research/ci-cd.md#versioning): being pre-1.0 is not permission to break things quietly. While at 0.x, a breaking change gets a **minor** bump and says so at the top of the changelog entry.
 
-### 4. Offer a release candidate
+### 4. Offer a test release
 
-Ask, every release, one yes/no question: publish a release candidate to TestPyPI first? Recommend yes for a first release or a risky change; otherwise no recommendation. Declining must cost the developer one word.
+Ask, every release, one yes/no question: do a test release first — a release candidate published to TestPyPI to check the package before the real release? Attach no recommendation either way, and accept a one-word "no" without follow-up questions.
 
 If accepted, read [`release-candidate.md`](release-candidate.md) and follow it; it says where it rejoins this procedure.
 
@@ -118,6 +118,6 @@ Push the one tag by name — `git push --tags` silently skips the release when s
 
 Tell the developer what the push triggers: the release workflow checks the tag against `pyproject.toml`, builds the package, and publishes — a final version to PyPI, a pre-release to TestPyPI.
 
-> **Warning to repeat at handover:** until [#8](https://github.com/Havbruksdataforeningen/dlt-sources/issues/8) is resolved, the approval step gates nothing — pushing the tag publishes to PyPI immediately, with no second pair of eyes. Check whether #8 is closed; once it is, this warning is stale and this paragraph gets deleted (that deletion is in #8's acceptance criteria).
+> **Warning to repeat at handover:** until [#8](https://github.com/Havbruksdataforeningen/dlt-sources/issues/8) is resolved, the approval step gates nothing — pushing the tag publishes to PyPI immediately, and nobody reviews the run. Check whether #8 is closed; once it is, this warning is stale and this paragraph gets deleted (that deletion is in #8's acceptance criteria).
 
 You are done when the commands are printed and the warning delivered. The push itself is the developer's.
