@@ -1,0 +1,136 @@
+# Nightly live-API canary — the drift detector.
+#
+# Rationale: docs/agents/testing.md ("Catching upstream drift"), evidence in
+# docs/research/ci-cd.md.
+#
+# The threat model for these packages is that a vendor changes their API and we
+# find out when a member company's pipeline breaks. Everything here exists to
+# make us find out first.
+#
+# Worth knowing: this is NOT an industry default. dlt, dlt-hub/verified-sources,
+# stripe-python, botocore and Airbyte's Python CDK have no scheduled test
+# workflow at all. meltano/sdk (4-hourly) and langchain (daily) do. We run one
+# because upstream drift is our specific risk, not because everyone does.
+#
+# Each package gets its own matrix leg. Unlike ci.yml's flat loop, isolation
+# here is the point: packages have different credentials and different upstream
+# vendors, and "the Aquabyte API is down" must not mask "the other one changed
+# its schema". fail-fast is off for the same reason.
+
+name: Live API
+
+on:
+  schedule:
+    # 04:15 UTC daily. Off the hour deliberately — GitHub delays scheduled runs
+    # under load, and the top of the hour is the worst contention.
+    - cron: "15 4 * * *"
+  # Mandatory, not a convenience: scheduled workflows only ever run from the
+  # default branch, so without this a change to this file cannot be tested on a
+  # branch before it is merged.
+  workflow_dispatch:
+
+concurrency:
+  group: live-api
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  # Enumerate workspace members so each becomes its own named matrix leg.
+  discover:
+    name: Discover packages
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # Forks never get secrets, so a scheduled run on a fork can only produce
+    # noise. GitHub also auto-disables schedules in a public repo after 60 days
+    # of inactivity — if this stops running, check that first.
+    if: github.repository_owner == 'Havbruksdataforeningen'
+    outputs:
+      packages: ${{ steps.list.outputs.packages }}
+    steps:
+      - uses: actions/checkout@v7
+      # Each entry carries the package name and the name of the secret holding
+      # its API key, by convention: dlt-source-aquabyte -> AQUABYTE_API_KEY.
+      # Adding a source means adding that one secret — no workflow edit.
+      - id: list
+        run: |
+          set -euo pipefail
+          pkgs="$(ls -d packages/*/ \
+            | xargs -n1 basename \
+            | jq -R '{package: ., secret: ((. | sub("^dlt-source-"; "") | ascii_upcase | gsub("-"; "_")) + "_API_KEY")}' \
+            | jq -sc .)"
+          echo "packages=${pkgs}" >> "$GITHUB_OUTPUT"
+          echo "Discovered: ${pkgs}"
+
+  live:
+    name: ${{ matrix.entry.package }}
+    needs: discover
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        entry: ${{ fromJSON(needs.discover.outputs.packages) }}
+    # Deliberately NOT scoped to a GitHub environment, for two reasons:
+    #
+    #  - An environment name built from an expression is created implicitly if
+    #    it does not already exist, with no protection rules — so a typo or a
+    #    new package yields a silently unprotected environment.
+    #  - Environment secrets are public-repo-only on the GitHub Free plan.
+    #
+    # Never put required reviewers on anything this job touches: a scheduled
+    # run would wait for approval that nobody is awake to give. Reviewers belong
+    # on the release environments, where a human is already in the loop.
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10
+        with:
+          enable-cache: true
+      - run: uv sync --all-packages --all-groups --locked
+
+      # Two things run against the real API:
+      #
+      #  1. The live tier itself — does the source still work end to end.
+      #  2. The schema-drift check — does the real API still produce the golden
+      #     schema committed at tests/schemas/<resource>.schema.yaml.
+      #
+      # The live tier runs each resource under a `freeze` column contract, so a
+      # field the vendor added since yesterday raises DataValidationError here.
+      # The shipped source stays on `evolve` — production must not break when a
+      # vendor adds a field, and this job must shout when they do.
+      #
+      # Resources are bounded with add_limit(); this is a canary, not a backfill.
+      - name: Live tests
+        env:
+          # dlt resolves credentials from the environment. The secret name comes
+          # from the discover step's convention, so no per-package wiring here.
+          SOURCES__API_KEY: ${{ secrets[matrix.entry.secret] }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SOURCES__API_KEY}" ]; then
+            echo "::error::Secret ${{ matrix.entry.secret }} is not set for ${{ matrix.entry.package }}"
+            exit 1
+          fi
+          cd "packages/${{ matrix.entry.package }}"
+          uv run pytest -m live -v
+
+  # A red X on a scheduled run that nobody is watching is not a signal.
+  # update_existing keeps this to one open issue instead of thirty a month.
+  # Same pattern as element-hq/synapse and scikit-image.
+  report-failure:
+    name: Report failure
+    needs: [discover, live]
+    if: failure() && github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: JasonEtco/create-an-issue@v2.9.2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          filename: .github/live-failure-issue-template.md
+          update_existing: true

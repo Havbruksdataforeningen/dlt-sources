@@ -1,3 +1,21 @@
+# Pull-request and main-branch quality gate.
+#
+# Shape and rationale: docs/agents/testing.md, evidence in docs/research/ci-cd.md.
+#
+# Four checks run in PARALLEL, each named for what it checks, each looping over
+# every workspace member. Parallel-and-named means a contributor learns about a
+# type error and a test failure in one round trip instead of two, and learns
+# which one failed without opening a log. This is what stripe-python and
+# meltano/sdk do; dlt chains lint before tests and pays a round trip per typo.
+#
+# Every job loops flatly over packages/*/ rather than computing which packages
+# changed. Airbyte and dlt-hub/verified-sources both compute affected packages —
+# because they have 37 and 300+ connectors. The trigger to add that here is CI
+# wall-clock getting painful, not the package count going up.
+#
+# Nothing here touches the network beyond installing dependencies. Live-API
+# tests are in live.yml, on a schedule, and never on a pull request.
+
 name: CI
 
 on:
@@ -6,35 +24,149 @@ on:
   pull_request:
     branches: [main]
 
+# One in-flight run per branch. A force-push supersedes the previous run instead
+# of racing it. Never cancel on main — those runs are the record of what landed.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+# Least privilege by default; no job here needs to write anything.
+permissions:
+  contents: read
+
 jobs:
-  quality:
+  format:
+    name: Format
     runs-on: ubuntu-latest
-    timeout-minutes: 15
-
+    timeout-minutes: 10
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10
         with:
-          python-version: "3.11"
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v4
-
-      - name: Install workspace
-        run: uv sync --all-packages --all-groups
-
-      # Every package's checks run on every PR. Path filtering is deliberately
-      # skipped until it hurts — see Ingest-Barentswatch#12.
-      - name: Lint and test all packages
+          enable-cache: true
+      # --locked fails if uv.lock is stale rather than silently resolving
+      # something different from what a developer tested against.
+      - run: uv sync --all-packages --all-groups --locked
+      - name: ruff format --check
         run: |
-          set -e
+          set -euo pipefail
           for d in packages/*/; do
-            echo "== ${d}"
-            (cd "${d}" \
-              && uv run ruff format --check src tests \
-              && uv run ruff check src tests \
-              && uv run pytest -m "not integration")
+            echo "::group::${d}"
+            (cd "${d}" && uv run ruff format --check src tests)
+            echo "::endgroup::"
           done
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10
+        with:
+          enable-cache: true
+      - run: uv sync --all-packages --all-groups --locked
+      - name: ruff check
+        run: |
+          set -euo pipefail
+          for d in packages/*/; do
+            echo "::group::${d}"
+            (cd "${d}" && uv run ruff check --output-format=github src tests)
+            echo "::endgroup::"
+          done
+
+  typecheck:
+    name: Types
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10
+        with:
+          enable-cache: true
+      - run: uv sync --all-packages --all-groups --locked
+      # src AND tests. For a connector the mapping assertions live in the tests,
+      # so excluding them leaves the most schema-sensitive code unchecked.
+      # The pyright version is pinned in each package's dev dependency group and
+      # bumped deliberately — it ships weekly and new diagnostics turn unrelated
+      # PRs red.
+      - name: pyright
+        run: |
+          set -euo pipefail
+          for d in packages/*/; do
+            echo "::group::${d}"
+            (cd "${d}" && uv run pyright)
+            echo "::endgroup::"
+          done
+
+  test:
+    name: Tests (py${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      # Floor and ceiling of the supported range. Testing every minor in between
+      # buys little for pure-Python packages with no compiled dependencies; a
+      # break almost always shows at one end or the other.
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.14"]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10
+        with:
+          enable-cache: true
+          python-version: ${{ matrix.python-version }}
+      - run: uv sync --all-packages --all-groups --locked
+      # No -m filter here on purpose: each package's addopts already deselects
+      # the live tier, so a bare `pytest` is offline by construction both here
+      # and on a laptop. Coverage is printed, never enforced — see
+      # docs/agents/testing.md on why a floor is the wrong gate for connectors.
+      - name: pytest
+        run: |
+          set -euo pipefail
+          for d in packages/*/; do
+            echo "::group::${d}"
+            (cd "${d}" && uv run pytest --cov --cov-report=term-missing)
+            echo "::endgroup::"
+          done
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10
+        with:
+          enable-cache: true
+      # Every package must build on every PR. A packaging error found at release
+      # time is found at the worst possible moment; this makes a green PR mean
+      # "publishable", which is the whole point of the gate.
+      - name: uv build
+        run: |
+          set -euo pipefail
+          for d in packages/*/; do
+            pkg="$(basename "${d}")"
+            echo "::group::${pkg}"
+            uv build --package "${pkg}"
+            echo "::endgroup::"
+          done
+
+  # Single required status check. Branch protection lists ONLY this job, so
+  # adding or renaming a job above never requires touching repo settings — and a
+  # skipped or cancelled dependency can never be mistaken for a pass, which is
+  # the classic path-filtering trap. The `always()` + explicit result test is
+  # what makes that work: without it this job would be skipped, not failed,
+  # when a dependency fails.
+  ci-ok:
+    name: CI OK
+    if: always()
+    needs: [format, lint, typecheck, test, build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail if any dependency did not succeed
+        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') || contains(needs.*.result, 'skipped')
+        run: |
+          echo "One or more required checks did not succeed."
+          exit 1
+      - run: echo "All checks passed."
