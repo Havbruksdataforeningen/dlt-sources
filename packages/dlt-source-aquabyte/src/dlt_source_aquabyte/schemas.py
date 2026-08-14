@@ -11,11 +11,15 @@ Every model allows extra fields (`extra="allow"`), which dlt translates into the
 `evolve` column contract: a field the API adds after this release lands in the
 destination instead of failing the load. Fields the spec marks nullable default to
 ``None`` so a field the API stops sending does not fail the load either.
+
+The models deliberately declare **scalar fields only**. A declared nested field
+becomes a column hint that dlt honours over `max_table_nesting`, which would silently
+override a consumer who raised the setting to get child tables. Nested fields still
+land — `extra="allow"` carries them — and their destination shape stays the
+consumer's call. See "Nesting" in the README.
 """
 
-from typing import Any
-
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict
 
 
 class AquabyteModel(BaseModel):
@@ -33,11 +37,13 @@ class Pen(AquabyteModel):
 
 
 class Site(AquabyteModel):
+    """A `/sites` record. The nested `pens` list is undeclared on purpose — see the
+    module docstring; the `pens` transformer unwraps it into its own table."""
+
     id: str
     name: str
     governmentSiteNumber: int | None = None
     external_site_id: str | None = None
-    pens: list[Pen] = Field(default_factory=list)
 
 
 class EnvironmentalDataPoint(AquabyteModel):
@@ -62,22 +68,23 @@ class EnvironmentalDataLive(AquabyteModel):
     salinity: float | None = None
 
 
-class WeightDistModel(AquabyteModel):
-    interval: list[float] = Field(default_factory=list)
-    distribution: list[float] = Field(default_factory=list)
-
-
 class BiomassDailyModel(AquabyteModel):
+    """A `/biomass` record. The nested `weightDist` (`interval`/`distribution` arrays)
+    is undeclared on purpose — see the module docstring."""
+
     penId: str
     date: str
     sampleSize: float | None = None
     avgWeight: float | None = None
     kFactor: float | None = None
     cv: float | None = None
-    weightDist: WeightDistModel | None = None
 
 
 class BiomassHarvestReport(AquabyteModel):
+    """A `/biomass/harvestReport` record. The `packedWeightDistribution` and
+    `roundWeightDistribution` mappings are undeclared on purpose — see the module
+    docstring; their keys are open-ended weight buckets."""
+
     penId: str
     mainReport: bool
     asOfDate: str
@@ -92,8 +99,6 @@ class BiomassHarvestReport(AquabyteModel):
     avgPackedWeightGrams: float
     avgRoundWeightGrams: float
     superiorRate: float
-    packedWeightDistribution: dict[str, float] = Field(default_factory=dict)
-    roundWeightDistribution: dict[str, float] = Field(default_factory=dict)
     createdAt: str
 
 
@@ -129,15 +134,12 @@ class BehaviorBreathingIndex(AquabyteModel):
 class WelfareScoresRecord(AquabyteModel):
     """A `/welfareScores` record exactly as the API returns it.
 
-    `welfareScores` maps a category name to that category's scores (or null) —
-    `active` and `healed` keyed by the score bands the API uses literally (`"1"`,
-    `"2"`, `"3"`), plus `nothing` and `sampleSize`; see `specs/openapi-v3.1.1.json`.
-    It is deliberately typed as a plain mapping rather than a fixed list of
-    categories: a category the API adds later must land untouched, and the resource
-    sets `max_table_nesting=0` so the whole mapping becomes one JSON column anyway.
-    Flattening it into one row per category is the consumer's transform.
+    The nested `welfareScores` mapping is undeclared on purpose — see the module
+    docstring. It maps a category name to that category's scores (or null): `active`
+    and `healed` keyed by the score bands the API uses literally (`"1"`, `"2"`,
+    `"3"`), plus `nothing` and `sampleSize`; see `specs/openapi-v3.1.1.json`. Nothing
+    here enumerates categories, so a category the API adds later lands untouched.
     """
 
     penId: str
     date: str
-    welfareScores: dict[str, Any] | None = None

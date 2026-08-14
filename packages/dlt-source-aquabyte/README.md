@@ -61,9 +61,23 @@ print(pipeline.run(aquabyte_source()))
 
 ### `welfare_scores` is not unpivoted
 
-The API returns one record per pen and date with every welfare category nested inside it, and that is what lands: `penId`, `date`, and the whole nested object as a single JSON column (`max_table_nesting=0`). A category the API adds after this release arrives untouched, because nothing here enumerates categories.
+The API returns one record per pen and date with every welfare category nested inside it, and that is what lands: `penId`, `date`, and the whole nested object as a single JSON column. A category the API adds after this release arrives untouched, because nothing here enumerates categories.
 
 Flattening it into one row per category is a transform on your side — a `LATERAL`/`UNNEST` over the JSON column in your warehouse, or dlt's `add_map` before load.
+
+## Nesting
+
+The source sets `max_table_nesting=0`, so a nested object or list lands as one JSON column instead of dlt's automatic child tables. That is the neutral position, not an extra opinion: unnesting invents tables, column names and keys (`_dlt_parent_id`, `_dlt_list_idx`) that exist nowhere in the API, and this source leaves reshaping to you. It also keeps the destination shape a function of the API response alone, rather than of which fields happened to be nested in the first page loaded.
+
+**It is a default, not a lock.** Raise it for the whole source or one resource and dlt unnests as usual:
+
+```python
+source = aquabyte_source()
+source.max_table_nesting = 2          # every resource
+source.sites.max_table_nesting = 1    # or just one — gives you a sites__pens table
+```
+
+This is also why the Pydantic models in `schemas.py` declare scalar fields only. A declared nested field becomes a column hint that dlt honours *over* this setting, which would silently ignore a consumer who raised it. Nested fields still land — the models allow extra fields — but their shape stays your call. The one exception is `pens`, which is unwrapped by an explicit transformer you can see in the resource list, rather than by dlt behind your back.
 
 ## Parameters
 
@@ -101,7 +115,7 @@ The API's own limits are worth knowing either way: **1000 requests/hour**, and a
 
 ## Schemas
 
-The Pydantic models in `schemas.py` give the destination proper column types even when the first page is all nulls, and double as documentation of the API's record shapes. They allow extra fields, which dlt reads as the `evolve` column contract: **a field the API adds lands as a new column instead of failing the load.**
+The Pydantic models in `schemas.py` give the destination proper column types even when the first page is all nulls, and double as documentation of the API's record shapes. They allow extra fields, which dlt reads as the `evolve` column contract: **a field the API adds lands as a new column instead of failing the load.** They type scalar fields only — see [Nesting](#nesting) for why.
 
 ## Logging
 

@@ -66,3 +66,18 @@ def test_sites_keeps_nested_pens_untouched(mock_rest_client):
         rows = client.execute_sql("SELECT pens FROM sites WHERE id = 'site-001'")
         assert rows is not None
         assert '"pen-002"' in rows[0][0], "the inactive pen must survive in the raw payload"
+
+
+def test_a_consumer_can_override_the_nesting_default(mock_rest_client):
+    """`max_table_nesting=0` is a default, not a lock: raising it gives child tables.
+
+    The models must therefore not declare nested fields — a column hint would win over
+    the setting and silently ignore the consumer.
+    """
+    mock_rest_client.paginate.return_value = iter([load_mock("sites.json")["sites"]])
+
+    source = aquabyte_source(**SOURCE_CONFIG)
+    source.sites.max_table_nesting = 1
+    pipeline, _ = run_source("test_sites_nesting_override", source, ["sites"])
+
+    assert "sites__pens" in pipeline.default_schema.tables

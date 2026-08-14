@@ -111,6 +111,7 @@ def _paginate_per_pen(
         )
 
 
+# Standalone, so it carries the source's max_table_nesting=0 default itself.
 @dlt.resource(write_disposition="replace", columns=Site, max_table_nesting=0)
 def site_by_id(
     site_id: str,
@@ -137,7 +138,7 @@ def site_by_id(
     )
 
 
-@dlt.source
+@dlt.source(max_table_nesting=0)
 def aquabyte_source(
     base_url: str = dlt.config.value,
     api_key: str = dlt.secrets.value,
@@ -158,7 +159,7 @@ def aquabyte_source(
     """
     client = _make_client(base_url, api_key)
 
-    @dlt.resource(write_disposition="replace", columns=Site, max_table_nesting=0)
+    @dlt.resource(write_disposition="replace", columns=Site)
     def sites(site_id: str | None = None, params: dict[str, Any] | None = None):
         """All sites from `GET /sites`, each with its pens nested as the API nests them.
 
@@ -409,7 +410,6 @@ def aquabyte_source(
         write_disposition="merge",
         primary_key=["penId", "date"],
         columns=WelfareScoresRecord,
-        max_table_nesting=0,
     )
     def welfare_scores(
         pen_id: PenId = "all",
