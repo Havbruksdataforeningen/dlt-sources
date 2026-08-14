@@ -26,7 +26,7 @@ dlt-sources/
         └── examples/
 ```
 
-Adding a source = adding a folder; CI and conventions are inherited. Why it works this way: [`docs/agents/monorepo.md`](docs/agents/monorepo.md).
+Adding a source = adding a folder; CI and conventions are inherited. Why it works this way: [`docs/monorepo.md`](docs/monorepo.md).
 
 ## Developing
 
@@ -43,4 +43,4 @@ Build one package: `uv build --package dlt-source-aquabyte` (from the root). CI 
 
 Versions are independent per package, and a tag names what it releases — `dlt-source-aquabyte/v0.2.0` → PyPI, a release candidate `…/v0.2.0rc1` → a test release on TestPyPI. Trusted Publishing, no stored tokens.
 
-The step-by-step guide, written for your first release, is [`docs/agents/release.md`](docs/agents/release.md).
+The step-by-step guide, written for your first release, is [`docs/release.md`](docs/release.md).

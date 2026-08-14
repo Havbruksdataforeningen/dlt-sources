@@ -16,7 +16,7 @@ dlt-source-aquabyte/v0.2.0
    which package    which version
 ```
 
-The publishing itself is automated. When you push a tag like that, [`release.yml`](../../.github/workflows/release.yml) builds that one package and publishes it. Your job is the five steps that lead up to that push.
+The publishing itself is automated. When you push a tag like that, [`release.yml`](../.github/workflows/release.yml) builds that one package and publishes it. Your job is the five steps that lead up to that push.
 
 ## Before you start
 
@@ -162,7 +162,7 @@ A pending publisher does not reserve the name — the name is claimed the first 
 
 ## Rules for the release workflow
 
-You only need these if you are changing [`release.yml`](../../.github/workflows/release.yml). Whatever you change, keep these true:
+You only need these if you are changing [`release.yml`](../.github/workflows/release.yml). Whatever you change, keep these true:
 
 - **Tags are `<package>/vX.Y.Z`.** GitHub's `*` does not match `/`, so `dlt-source-aquabyte/v*` selects exactly one package. `ing-bank/ordeq`, a uv workspace publishing to PyPI, uses the same scheme.
 - **PyPI or TestPyPI is decided by parsing the version** with `packaging`, never by looking for text in the tag. Text matching is wrong in both directions: a package named `dlt-source-devices` looks like a dev release, and `1.0.0b2` — a real pre-release — looks final.

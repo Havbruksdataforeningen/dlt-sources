@@ -1,6 +1,6 @@
 # Pull-request and main-branch quality gate.
 #
-# Shape and rationale: docs/agents/testing.md.
+# Shape and rationale: docs/testing.md.
 #
 # Four checks run in PARALLEL, each named for what it checks, each looping over
 # every workspace member. Parallel-and-named means a contributor learns about a
@@ -15,7 +15,7 @@
 #
 # Nothing here touches the network beyond installing dependencies. We run no
 # tests against a supplier's live API, on a schedule or otherwise — see
-# docs/agents/testing.md for why that is a deliberate choice.
+# docs/testing.md for why that is a deliberate choice.
 
 name: CI
 
@@ -121,7 +121,7 @@ jobs:
       # No filter flags here on purpose. Tests are offline by default, and a
       # package that has optional live tests excludes them in its own addopts.
       # So this command means the same thing here and on a laptop.
-      # Coverage is printed, never enforced — see docs/agents/testing.md.
+      # Coverage is printed, never enforced — see docs/testing.md.
       - name: pytest
         run: |
           set -euo pipefail

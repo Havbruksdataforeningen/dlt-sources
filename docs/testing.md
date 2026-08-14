@@ -6,7 +6,7 @@ How tests are run in this repo. **Not** how to write them — that is each packa
 
 A source package decides how it tests itself: what it fakes, what it asserts on, how it structures fixtures. One supplier's API might justify recorded responses; another might have a public sandbox worth testing against for real. Those are package-level calls, and the package author is the one who can make them.
 
-So this document is short on purpose. Instead of rules, look at [`packages/dlt-source-aquabyte/tests/`](../../packages/dlt-source-aquabyte/tests/) — it is the worked example, and it is the thing to copy from when you add a package.
+So this document is short on purpose. Instead of rules, look at [`packages/dlt-source-aquabyte/tests/`](../packages/dlt-source-aquabyte/tests/) — it is the worked example, and it is the thing to copy from when you add a package.
 
 ## Where tests live
 
@@ -36,7 +36,7 @@ Coverage is measured and printed, never enforced. There is no minimum percentage
 
 If your package has tests that need real credentials or a real API, keep them out of the default `pytest` run — for example in a separate directory that your `addopts` ignores — and run them by hand. There is no scheduled job that runs them for you, and nothing stops you adding one for a specific package later if it earns its place.
 
-**CI runs format, lint and type checks as separate jobs**, alongside the tests, so one push tells you about all of them at once. See [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml).
+**CI runs format, lint and type checks as separate jobs**, alongside the tests, so one push tells you about all of them at once. See [`.github/workflows/ci.yml`](../.github/workflows/ci.yml).
 
 ## Two things to keep to
 
