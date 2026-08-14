@@ -34,7 +34,7 @@ Adding a source = adding a folder; CI and conventions are inherited.
 uv sync --all-packages --all-groups   # one shared dev environment
 
 cd packages/dlt-source-aquabyte       # each package has its own tests and lint config
-uv run pytest -m "not integration"
+uv run pytest    # offline by default; live API tests need -m integration
 ```
 
 Build one package: `uv build --package dlt-source-aquabyte` (from the root). CI runs every package's format check, lint, and tests on every PR.

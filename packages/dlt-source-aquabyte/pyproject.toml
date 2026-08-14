@@ -49,8 +49,11 @@ venv = ".venv"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# The default run is offline — it needs no Aquabyte credentials, so it means
+# the same thing in CI and on a laptop. Run the live tests with -m integration.
+addopts = "-m 'not integration'"
 markers = [
-    "integration: marks tests that hit the real Aquabyte API (deselect with '-m \"not integration\"')",
+    "integration: marks tests that hit the real Aquabyte API (run with -m integration)",
 ]
 filterwarnings = [
     "ignore::DeprecationWarning:dlt.common.libs.pydantic",
