@@ -43,4 +43,4 @@ Build one package: `uv build --package dlt-source-aquabyte` (from the root). CI 
 
 Versions are independent per package, and a tag names what it releases — `dlt-source-aquabyte/v0.2.0` → PyPI, a release candidate `…/v0.2.0rc1` → a test release on TestPyPI. Trusted Publishing, no stored tokens.
 
-The procedure lives in [`.agents/skills/release-package/`](.agents/skills/release-package/SKILL.md) — an agent skill your coding agent picks up automatically ("release dlt-source-aquabyte"), written to also read as a normal step-by-step document you can follow by hand. The reasoning behind the setup is in [`docs/research/ci-cd.md`](docs/research/ci-cd.md).
+The step-by-step guide, written for your first release, is [`docs/agents/release.md`](docs/agents/release.md). The reasoning behind the setup is in [`docs/research/ci-cd.md`](docs/research/ci-cd.md).

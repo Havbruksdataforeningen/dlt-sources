@@ -7,7 +7,7 @@ The step-by-step rules are elsewhere, so this stays short:
 | Read this | When |
 |---|---|
 | [`docs/agents/testing.md`](../agents/testing.md) | You are writing tests |
-| [`.agents/skills/release-package/`](../../.agents/skills/release-package/SKILL.md) | You are cutting a release — an agent can walk you through it, or follow it by hand |
+| [`docs/agents/release.md`](../agents/release.md) | You are cutting a release |
 | [`ci-cd-evidence.md`](./ci-cd-evidence.md) | You want to challenge a decision below |
 | [`CONTEXT-MAP.md`](../../CONTEXT-MAP.md) | A word here is unfamiliar |
 
@@ -31,7 +31,7 @@ These are promises. If a change breaks one, the change is wrong.
 
 **You only deal with your own package.** Its own tests, its own config, its own version. You don't read the others or run their tests.
 
-**You never write CI configuration.** Adding a source package means adding a folder. The workflows find it. The only manual step is one-time PyPI setup, which the release procedure walks you through on a package's [first release](../../.agents/skills/release-package/first-release.md).
+**You never write CI configuration.** Adding a source package means adding a folder. The workflows find it. The only manual step is one-time PyPI setup, covered in [release.md](../agents/release.md#first-release-of-a-package).
 
 **The standards are identical everywhere.** Same formatter, linter and type checker in every package. Nothing to decide, nothing to argue about in review.
 

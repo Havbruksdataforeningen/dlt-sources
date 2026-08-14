@@ -220,8 +220,5 @@ marimo/_static/
 marimo/_lsp/
 __marimo__/
 
-# Claude Code
-#  .claude/skills is a committed symlink to .agents/skills; everything else under
-#  .claude/ is local state (worktrees, local settings) and stays out of git.
-.claude/*
-!.claude/skills
+# Claude Code local state (worktrees, local settings)
+.claude/
