@@ -17,7 +17,7 @@ Docs here are read by developers at member companies who are new to this repo, n
 
 ## Testing
 
-Before writing or changing tests, read `docs/agents/testing.md` — offline by default, how HTTP is faked, and what is deliberately not adopted.
+Each package owns how it tests itself. `docs/agents/testing.md` covers only how tests are run and what CI provides; `packages/dlt-source-aquabyte/tests/` is the example to copy from.
 
 ## Releasing
 

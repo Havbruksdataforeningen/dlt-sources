@@ -9,7 +9,7 @@ This repository holds one context per source package, plus the shared language b
 ## Relationships
 
 - **Package → package**: none, deliberately. Packages share conventions, not code. A term that two packages both need belongs in this file, not in a shared library.
-- **Package → consumer**: a consumer installs one package from PyPI and never sees this repository. Terms below that describe the repository itself (workspace, rehearsal) are ours, not theirs.
+- **Package → consumer**: a consumer installs one package from PyPI and never sees this repository. Terms below that describe the repository itself (workspace, test release) are ours, not theirs.
 
 ## Shared language
 
@@ -52,7 +52,7 @@ Taking the records out of the wrapper object a supplier returns, so the consumer
 The field a resource uses to ask the supplier for only what is new since the last run.
 
 **Drift**:
-A change a supplier makes to their API that alters the shape of the data we receive. The main risk to a source package. We do not detect it automatically — see [testing.md](./docs/agents/testing.md#live-tests-are-optional-and-per-package).
+A change a supplier makes to their API that alters the shape of the data we receive. The main risk to a source package. Detecting it is up to each package — see [testing.md](./docs/agents/testing.md).
 _Avoid_: breakage, schema change (too broad — a change we make is not drift)
 
 **Schema contract**:
@@ -61,13 +61,16 @@ The dlt setting that decides what happens when incoming data does not match the 
 ### Testing and release
 
 **Sample response**:
-A saved JSON file in a package's `tests/fixtures/`, standing in for one supplier endpoint. Taken from the supplier's documented examples where they publish any, otherwise from one real response.
+A saved response body a package's tests use in place of a real call to the supplier. Where it comes from and how it is stored is the package's choice.
 _Avoid_: cassette, recording, snapshot
 
 **Live test**:
-An optional test that calls the real supplier API. It lives in `tests/live/` and is excluded from the default test run. Most packages have none.
+A test that calls the real supplier API. It needs credentials, so it is kept out of the default test run. Most packages have none.
 _Avoid_: integration test (ambiguous — in most projects it still means offline), e2e, smoke test
 
-**Rehearsal**:
-A release to TestPyPI, using a pre-release version, done to check a release before the real one. Each rehearsal needs its own version number.
-_Avoid_: dry run (nothing is simulated — it is a real publish to a different index)
+**Test release**:
+A publish to TestPyPI, using a release candidate version, done to check a package before releasing it properly.
+_Avoid_: rehearsal, dry run (nothing is simulated — it is a real publish to a different index)
+
+**Release candidate**:
+A pre-release version such as `0.2.0rc1`. Publishing one is how a test release is done. Each attempt needs its own number, because neither index accepts a version twice.

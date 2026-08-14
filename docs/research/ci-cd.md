@@ -19,9 +19,9 @@ We build **source packages**. Each one reads data from a supplier's API. Member 
 
 Two facts drive everything.
 
-**The supplier's API is the risk, not our code.** A source package has little complex logic. It requests, reads, and hands data to dlt. Things go wrong when a supplier's response is not the shape we assumed. So our tests check that we handle real, documented responses correctly — not that our functions call each other.
+**The supplier's API is the risk, not our code.** A source package has little complex logic. It requests, reads, and hands data to dlt. Things go wrong when a supplier's response is not the shape we assumed. A test that proves our functions call each other is not worth much; a test that proves we handle a realistic response is.
 
-We do *not* try to detect supplier changes automatically. That needs credentials, scheduled jobs, alerting and schema comparison — a lot of machinery for every contributor to learn. We accept that a member company might tell us about a change before a test does. See [testing.md](../agents/testing.md#live-tests-are-optional-and-per-package).
+How to do that is each package's decision — one supplier publishes an OpenAPI spec, another has a public sandbox, another gives you nothing but a sample payload. We do not impose one method. What we do impose is that CI has no supplier credentials, so the default test run has to work without them. See [testing.md](../agents/testing.md).
 
 **Each package has its own version and its own users.** Someone installing `dlt-source-aquabyte` does not know the other packages exist, and must not be affected by them. We keep everything in one repo for our own convenience — the repo stays invisible to the consumer.
 
@@ -49,14 +49,14 @@ These are promises. If a change breaks one, the change is wrong.
 
 ### Testing
 
-- **Tests are offline.** They replace HTTP with `requests-mock` and feed the source saved sample responses. → [why](./ci-cd-evidence.md#1-how-we-replace-http)
-- **Sample responses come from the supplier's documented examples** — an OpenAPI/Swagger spec where one exists — otherwise from one real captured response, trimmed. They live in `tests/fixtures/`.
-- **We mock HTTP, never dlt's `RESTClient`.** Mocking the client only proves your code calls your mock; the interesting logic never runs. → [why](./ci-cd-evidence.md#1-how-we-replace-http)
-- **No recorded cassettes.** Nobody comparable uses them, and they go stale silently. → [why](./ci-cd-evidence.md#2-why-not-cassettes)
-- **We assert on what lands in DuckDB**, not just on what a resource yields.
+- **Each package owns its test setup.** We document how tests are *run*, not how they are written. `dlt-source-aquabyte` is the worked example to copy from. → [testing.md](../agents/testing.md)
+- **Tests live in `packages/<name>/tests/`** and each package configures pytest itself. No repo-level suite, no repo-level `conftest.py`.
+- **Every package's suite runs on every pull request**, via a plain loop. Simple, needs no configuration, and catches one package breaking another. Make it smarter when CI gets slow, not before.
+- **CI has no supplier credentials.** Whatever the default `pytest` run does, it has to pass without them. Anything needing real access stays out of that run and is run by hand.
 - **Coverage is measured and printed, never enforced.** → [why](./ci-cd-evidence.md#3-coverage)
-- **Live tests are optional and per package**, excluded from the default run. There is no scheduled job. → [why](../agents/testing.md#live-tests-are-optional-and-per-package)
 - **Format, lint, types and tests run in parallel**, as separate named jobs. → [why](./ci-cd-evidence.md#4-static-checks)
+
+The evidence doc also records what comparable projects do about [faking HTTP](./ci-cd-evidence.md#1-how-we-replace-http) and [recorded cassettes](./ci-cd-evidence.md#2-why-not-cassettes). That is background for a package author making these choices, not a repo-wide rule.
 
 ### Versioning
 
@@ -77,12 +77,6 @@ These are promises. If a change breaks one, the change is wrong.
 
 ## One thing still to decide
 
-**The release approval step doesn't work yet.** The org is on GitHub Free and this repo is private. On that plan, GitHub only offers required reviewers for public repositories.
+**The release approval step doesn't gate anything yet.** The org is on GitHub Free and this repo is private, and on that plan GitHub only offers required reviewers for public repositories. The release workflow runs and publishes without waiting for anyone.
 
-Three options:
-
-1. **Make the repo public.** Cheapest, works immediately, and matches comparable projects — pip, ruff, httpx and ordeq are all public. The packages go to public PyPI anyway.
-2. **Upgrade the org plan.**
-3. **Stay private and restrict who can create release tags.** Weaker: it controls who starts a release, not whether a second person checks it.
-
-Details in [ci-cd-evidence.md](./ci-cd-evidence.md#10-the-approval-step).
+Tracked in [#8](https://github.com/Havbruksdataforeningen/dlt-sources/issues/8), with the three options and their trade-offs. It has to be resolved before the first real release.

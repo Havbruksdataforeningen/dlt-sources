@@ -1,50 +1,92 @@
 # Releasing
 
-How to release a source package. The reasoning is in [`docs/research/ci-cd.md`](../research/ci-cd.md), the citations in [`ci-cd-evidence.md`](../research/ci-cd-evidence.md), and the automation in [`.github/workflows/release.yml`](../../.github/workflows/release.yml).
+How to publish a source package to PyPI.
 
-Vocabulary: [`CONTEXT-MAP.md`](../../CONTEXT-MAP.md).
+Reasoning: [`docs/research/ci-cd.md`](../research/ci-cd.md). Citations: [`ci-cd-evidence.md`](../research/ci-cd-evidence.md). Automation: [`.github/workflows/release.yml`](../../.github/workflows/release.yml). Vocabulary: [`CONTEXT-MAP.md`](../../CONTEXT-MAP.md).
 
-The goal is that **adding a source is adding a folder**. No workflow edit, no release ceremony beyond a tag.
+## Why it works this way
+
+This repo holds several source packages, but **each one is a separate package on PyPI** with its own version number and its own users. Someone who installs `dlt-source-aquabyte` does not know the other packages exist, and must not be affected when they change. We keep everything in one repo for our own convenience — the repo itself is invisible to whoever installs the package.
+
+That has one consequence you need to remember: **a release is always a release of one package**, never of the repo. So the git tag has to say which package it means. That is why tags start with the package name:
+
+```
+dlt-source-aquabyte/v0.2.0
+└──────┬──────────┘ └─┬──┘
+   which package    which version
+```
+
+The workflow reads the package name from the tag and builds only that package. Nothing else in the repo is touched or published.
 
 ## How to release
 
-1. **In a PR**: `uv version --package <pkg> --bump minor`, and move the package's CHANGELOG entry out of `Unreleased`. Merge.
-2. **Tag the one package**, annotated:
-   ```
-   git tag -a dlt-source-aquabyte/v0.2.0 -m 'dlt-source-aquabyte 0.2.0'
-   git push origin dlt-source-aquabyte/v0.2.0
-   ```
-3. **A maintainer approves** the run on the `pypi` environment. Done.
+**1. Bump the version.** Pick the part that matches what changed:
 
-Rehearsal: tag `…/v0.2.0rc1` instead — same build, goes to TestPyPI, no approval. Each rehearsal needs its own version; both indexes refuse to re-upload one that exists.
+```bash
+uv version --package dlt-source-aquabyte --bump patch   # bug fix
+uv version --package dlt-source-aquabyte --bump minor   # new feature
+uv version --package dlt-source-aquabyte --bump major   # breaking change
+```
+
+This edits `version` in that package's `pyproject.toml`. Nothing else.
+
+**2. Update the changelog.** In `packages/<package>/CHANGELOG.md`, move the entries from `Unreleased` into a new section for this version.
+
+**3. Open a pull request with those two changes and merge it.** The version that gets published is the one in `pyproject.toml`, so it has to be on `main` before you tag.
+
+**4. Tag the merged commit and push the tag:**
+
+```bash
+git tag -a dlt-source-aquabyte/v0.2.0 -m 'dlt-source-aquabyte 0.2.0'
+git push origin dlt-source-aquabyte/v0.2.0
+```
+
+Push the one tag by name. Do **not** use `git push --tags` — see the rules below.
+
+**5. Approve the run.** A maintainer approves it in GitHub Actions, and the package goes to PyPI.
+
+## Test it first with a release candidate
+
+Before a real release you can publish to **TestPyPI** instead, to check that the package builds and installs correctly. Use a release candidate version — `0.2.0rc1` — and the same steps as above:
+
+```bash
+uv version --package dlt-source-aquabyte --bump rc
+git tag -a dlt-source-aquabyte/v0.2.0rc1 -m 'dlt-source-aquabyte 0.2.0rc1'
+git push origin dlt-source-aquabyte/v0.2.0rc1
+```
+
+The workflow sees that `0.2.0rc1` is a pre-release version and sends it to TestPyPI. No approval is needed. Install it from there and check it works.
+
+If something is wrong, fix it and use `rc2`. Each attempt needs its own version number, because PyPI and TestPyPI both refuse to accept a version that already exists.
 
 ## Rules
 
-- **Each package has its own version.** Releasing one says nothing about the others. A consumer never sees this repo.
-- **Tags are `<package>/vX.Y.Z`.** GitHub's `*` does not match `/`, so `dlt-source-aquabyte/v*` selects exactly one package, and `${REF_NAME%%/*}` always gives the package name. `ing-bank/ordeq`, a uv workspace publishing to PyPI, uses the same scheme.
+- **Each package has its own version.** Releasing one says nothing about the others.
+- **Tags are `<package>/vX.Y.Z`.** GitHub's `*` does not match `/`, so `dlt-source-aquabyte/v*` selects exactly one package. `ing-bank/ordeq`, a uv workspace publishing to PyPI, uses the same scheme.
 - **Push the tag by name. Never `git push --tags`.** GitHub sends **no push event at all** when more than three tags arrive at once, so the release silently does not run.
-- **The version is written in `pyproject.toml`.** Bump it with `uv version --package <pkg> --bump <part>`. Keeping it in the file means you see it in the PR diff, next to the changelog entry. (`setuptools-scm` can derive it from the tag instead, and does work with our tag format — but the only real gain is that tag and version cannot disagree, and the CI check below gives us that for three lines.)
-- **CI checks the tag against the version in the file**, comparing them as PEP 440 values so `v0.2.0-rc1` equals `0.2.0rc1`. Without it, tagging `v0.3.0` while the file says `0.1.0` publishes the wrong version **permanently** — PyPI never lets a version number be reused. `encode/httpx` checks this the same way.
-- **PyPI or TestPyPI is decided by parsing the version**, never by looking for text in the tag. Text matching is wrong in both directions: a package called `dlt-source-devices` looks like a dev release, and `v1.0.0b2` — a real pre-release — looks final and would go to production PyPI.
-- **Trusted Publishing only. No stored PyPI tokens.** Put `id-token: write` at **job** level, never workflow level.
-- **Publish with `pypa/gh-action-pypi-publish`, not `uv publish`.** uv's own docs say it does not generate PEP 740 attestations; the PyPA action creates and uploads them by default, and checks the metadata first. Also, `uv publish` defaults to `--trusted-publishing automatic`, which **hides authentication failures**. If you ever do use uv, pass `always`.
-- **Build with `uv build --package <pkg> --no-sources`.** `--no-sources` builds the package the way a consumer gets it, so a dependency that would not resolve from PyPI fails here instead of downstream.
-- **Pin the publish action to a commit SHA, not a tag.** It holds our PyPI identity, and its own README asks for this.
-- **Environment names are fixed text — `pypi` and `testpypi`.** If you build the name from an expression, GitHub creates any environment that does not exist yet **with no protection rules**, so a new package would publish with no approval.
-- **Changelogs are written by hand**, per package, in Keep a Changelog format, in the same PR as the version bump. Consider `release-please` only when this becomes tedious.
+- **The version lives in `pyproject.toml`**, not in the tag. Keeping it in the file means you see it in the pull request, next to the changelog entry.
+- **CI checks that the tag matches the version in the file**, comparing them as PEP 440 values so `v0.2.0-rc1` equals `0.2.0rc1`. Without that check, tagging `v0.3.0` while the file says `0.1.0` would publish the wrong version **permanently** — PyPI never lets a version number be reused.
+- **PyPI or TestPyPI is decided by parsing the version**, never by looking for text in the tag. Text matching is wrong in both directions: a package called `dlt-source-devices` looks like a dev release, and `v1.0.0b2` — a real pre-release — looks final.
+- **Trusted Publishing only. No stored PyPI tokens.** `id-token: write` goes at **job** level, never workflow level.
+- **Publish with `pypa/gh-action-pypi-publish`, not `uv publish`.** uv's own docs say it does not generate PEP 740 attestations, and it defaults to `--trusted-publishing automatic`, which hides authentication failures.
+- **Build with `uv build --package <pkg> --no-sources`,** so the package is built the way someone installing it from PyPI gets it.
+- **Pin the publish action to a commit SHA.** It holds our PyPI identity.
+- **Environment names are fixed text — `pypi` and `testpypi`.** If the name came from an expression, GitHub would create any environment that does not exist yet **with no protection rules**, and a new package would publish with no approval.
 - **Being pre-1.0 is not permission to break things quietly.** While at 0.x, a breaking change gets a minor bump and says so at the top of the changelog entry.
 
 ## One-time setup per package
 
-- A **pending publisher** on PyPI (`owner=Havbruksdataforeningen`, `repo=dlt-sources`, `workflow=release.yml`, `environment=pypi`) and a matching one on TestPyPI (`environment=testpypi`). A pending publisher does **not** reserve the project name until it is first used to publish.
-- Nothing else. The environments are shared across all packages and created once.
+Before a package's first release, someone has to register it with both indexes:
 
-## Blocked: the approval gate needs a plan decision
+- A **pending publisher** on PyPI — owner `Havbruksdataforeningen`, repo `dlt-sources`, workflow `release.yml`, environment `pypi`.
+- The same on TestPyPI, with environment `testpypi`.
 
-**The maintainer-approval gate does not work today.** The org is on **GitHub Free** and this repo is **private**; GitHub's documentation is explicit that required reviewers and environment secrets are available only for public repositories on Free, Pro and Team. Until this is resolved, `release.yml` will publish without the approval step actually gating anything.
+A pending publisher does not reserve the name; the name is claimed the first time you actually publish.
 
-Three ways out, in order of preference:
+Nothing else. The two environments are shared by every package and are created once.
 
-1. **Make the repo public.** Cheapest, unlocks environments and required reviewers immediately, and matches every project cited in the research — pip, ruff, httpx and ordeq are all public. These packages are published to public PyPI regardless.
-2. **Upgrade the org plan.**
-3. **Stay private and gate on tag creation instead** — restrict who may create tags matching the release pattern. This is weaker: it controls *who tags*, not a second pair of eyes at the moment of publish.
+## Known limitation
+
+**The approval step in step 5 does not gate anything yet.** GitHub only offers required reviewers on public repositories for our plan, and this repo is private. The workflow runs and publishes without waiting for anyone.
+
+Tracked in [#8](https://github.com/Havbruksdataforeningen/dlt-sources/issues/8), which must be resolved before the first real release. This section gets removed when it is.
