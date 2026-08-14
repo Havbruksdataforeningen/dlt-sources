@@ -7,7 +7,7 @@ Style rules for every document in this repo — the files here, the README, the 
 - **Plain sentences, active voice, no metaphors or idioms.** Prefer a table or a list over a paragraph.
 - **Use the terms in `CONTEXT-MAP.md` and the package's `CONTEXT.md`.** Do not invent synonyms for things that already have a name.
 - **Prefer the simple mechanism.** When a rule needs machinery to follow, that machinery is a cost every contributor pays — say what it buys, or drop it.
-- **Cite a source when justifying a decision.** Do not survey the field; one good precedent beats a table of them.
+- **Cite one source when justifying a decision.** Survey the field while deciding if you need to, but write down only the best precedent — the survey's value ends when the decision is made.
 
 ## What is here
 
