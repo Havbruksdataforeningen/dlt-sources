@@ -153,6 +153,19 @@ jobs:
             echo "::endgroup::"
           done
 
+  docs:
+    name: Docs
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      # One script, three facts a reader would call defects: markdown links and
+      # anchors resolve, every .agents/skills/*/SKILL.md is a valid skill whose
+      # name matches its directory, and the .claude/skills symlink still points
+      # at .agents/skills. Stdlib only, so no uv sync here.
+      - name: Check docs, skills and links
+        run: python3 scripts/check_docs.py
+
   # Single required status check. Branch protection lists ONLY this job, so
   # adding or renaming a job above never requires touching repo settings — and a
   # skipped or cancelled dependency can never be mistaken for a pass, which is
@@ -162,7 +175,7 @@ jobs:
   ci-ok:
     name: CI OK
     if: always()
-    needs: [format, lint, typecheck, test, build]
+    needs: [format, lint, typecheck, test, build, docs]
     runs-on: ubuntu-latest
     steps:
       - name: Fail if any dependency did not succeed

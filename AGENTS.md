@@ -19,11 +19,18 @@ Docs here are read by developers at member companies who are new to this repo, n
 
 Each package owns how it tests itself. `docs/agents/testing.md` covers only how tests are run and what CI provides; `packages/dlt-source-aquabyte/tests/` is the example to copy from.
 
-## Releasing
+The reasoning behind the testing and release setup is in `docs/research/ci-cd.md`, with the citations in `docs/research/ci-cd-evidence.md`.
 
-Before cutting a release or touching release automation, read `docs/agents/releasing.md` — tag format, where the version lives, and the Trusted Publishing setup.
+## Procedures and standards
 
-The reasoning behind both is in `docs/research/ci-cd.md`, with the citations in `docs/research/ci-cd-evidence.md`.
+New instructions go in one of two places:
+
+- A **procedure** — a task with a beginning, an end and an order — is a skill in `.agents/skills/`, one folder per skill. Releasing a package is one: `.agents/skills/release-package/`.
+- A **standard** — a rule that constrains everything you do — is a document in `docs/agents/`.
+
+Creating a new skill is a human decision. When a procedure seems to qualify, propose the skill and let a human create it.
+
+`.claude/skills` is a committed symlink to `.agents/skills`, so Claude Code discovers the same skills other tools read from `.agents/`. CI checks that it still resolves.
 
 ## Agent skills
 

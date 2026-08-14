@@ -1,6 +1,6 @@
 # Release one workspace package to PyPI.
 #
-# Rationale and citations: docs/agents/releasing.md, docs/research/ci-cd.md.
+# Procedure: .agents/skills/release-package/. Rationale: docs/research/ci-cd.md.
 #
 #   1. In a PR: `uv version --package <pkg> --bump minor`, move the CHANGELOG
 #      entry out of Unreleased. Merge.

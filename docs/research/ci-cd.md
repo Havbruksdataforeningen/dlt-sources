@@ -7,7 +7,7 @@ The step-by-step rules are elsewhere, so this stays short:
 | Read this | When |
 |---|---|
 | [`docs/agents/testing.md`](../agents/testing.md) | You are writing tests |
-| [`docs/agents/releasing.md`](../agents/releasing.md) | You are cutting a release |
+| [`.agents/skills/release-package/`](../../.agents/skills/release-package/SKILL.md) | You are cutting a release — an agent can walk you through it, or follow it by hand |
 | [`ci-cd-evidence.md`](./ci-cd-evidence.md) | You want to challenge a decision below |
 | [`CONTEXT-MAP.md`](../../CONTEXT-MAP.md) | A word here is unfamiliar |
 
@@ -31,7 +31,7 @@ These are promises. If a change breaks one, the change is wrong.
 
 **You only deal with your own package.** Its own tests, its own config, its own version. You don't read the others or run their tests.
 
-**You never write CI configuration.** Adding a source package means adding a folder. The workflows find it. The only manual step is one-time PyPI setup, in [releasing.md](../agents/releasing.md).
+**You never write CI configuration.** Adding a source package means adding a folder. The workflows find it. The only manual step is one-time PyPI setup, which the release procedure walks you through on a package's [first release](../../.agents/skills/release-package/first-release.md).
 
 **The standards are identical everywhere.** Same formatter, linter and type checker in every package. Nothing to decide, nothing to argue about in review.
 
@@ -64,6 +64,7 @@ The evidence doc also records what comparable projects do about [faking HTTP](./
 - **The version is written in `pyproject.toml`.** Bump it with `uv version --package <name> --bump <part>`, so it shows up in the PR diff next to the changelog entry. → [why](./ci-cd-evidence.md#5-where-the-version-lives)
 - **Tags are `<package-name>/vX.Y.Z`.** GitHub's `*` doesn't match `/`, so `dlt-source-aquabyte/v*` selects exactly one package. → [why](./ci-cd-evidence.md#6-the-tag-format)
 - **Changelogs are written by hand**, per package. → [why](./ci-cd-evidence.md#7-changelogs)
+- **Being pre-1.0 is not permission to break things quietly.** While at 0.x, a breaking change gets a minor bump and says so at the top of the changelog entry.
 
 ### Releasing
 
@@ -71,7 +72,9 @@ The evidence doc also records what comparable projects do about [faking HTTP](./
 - **PyPI vs TestPyPI is decided by parsing the version**, not by looking for text in the tag. Text matching gets this wrong in both directions. → [why](./ci-cd-evidence.md#8-two-bugs-we-fixed)
 - **Push one tag by name.** Never `git push --tags` — GitHub sends no event when more than three tags arrive at once, and the release silently doesn't run.
 - **We publish with `pypa/gh-action-pypi-publish`**, not `uv publish`. → [why](./ci-cd-evidence.md#9-how-we-publish)
-- **Trusted Publishing, no stored tokens.** Nothing to leak, nothing to rotate.
+- **Trusted Publishing, no stored tokens.** Nothing to leak, nothing to rotate. `id-token: write` sits at job level, never workflow level. → [why](./ci-cd-evidence.md#9-how-we-publish)
+- **Build with `uv build --package <pkg> --no-sources`**, so the package is built the way someone installing it from PyPI gets it — workspace redirects disabled.
+- **Environment names are fixed text (`pypi`, `testpypi`), and the publish action is pinned to a commit SHA.** A name from an expression would let GitHub create an unknown environment with no protection rules, and the action holds our PyPI identity. → [why](./ci-cd-evidence.md#9-how-we-publish)
 
 ---
 

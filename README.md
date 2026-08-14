@@ -41,4 +41,6 @@ Build one package: `uv build --package dlt-source-aquabyte` (from the root). CI 
 
 ## Releasing
 
-Not wired up yet — a concrete workflow sketch lives in [Ingest-Barentswatch#20](https://github.com/Havbruksdataforeningen/Ingest-Barentswatch/pull/20). The short version: versions are independent per package, and a tag names what it releases — `dlt-source-aquabyte/v0.2.0` → PyPI (maintainer approves), `…/v0.2.0-rc1` → TestPyPI rehearsal. Trusted Publishing, no stored tokens.
+Versions are independent per package, and a tag names what it releases — `dlt-source-aquabyte/v0.2.0` → PyPI, a release candidate `…/v0.2.0rc1` → TestPyPI rehearsal. Trusted Publishing, no stored tokens.
+
+The procedure lives in [`.agents/skills/release-package/`](.agents/skills/release-package/SKILL.md) — an agent skill your coding agent picks up automatically ("release dlt-source-aquabyte"), written to also read as a normal step-by-step document you can follow by hand. The reasoning behind the setup is in [`docs/research/ci-cd.md`](docs/research/ci-cd.md).
