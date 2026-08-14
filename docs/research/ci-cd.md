@@ -1,40 +1,149 @@
-# Testing, versioning and releasing a multi-package Python monorepo
+# How we test, version and release
 
-Researched 2026-08-14 against primary sources only: project source repositories read directly, official tool documentation, PEPs, PyPA specifications, GitHub's own Actions documentation, and PyPI's own docs. Secondary write-ups were deliberately excluded. Four connector/SDK codebases were read end to end — **Airbyte's Python CDK and connector monorepo**, **Meltano's Singer SDK**, **dlt itself and dlt-hub/verified-sources**, and **stripe-python / botocore** as HTTP-client reference points.
+Written 2026-08-14.
 
-This is the *why*. The rules distilled from it are in [`docs/agents/testing.md`](../agents/testing.md) and [`docs/agents/releasing.md`](../agents/releasing.md); the automation is in [`.github/workflows/`](../../.github/workflows/).
+This document tells you how we work, and why we chose to work this way. Read it when you join the team. Read it again before you change the build system.
 
-## TL;DR
+The short rules are in two other files. Read them when you do the work:
 
-Split tests by **directory** (`unit/` never touches the network, `live/` never runs on a PR) and stamp the marker from the path so nobody can forget it. Fake HTTP at the **transport** boundary with `requests-mock` — not by mocking dlt's `RESTClient`, which tests nothing but your own call sites. **No cassettes and no coverage floor**: neither is used by any comparable project. Catch upstream drift with a **committed golden schema plus a nightly diff**, run under a `freeze` contract while production stays on `evolve`. Run lint, format, types and tests as **parallel named jobs** behind a single aggregate required check. Version each package **independently**, tag `<package>/vX.Y.Z`, keep the version **static in `pyproject.toml`**, and guard in CI that the tag agrees with it. Build with `uv build --no-sources`, publish with **`pypa/gh-action-pypi-publish`** (not `uv publish` — no attestations, and it swallows OIDC failures by default), via **Trusted Publishing** with no stored tokens.
+- [`docs/agents/testing.md`](../agents/testing.md) — the testing rules.
+- [`docs/agents/releasing.md`](../agents/releasing.md) — the release rules.
 
-**One blocker.** The maintainer-approval gate cannot work today: the org is on GitHub Free and the repo is private, and required reviewers are public-repo-only on that plan. See §9.
+This document uses the words defined in [`CONTEXT-MAP.md`](../../CONTEXT-MAP.md). If a word here is new to you, look there first. Use the same words when you write code, tests and issues.
 
----
+This document has three parts:
 
-## 1. Five findings that should reset expectations
-
-These are the results most likely to contradict what a reasonable engineer would assume going in.
-
-1. **No connector framework of note uses VCR-style cassettes.** Airbyte's CDK, Meltano's SDK, dlt, stripe-python and botocore all use `requests-mock` or an equivalent transport-level fake driven by hand-written JSON. Zero of the five have a `cassettes/` directory.
-2. **No connector framework of note enforces a coverage threshold.** dlt and dlt-hub/verified-sources measure no coverage at all. Airbyte's CDK measures and prints it without a gate. The hard-100% projects (httpx, attrs, structlog, FastAPI) get there by counting their own test files as covered source — a different game.
-3. **"Integration" in these projects usually still means offline.** dlt's [`tests/sources/rest_api/integration/test_offline.py`](https://github.com/dlt-hub/dlt/blob/devel/tests/sources/rest_api/integration/test_offline.py) is 55 tests through the full source→pipeline stack with no network. It means *components wired together*, not *real API*.
-4. **Scheduled live-API runs are rarer than assumed.** dlt, verified-sources, stripe-python, botocore and airbyte-python-cdk have **no scheduled test workflow at all**. Meltano is the exception. A nightly canary is justified here by our specific risk, not by industry default.
-5. **Type checking is universally a separate CI job, never inside pytest** — in all five projects, without exception.
+1. [Why we made these choices](#1-why-we-made-these-choices)
+2. [What you get](#2-what-you-get)
+3. [Our decisions](#3-our-decisions)
+4. [The evidence](#4-the-evidence) — read this only if you want to challenge a decision.
 
 ---
 
-## 2. The unit / live split
+## 1. Why we made these choices
 
-| Project | How the split is made |
+We build **source packages**. Each source package reads data from one supplier API. Our member companies install these packages from PyPI. They use them in their own data pipelines.
+
+Two facts control every decision in this document.
+
+**Fact 1. The risk is the supplier API. It is not our code.**
+
+A source package contains little complex logic. It sends a request. It reads the response. It gives the data to dlt. The usual failure is different: the supplier changes the API, and our package reads it incorrectly. Our tests must find this failure. Tests that only check our own logic do not help much.
+
+**Fact 2. Each source package has its own version and its own users.**
+
+A member company installs `dlt-source-aquabyte`. That company does not know that other packages exist in the same repository. It must not see them. A new version of one package must not force a new version of a different package.
+
+We keep all packages in one repository. But the repository must stay invisible to the consumer.
+
+---
+
+## 2. What you get
+
+These are the promises this system makes to you. If a change breaks one of these promises, the change is wrong.
+
+**You work on one source package only.**
+You do not read the other packages. You do not run their tests. You do not know their versions. Each package has its own tests, its own configuration, and its own version number.
+
+**You do not write CI configuration.**
+To add a new source package, you add a folder. The workflows find it. You do not edit a workflow file. You do not add a job. The only manual step is the one-time PyPI setup, in [`releasing.md`](../agents/releasing.md).
+
+**The standards are the same everywhere.**
+All packages use the same formatter, the same linter, and the same type checker. You do not decide these things for each package. You do not argue about them in a review.
+
+**You get examples to copy.**
+Every package solves the same problem in the same way. When you build a new source package, you read an existing one first. This also helps the agents: they have working reference packages in the same repository, so they do not invent a new structure.
+
+**A green pull request means the package is ready to release.**
+CI builds every package on every pull request. A packaging error appears in the pull request, not on release day.
+
+**A release is one tag.**
+You change the version, you write the changelog entry, you push one tag. A maintainer approves. There are no other steps.
+
+---
+
+## 3. Our decisions
+
+Each decision is short. Each links to the evidence for it.
+
+### 3.1 Testing
+
+| Decision | Why |
 |---|---|
-| Airbyte connectors | **Directories** — `unit_tests/` and `integration_tests/` per connector |
-| botocore | **Directories** — `tests/unit/`, `functional/`, `integration/`, `acceptance/` |
-| datadogpy | **Directories** — `tests/unit/` vs `tests/integration/` |
-| Meltano SDK | Markers, but **applied automatically from the directory name** |
-| dlt core | Directories plus markers for orthogonal concerns (`serial`, `forked`) |
+| Tests are in two folders: `tests/unit/` and `tests/live/`. `unit/` must never use the network. `live/` uses the real supplier API. | A folder is easy to see and hard to forget. [Evidence](#41-the-two-test-groups) |
+| A hook in `conftest.py` adds the marker from the folder name. You never write the marker by hand. | You cannot forget a marker that you do not write. [Evidence](#41-the-two-test-groups) |
+| The command `pytest` alone must never use the network. The setting is in the package configuration, not in the CI command. | Your computer and CI then behave the same way. [Evidence](#41-the-two-test-groups) |
+| We replace HTTP with `requests-mock`. We do **not** replace the dlt `RESTClient` object. | If you replace the client, you only test that your code calls your own mock. Pagination, authentication and data mapping do not run. That is where the errors are. [Evidence](#42-how-we-replace-http) |
+| We do not record HTTP traffic to cassette files. | Cassettes hold secrets, they break when a URL changes, and they become incorrect without a signal. [Evidence](#42-how-we-replace-http) |
+| Test data is in `tests/fixtures/*.json`. There is one file for each endpoint, and one file for each error status. | The files are easy to read and easy to correct. [Evidence](#42-how-we-replace-http) |
+| A request that no mock expects fails the test. A mock that no request uses also fails the test. | An unused mock shows that the test does not do what you think. [Evidence](#42-how-we-replace-http) |
+| Tests load data into DuckDB and then query it. | This is the only way to test the schema that dlt creates. [Evidence](#42-how-we-replace-http) |
+| We do not set a minimum coverage percentage. We measure coverage and print it. | On this kind of code, a percentage shows how much mapping code you put in a test. It does not show if the mapping is correct. [Evidence](#44-coverage) |
+| The type checker runs as its own CI job. Format, lint, types and tests run at the same time. | You then see all the problems after one push, not after four. [Evidence](#45-static-checks) |
+| We check the types of `tests/` and `src/`. | For a source package, the important statements about data shape are in the tests. [Evidence](#45-static-checks) |
 
-Meltano's hook, [`meltano/sdk:tests/conftest.py`](https://github.com/meltano/sdk/blob/main/tests/conftest.py):
+### 3.2 Finding supplier API changes
+
+This is the most important part of the system, because of Fact 1.
+
+| Decision | Why |
+|---|---|
+| We save the dlt schema of each resource to a file in `tests/schemas/`. | The file shows the agreed shape of the data. [Evidence](#43-how-we-find-supplier-api-changes) |
+| The unit tests compare the test data against this file. This finds **our** errors. | A change in our code that changes the schema then fails the pull request. [Evidence](#43-how-we-find-supplier-api-changes) |
+| A daily job compares the **real** API against this file. This finds **the supplier's** changes. | We learn about a change before a member company does. [Evidence](#43-how-we-find-supplier-api-changes) |
+| The daily job uses the dlt `freeze` contract. The released package uses `evolve`. | A new field must not stop a member company's pipeline. But it must produce a message for us. This is one parameter. [Evidence](#43-how-we-find-supplier-api-changes) |
+| The live tests fail if the credentials are absent. They do not skip. | A test that skips without a message gives false confidence. [Evidence](#43-how-we-find-supplier-api-changes) |
+| If the daily job fails, it opens one GitHub issue. If the issue is open, it updates that issue. | A failed job that nobody looks at is not a warning. One issue is a warning. Thirty issues are noise. [Evidence](#43-how-we-find-supplier-api-changes) |
+
+### 3.3 Versioning
+
+| Decision | Why |
+|---|---|
+| Each source package has its own version number. | See Fact 2. A consumer of one package must not get a new version because a different package changed. |
+| The version is a fixed value in `pyproject.toml`. Change it with `uv version --package <name> --bump <part>`. | You then see the version in the pull request, next to the changelog entry. [Evidence](#46-where-the-version-number-is) |
+| The tag format is `<package-name>/vX.Y.Z`. | The character `/` does not match the `*` character in a GitHub filter. The tag is therefore an exact selector for one package. [Evidence](#47-the-tag-format) |
+| Changelogs are written by a person, in each package. | A commit list contains merge commits and unclear titles. A changelog entry describes one change for the consumer. [Evidence](#48-changelogs) |
+
+### 3.4 Releasing
+
+| Decision | Why |
+|---|---|
+| CI compares the tag against the version in `pyproject.toml`. If they are different, the release stops. | PyPI never permits you to use a version number a second time. A wrong tag is permanent. [Evidence](#49-two-errors-we-corrected) |
+| The choice between PyPI and TestPyPI uses the PEP 440 version, not the text of the tag. | Text matching is incorrect in both directions. See the table in [4.9](#49-two-errors-we-corrected). |
+| Push one tag by name. Do not use `git push --tags`. | GitHub sends no event if more than three tags arrive together. The release then does not start, and there is no error. [Evidence](#49-two-errors-we-corrected) |
+| We publish with `pypa/gh-action-pypi-publish`. We do not publish with `uv publish`. | `uv publish` does not make attestations. Its default setting also hides authentication failures. [Evidence](#410-how-we-publish) |
+| We use PyPI Trusted Publishing. We store no PyPI tokens. | There is no secret to steal, and no secret to rotate. [Evidence](#410-how-we-publish) |
+| The environment names `pypi` and `testpypi` are fixed text. They do not contain a package name. | GitHub creates an unknown environment automatically, **with no protection**. A new package name would then publish without approval. [Evidence](#410-how-we-publish) |
+
+### 3.5 One decision you must make
+
+**The approval step does not work today.** The organization uses the GitHub Free plan, and this repository is private. On that plan, GitHub gives required reviewers only to public repositories.
+
+You have three options:
+
+1. **Make the repository public.** This is the cheapest option. It gives us the approval step immediately. The packages go to public PyPI, so the code is not secret.
+2. **Change the organization plan.**
+3. **Keep the repository private, and control who can create a release tag.** This is weaker. It controls who starts a release. It does not give a second person a check before the release.
+
+More detail is in [4.11](#411-the-approval-step).
+
+---
+
+## 4. The evidence
+
+Read this part only if you want to challenge a decision. Each section gives the source.
+
+We read four code bases completely for this: the **Airbyte Python CDK** and its connector repository, the **Meltano Singer SDK**, **dlt** and **dlt-hub/verified-sources**, and **stripe-python** and **botocore**.
+
+Three results are different from what most people expect:
+
+- **No comparable project uses cassette files.** Not one of those five.
+- **No comparable project sets a minimum coverage percentage.** dlt measures no coverage at all.
+- **Most comparable projects have no daily test job.** We have one because of Fact 1, not because it is usual.
+
+### 4.1 The two test groups
+
+Airbyte, botocore and datadogpy all divide their tests by folder. Meltano uses markers, but it adds the marker from the folder name automatically. This is the useful part, from [`meltano/sdk:tests/conftest.py`](https://github.com/meltano/sdk/blob/main/tests/conftest.py):
 
 ```python
 def pytest_collection_modifyitems(config: Config, items: list[pytest.Item]):
@@ -45,44 +154,20 @@ def pytest_collection_modifyitems(config: Config, items: list[pytest.Item]):
             item.add_marker("external")
 ```
 
-This is the pattern worth copying: directory membership is the single source of truth, and the marker — which is what CI selects on — is derived from it. There is no way to forget a decorator.
-
-Meltano then makes a bare `pytest` safe by deselecting the expensive tiers in config rather than on the CI command line, so a laptop and CI agree by construction ([`pyproject.toml`](https://github.com/meltano/sdk/blob/main/pyproject.toml)):
+Meltano also removes the slow tests in the package configuration, not in the CI command ([`pyproject.toml`](https://github.com/meltano/sdk/blob/main/pyproject.toml)):
 
 ```toml
 addopts = ["--durations=10", "-m", "not contrib and not external and not packages", "-ra"]
 strict = true
 ```
 
-pytest's own documentation prescribes only the mechanism, not the taxonomy — register markers so `pytest --markers` is meaningful, and note that "typos in function markers are treated as an error if you use the `strict_markers` configuration option" ([docs](https://docs.pytest.org/en/stable/example/markers.html)).
+Set `strict = true`. If you do not, pytest accepts a marker that does not exist. [`airbytehq/airbyte-python-cdk`](https://github.com/airbytehq/airbyte-python-cdk/blob/main/pytest.ini) selects on three markers that it never declares. Those filters select nothing, and nobody sees a message.
 
-**Trap worth recording:** [`airbytehq/airbyte-python-cdk:pytest.ini`](https://github.com/airbytehq/airbyte-python-cdk/blob/main/pytest.ini) filters CI on `flaky`, `super_slow` and `linting` — none of which are declared. Without strict markers those filters silently match nothing.
+### 4.2 How we replace HTTP
 
----
+dlt uses the `requests` library. `requests-mock` replaces the transport layer of `requests` ([documentation](https://requests-mock.readthedocs.io/en/latest/overview.html)).
 
-## 3. Faking HTTP
-
-### The libraries, from their own documentation
-
-- **`requests-mock`** — "at its core is simply a transport adapter that can be preloaded with responses" ([docs](https://requests-mock.readthedocs.io/en/latest/overview.html)). Ships a pytest fixture needing no import. **`requests` only** — which is what dlt's REST client uses.
-- **`responses`** — a `requests` mocker ([repo](https://github.com/getsentry/responses)). Also records, via an underscore-prefixed API.
-- **`respx`** — **httpx only**, therefore irrelevant here.
-- **`vcrpy` / `pytest-recording`** — record and replay. `pytest-recording` "uses the `none` VCR recording mode by default to prevent unintentional network requests" ([repo](https://github.com/kiwicom/pytest-recording)).
-
-### Who actually uses what
-
-| Project | HTTP fake | Cassettes? |
-|---|---|---|
-| `airbytehq/airbyte-python-cdk` | `requests-mock`, wrapped in a public `HttpMocker` | **No** |
-| `airbytehq/airbyte` connectors | `requests-mock` via `HttpMocker` + `find_template` | **No** — 25 JSON templates for source-stripe |
-| `meltano/sdk` | `requests-mock`, plus `responses` for ordered retry tests | **No** |
-| `dlt-hub/dlt` | `requests-mock` + a hand-rolled `APIRouter` | **No** |
-| `stripe/stripe-python` | `stripe-mock`, a local server from the OpenAPI spec | **No** |
-| `boto/botocore` | Hand-rolled stubber on the `before-send` event | **No** |
-| `DataDog/datadogpy` | `pytest-vcr` + `vcrpy` | Yes — 66 |
-| `PyGithub/PyGithub` | Hand-rolled record/replay | Yes — 1000+ |
-
-The single most on-point precedent is dlt's own REST-source fixture, [`dlt-hub/dlt:tests/sources/rest_api/conftest.py`](https://github.com/dlt-hub/dlt/blob/devel/tests/sources/rest_api/conftest.py):
+The most useful example is the dlt test fixture, [`dlt-hub/dlt:tests/sources/rest_api/conftest.py`](https://github.com/dlt-hub/dlt/blob/devel/tests/sources/rest_api/conftest.py):
 
 ```python
 MOCK_BASE_URL = "https://api.example.com"
@@ -98,46 +183,42 @@ def mock_api_server():
         yield m
 ```
 
-~45 route handlers covering every pagination style — page-number, offset/limit, cursor, header-`Link`, relative next-url — and every auth style. Note that the data is **generated**, not recorded.
+This fixture has approximately 45 routes. They give five different types of pagination. dlt replaces `requests`. dlt does not replace its own client.
 
-Airbyte's `HttpMocker` is literally `requests_mock.Mocker` with assertions added ([source](https://github.com/airbytehq/airbyte-python-cdk/blob/main/airbyte_cdk/test/mock_http/mocker.py)):
+The Airbyte `HttpMocker` is a `requests_mock.Mocker` with additional checks ([source](https://github.com/airbytehq/airbyte-python-cdk/blob/main/airbyte_cdk/test/mock_http/mocker.py)):
 
 ```python
-class HttpMocker(contextlib.ContextDecorator):
-    def __init__(self) -> None:
-        self._mocker = requests_mock.Mocker()
-
-    def _validate_all_matchers_called(self) -> None:
-        for matcher in self._get_matchers():
-            if not matcher.has_expected_match_count():
-                raise ValueError(f"Invalid number of matches for `{matcher}`")
+def _validate_all_matchers_called(self) -> None:
+    for matcher in self._get_matchers():
+        if not matcher.has_expected_match_count():
+            raise ValueError(f"Invalid number of matches for `{matcher}`")
 ```
 
-That last method is the point: **an unused mock fails the test**. stripe-python raises on anything unstubbed; botocore's `Stubber` exposes `assert_no_pending_responses()` ([docs](https://docs.aws.amazon.com/botocore/latest/reference/stubber.html)).
+This method is the reason for our rule: a mock that no request uses fails the test. stripe-python and the botocore `Stubber` do the same.
 
-Airbyte resolves fixture data by convention rather than by import, so one shared helper serves every connector ([`response_builder.py`](https://github.com/airbytehq/airbyte-python-cdk/blob/main/airbyte_cdk/test/mock_http/response_builder.py)) — and the committed files include [`400.json`, `401.json`, `429.json`, `500.json`](https://github.com/airbytehq/airbyte/tree/master/airbyte-integrations/connectors/source-stripe/unit_tests/resource/http/response).
+Airbyte keeps the test data in files, and it includes error responses: [`400.json`, `401.json`, `429.json`, `500.json`](https://github.com/airbytehq/airbyte/tree/master/airbyte-integrations/connectors/source-stripe/unit_tests/resource/http/response).
 
-### Why not to mock the framework's client
+Which projects use cassette files:
 
-Replacing dlt's `RESTClient` with a `MagicMock` proves only that your code calls a mock. Pagination, auth, retry and response→record mapping — where connector bugs actually live — never execute. dlt mocks `requests`; Airbyte mocks `requests` so the real retrievers and paginators run; botocore hooks `before-send` specifically so the request is fully built *and signed* first.
+| Project | HTTP replacement | Cassettes? |
+|---|---|---|
+| `airbytehq/airbyte-python-cdk` | `requests-mock` | No |
+| `meltano/sdk` | `requests-mock` | No |
+| `dlt-hub/dlt` | `requests-mock` | No |
+| `stripe/stripe-python` | a local server | No |
+| `boto/botocore` | its own stubber | No |
+| `DataDog/datadogpy` | `vcrpy` | Yes — 66 |
+| `PyGithub/PyGithub` | its own record system | Yes — more than 1000 |
 
-### Why not cassettes
+The two projects that use cassettes show the cost. datadogpy must remove headers and query parameters from each file, and it needs an additional file for each cassette to control the time ([conftest](https://github.com/DataDog/datadogpy/blob/master/tests/integration/conftest.py)).
 
-Cassettes bind tests to exact URL, query, header and body matching; they carry secrets requiring scrubbing; and they rot invisibly. The maintenance tax is visible in the projects that do use them: datadogpy needs `filter_headers`/`filter_query_parameters` config plus a `freezegun` `.frozen` sidecar per cassette so time-dependent requests still match ([conftest](https://github.com/DataDog/datadogpy/blob/master/tests/integration/conftest.py)); PyGithub maintains 1000+ replay files and a bespoke `--record` flag.
+### 4.3 How we find supplier API changes
 
----
+The usual method is: save a file, compare it on a schedule, and fail if it is different.
 
-## 4. Catching upstream drift
-
-The mechanism used everywhere is **commit a golden artifact, diff it on a schedule, fail on any difference.**
-
-[`PyGithub:.github/workflows/openapi.yml`](https://github.com/PyGithub/PyGithub/blob/main/.github/workflows/openapi.yml) fetches GitHub's live OpenAPI spec daily and fails on changes:
+[`PyGithub:.github/workflows/openapi.yml`](https://github.com/PyGithub/PyGithub/blob/main/.github/workflows/openapi.yml) reads the GitHub API specification each day:
 
 ```yaml
-on:
-  schedule: [{cron: '10 8 * * *'}]
-  workflow_dispatch:
-...
       - name: Fail on changes
         run: |
           if ! git diff --quiet openapi/main; then
@@ -146,147 +227,78 @@ on:
           fi
 ```
 
-[`airbytehq/airbyte`](https://github.com/airbytehq/airbyte/blob/master/.github/workflows/regenerate-agent-engine-api-spec.yml) does the same against a committed spec snapshot; [`huggingface_hub`](https://github.com/huggingface/huggingface_hub/blob/main/.github/workflows/update-inference-types.yaml) opens a PR instead of failing.
+[`airbytehq/airbyte`](https://github.com/airbytehq/airbyte/blob/master/.github/workflows/regenerate-agent-engine-api-spec.yml) uses the same method with a saved specification file.
 
-Meltano runs its live tier on a cron and guards against forks ([`test.yml`](https://github.com/meltano/sdk/blob/main/.github/workflows/test.yml)):
-
-```yaml
-  tests-external:
-    if: ${{ !github.event.pull_request.head.repo.fork }}
-    env:
-      NOXSESSION: test-external
-```
-
-`langchain`'s integration workflow triggers on *only* `workflow_dispatch` + `schedule` ([source](https://github.com/langchain-ai/langchain/blob/master/.github/workflows/integration_tests.yml)), with `environment: "Scheduled testing"` and a repo-owner guard.
-
-### Making failures actionable
-
-[`element-hq/synapse`](https://github.com/element-hq/synapse/blob/develop/.github/workflows/twisted_trunk.yml):
+For the GitHub issue, we use the method from [`element-hq/synapse`](https://github.com/element-hq/synapse/blob/develop/.github/workflows/twisted_trunk.yml):
 
 ```yaml
-  open-issue:
-    if: failure() && needs.check_repo.outputs.should_run_workflow == 'true'
       - uses: JasonEtco/create-an-issue@... # v2.9.2
         with:
           update_existing: true
 ```
 
-`update_existing: true` is what stops a nightly filing thirty duplicate issues a month. scikit-image uses the same action; dbt-adapters uses Slack with an on-call mention group instead.
+The setting `update_existing: true` gives one issue instead of thirty.
 
-### Constraints from GitHub's own docs
+Three rules come from the GitHub documentation ([events](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows)):
 
-All from [events that trigger workflows](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows) and [secrets](https://docs.github.com/en/actions/how-tos/write-workflows/choose-what-workflows-do/use-secrets):
+- A scheduled workflow runs only on the default branch. You therefore cannot test a change to it on a branch. For this reason, `workflow_dispatch` is necessary, not optional.
+- GitHub can delay a scheduled workflow when the load is high. Do not use the exact hour.
+- In a public repository, GitHub stops a schedule after 60 days with no activity.
 
-- Scheduled workflows run **only on the latest commit of the default branch** — hence `workflow_dispatch` is mandatory, not a convenience: without it a change to a cron workflow cannot be tested on a branch.
-- The shortest interval is 5 minutes, and schedules "can be delayed during periods of high loads" — so pick a time off the hour.
-- In a public repo, **schedules auto-disable after 60 days of inactivity**.
-- "With the exception of `GITHUB_TOKEN`, secrets are not passed to the runner when a workflow is triggered from a forked repository."
+dlt gives us the parts we need:
 
-### dlt's own drift primitives
+- **Schema contracts** — the modes are `evolve`, `freeze`, `discard_row` and `discard_value`. The mode `freeze` raises `DataValidationError`, and the message gives the table, the column and the data ([documentation](https://dlthub.com/docs/general-usage/schema-contracts)).
+- **`Schema.to_pretty_yaml()`** — this makes the file we save ([source](https://github.com/dlt-hub/dlt/blob/devel/dlt/common/schema/schema.py)).
+- **`add_limit(max_items, max_time)`** — this keeps the daily job short ([documentation](https://dlthub.com/docs/general-usage/resource)).
 
-- **Schema contracts** — modes `evolve`, `freeze`, `discard_row`, `discard_value`, over `tables` / `columns` / `data_type`. `freeze` raises `DataValidationError` naming the schema, table, column and offending item ([docs](https://dlthub.com/docs/general-usage/schema-contracts)). This is what makes "production absorbs new fields, the nightly shouts about them" a one-parameter difference.
-- **`Schema.version_hash`** and **`Schema.to_pretty_yaml()`** ([source](https://github.com/dlt-hub/dlt/blob/devel/dlt/common/schema/schema.py)) — the golden artifact.
-- **`add_limit(max_items, max_time)`** ([docs](https://dlthub.com/docs/general-usage/resource)) — bounds the canary.
+**Be careful with this section.** We found no well-known Python project that reads a supplier's live data each day, makes a schema, and reports a difference. Every example we found compares a *published specification* or *generated code*. Our method joins that pattern with the dlt contract modes. The parts are proven. The combination is ours.
 
-**Honest limit.** Across PyGithub, huggingface_hub, airbyte, sentry, googleapis, stripe, openai-python, httpx, requests and others, **no well-known Python project was found that nightly fetches a third-party API's live response payloads, infers a schema, and alerts on drift.** Every real example diffs a *published spec* or *generated code*. The golden-schema approach is a synthesis of that pattern with dlt's first-party contract primitives — road-tested in its parts, not copied wholesale.
+### 4.4 Coverage
 
----
+The coverage.py documentation explains `fail_under` ([configuration](https://coverage.readthedocs.io/en/latest/config.html)). Note one detail: with the default precision, 99.6% is shown as 100% and still fails a limit of 100.
 
-## 5. Coverage
+What comparable projects do:
 
-coverage.py's own docs on `fail_under`: "A target coverage percentage. If the total coverage measurement is under this value, then exit with a status code of 2… **A setting of 100 will fail any value under 100, regardless of the number of decimal places of precision.**" And `precision` "also affects the interpretation of the `fail_under` setting" ([config docs](https://coverage.readthedocs.io/en/latest/config.html)) — so at the default `precision = 0`, 99.6% *displays* as 100% and still fails a `fail_under = 100`.
-
-| Project | Policy |
+| Project | Minimum coverage |
 |---|---|
-| `dlt-hub/dlt` | **No coverage measured at all** |
-| `dlt-hub/verified-sources` | **None** |
-| `stripe/stripe-python` | **None** |
-| `boto/boto3` | Collects none in CI |
-| `airbytehq/airbyte-python-cdk` | Measured, printed, HTML artifact — **no gate** |
-| `boto/botocore` | `--cov` + codecov upload, **no threshold** |
-| `meltano/sdk` | No `fail_under`; codecov **patch** target 100% |
-| `pytest-dev/pytest` | patch 100%, **`project: false`** |
+| `dlt-hub/dlt` | None. It measures no coverage. |
+| `dlt-hub/verified-sources` | None. |
+| `stripe/stripe-python` | None. |
+| `boto/botocore` | Measures it. No minimum. |
+| `airbytehq/airbyte-python-cdk` | Measures it and prints it. No minimum. |
+| `pytest-dev/pytest` | `project: false` |
 | `apache/airflow` | `informational: true` |
-| httpx, attrs, structlog, fastapi | Hard 100% — by counting test files as source |
-| flask, requests, pydantic, pip, sqlalchemy, django | No gate |
+| httpx, attrs, structlog | 100%, but they count their own test files as source code. |
 
-Airbyte's coverage task is emblematic — it exists, and `test-all` does not call it ([source](https://github.com/airbytehq/airbyte/blob/master/poe-tasks/poetry-connector-tasks.toml)).
+The Airbyte task shows the position clearly. The coverage task exists, and the `test-all` task does not call it ([source](https://github.com/airbytehq/airbyte/blob/master/poe-tasks/poetry-connector-tasks.toml)).
 
-The conclusion: on connector code a project-wide floor measures how much mapping boilerplate you wrapped in a test, not whether the mapping is right. If a gate is ever wanted, gate the **diff** (a Codecov `patch` status), not the project — though at 1–5 packages the setup and flaky-upload failure mode outweigh the signal.
+**A warning for a future reader.** The projects `attrs` and `structlog` contain the text `fail-under = 100`. It is in the `[tool.interrogate]` section. That is *docstring* coverage. It is not test coverage. Do not use those two projects as evidence.
 
-**Grep warning:** both `python-attrs/attrs` and `hynek/structlog` contain `fail-under = 100` under **`[tool.interrogate]`** — that is *docstring* coverage. Anyone auditing precedent by grepping `fail_under` will misread those two repos.
+### 4.5 Static checks
 
----
-
-## 6. Layout and shared fixtures
-
-From pytest's own documentation:
-
-- "Generally, but especially if you use the default import mode `prepend`, it is strongly suggested to use a src layout"; and for new projects, "we recommend to use importlib import mode" ([good practices](https://docs.pytest.org/en/stable/explanation/goodpractices.html)).
-- Under `prepend`, "each test file needs to have a unique name compared to the other test files, otherwise pytest will raise an error" ([pythonpath](https://docs.pytest.org/en/stable/explanation/pythonpath.html)) — two packages will eventually both have `tests/test_sites.py`.
-- "Tests are allowed to search upward… for fixtures, but can never go down" ([fixtures](https://docs.pytest.org/en/stable/reference/fixtures.html)) — which is exactly why a root `conftest.py` silently couples every package to a file no package's version pins.
-- "Options from multiple `configfiles` candidates are never merged - the first match wins" ([customize](https://docs.pytest.org/en/stable/reference/customize.html)).
-
-Airbyte gives each connector its own test manifest ([source-stripe](https://github.com/airbytehq/airbyte/blob/master/airbyte-integrations/connectors/source-stripe/unit_tests/pyproject.toml)). Shared machinery ships as an **importable plugin**, not a copied conftest — Meltano via an entry point:
-
-```toml
-[project.entry-points."pytest11"]
-singer_testing = "singer_sdk.testing.pytest_plugin"
-```
-
-That approach provably never leaks into a published wheel: PEP 735 states "Build backends MUST NOT include Dependency Group data in built distributions as package metadata" ([PEP 735](https://peps.python.org/pep-0735/)), and uv states "Sources are only respected by uv" ([docs](https://docs.astral.sh/uv/concepts/projects/dependencies/)).
-
-**Counter-example, deliberately:** `dlt-hub/verified-sources` puts 37 sources' tests in one root tree with three conftests and a shared `tests/utils.py` — and its own rules file warns "Avoid adding source-specific code to the shared `tests/utils.py`". That works because those sources are *not independently versioned or published*. It is the wrong model here.
-
-**Isolation is a written rule in both dlt repos.** dlt's own testing rules: "Tests run in parallel! ALWAYS use test storage… unique pipeline names… Isolate pipelines with `dev_mode` or random `dataset_name`." verified-sources pins the destination with `DuckDbCredentials.database = ":pipeline:"` plus an autouse `drop_pipeline` fixture. This matters because dlt's DuckDB destination otherwise "creates a DuckDB database in the current working directory" named after the pipeline ([docs](https://dlthub.com/docs/dlt-ecosystem/destinations/duckdb)).
-
----
-
-## 7. Static checks
-
-| Project | Where the type checker sits |
+| Project | Position of the type checker |
 |---|---|
-| `dlt-hub/dlt` | Separate `lint` workflow that **gates** every test job; `mypy dlt tests tools` |
-| `airbytehq/airbyte-python-cdk` | Separate `mypy-check` job, **parallel** to pytest; excludes `unit_tests/` |
-| `meltano/sdk` | Separate `typing` job; runs both `mypy` and `ty` (pinned) |
-| `stripe/stripe-python` | Separate `lint` job parallel to tests; **pyright is the gate**, pinned `1.1.336` |
-| `boto/botocore` | **No type checker at all** |
+| `dlt-hub/dlt` | Its own job. It blocks the test jobs. It checks `dlt tests tools`. |
+| `airbytehq/airbyte-python-cdk` | Its own job, at the same time as the tests. |
+| `meltano/sdk` | Its own job. |
+| `stripe/stripe-python` | Its own job, at the same time as the tests. The version is fixed. |
+| `boto/botocore` | No type checker. |
 
-stripe-python's `publish` job declares `needs: [build, test, lint]` — the checks are provably blocking. Meltano and airbyte-python-cdk run typing parallel to tests; dlt chains them, which is the minority position and costs a full CI round trip per typo.
+No project runs the type checker inside pytest.
 
-Pyright's own docs: `typeCheckingMode` "default value for this setting is **`standard`**" ([configuration](https://github.com/microsoft/pyright/blob/main/docs/configuration.md)) — so a config saying `basic` is *weaker than the tool's default*, a silent downgrade if it predates the change. Its CI guide shows an explicit `version:` pin ([ci-integration](https://github.com/microsoft/pyright/blob/main/docs/ci-integration.md)); pyright ships weekly and new diagnostics turn unrelated PRs red.
+We run the checks at the same time, like stripe-python and Meltano. dlt runs the type check first and the tests after it. That is the minority choice, and it costs one more push for each small error.
 
----
+Two details from the pyright documentation ([configuration](https://github.com/microsoft/pyright/blob/main/docs/configuration.md)): the default mode is `standard`, so a setting of `basic` is *weaker than the default*. And fix the version ([CI guide](https://github.com/microsoft/pyright/blob/main/docs/ci-integration.md)) — pyright has a new release each week, and a new check can fail a pull request that is not related to it.
 
-## 8. Versioning and release
+### 4.6 Where the version number is
 
-### Trusted Publishing
+`setuptools-scm` can read the version from the tag. It works correctly with our tag format. Its documentation describes `tag.prefix` for this purpose ([configuration](https://setuptools-scm.readthedocs.io/en/latest/config/)). We tested it: we made a workspace with two packages, we added the tags `pkg-a/v0.3.0` and `pkg-b/v1.5.0`, and we built both. The versions were correct, and no files moved between the packages.
 
-From [PyPI's own docs](https://docs.pypi.org/trusted-publishers/adding-a-publisher/):
+We chose the fixed version anyway. You then see the version in the pull request, next to the changelog entry. The command `uv version --package <name> --bump <part>` makes the change for you. The one advantage of `setuptools-scm` — that the tag and the version cannot disagree — we get instead from a three-line check in CI.
 
-- Publisher fields are repo owner, repo name, **workflow filename**, and optional **environment name**. Environment is "optional, but **strongly** recommended: with a GitHub environment, you can apply additional restrictions… such as requiring manual approval on each run by a trusted subset of repository maintainers."
-- `id-token: write` "is mandatory for Trusted Publishing… you must provide this permission at either the job level (**strongly recommended**) or workflow level (**discouraged**)" ([using a publisher](https://docs.pypi.org/trusted-publishers/using-a-publisher/)).
-- A pending publisher "does **not** create a project or reserve a project's name **until** it is actually used to publish" ([creating a project through OIDC](https://docs.pypi.org/trusted-publishers/creating-a-project-through-oidc/)).
-- Reusable workflows cannot be the trusted workflow; the minted token lives 15 minutes ([troubleshooting](https://docs.pypi.org/trusted-publishers/troubleshooting/)).
-- TestPyPI is a **separate service** with its own account and its own registration ([packaging guide](https://packaging.python.org/en/latest/guides/using-testpypi/)).
+### 4.7 The tag format
 
-**On dynamic environment names:** mechanically they work — `needs` is an allowed context in `jobs.<job_id>.environment` — but GitHub *implicitly creates* an unknown environment "with no protection rules or secrets", so a new package name silently yields an **ungated** publish path. Use static `pypi` / `testpypi` environments.
-
-### `uv publish` vs `pypa/gh-action-pypi-publish`
-
-From uv's own source, `--trusted-publishing` takes:
-
-- `automatic` — "Attempt trusted publishing when we're in a supported environment, **continue if that fails**." This is the **default**, so passing it explicitly is a no-op. In `check_trusted_publishing`, a hard OIDC failure under `Automatic` returns `Ok(TrustedPublishResult::Ignored(err))` — **swallowed**.
-- `always` — forces it; the error propagates.
-- `never`.
-
-On attestations, uv's docs say plainly: *"`uv publish` does not currently generate attestations; attestations must be created separately before publishing."* ([package guide](https://github.com/astral-sh/uv/blob/main/docs/guides/package.md)). The PyPA action does: *"attestations are generated and uploaded automatically by default, with no additional configuration necessary"* ([producing attestations](https://docs.pypi.org/attestations/producing-attestations/)).
-
-**Verdict:** build with `uv build --package <pkg> --no-sources`, publish with the PyPA action. PEP 740 attestations plus metadata verification in one step, and the `automatic`-swallows-errors footgun disappears.
-
-### Tag format
-
-The strongest evidence is a near-exact peer: **[`ing-bank/ordeq`](https://github.com/ing-bank/ordeq)**, a real, actively published Python **uv-workspace monorepo** on PyPI. Its tags are `ordeq-yaml/v1.0.2`, `ordeq-viz/v1.3.1`, and its release workflow:
+[`ing-bank/ordeq`](https://github.com/ing-bank/ordeq) is almost the same as our repository. It is a uv workspace with many packages, and it publishes them to PyPI. Its tags are `ordeq-yaml/v1.0.2` and `ordeq-viz/v1.3.1`. Its release workflow:
 
 ```yaml
 on:
@@ -297,34 +309,28 @@ on:
       - run: echo "PACKAGE_NAME=${GITHUB_REF_NAME%%/*}" >> $GITHUB_ENV
 ```
 
-A functional advantage of `/`: GitHub's filter-pattern docs state "`*`: Matches zero or more characters, but does not match the `/` character" ([workflow syntax](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#filter-pattern-cheat-sheet)) — so `dlt-source-aquabyte/v*` is an exact per-package selector.
+The GitHub documentation gives a technical reason to prefer `/`: "`*`: Matches zero or more characters, but does not match the `/` character" ([workflow syntax](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#filter-pattern-cheat-sheet)). The pattern `dlt-source-aquabyte/v*` therefore selects one package only.
 
-Counterweight: `release-please` manifest mode defaults to `<component>-v<version>` ([docs](https://github.com/googleapis/release-please/blob/main/docs/manifest-releaser.md)), and JS tooling uses `pkg@1.2.3`.
+### 4.8 Changelogs
 
-### Where the version lives
+The Keep a Changelog documentation gives the reason not to make a changelog from commits. Commit lists "are full of noise. Things like merge commits, commits with obscure titles, documentation changes", but "a changelog entry is to document the noteworthy difference, often across multiple commits" ([keepachangelog.com](https://keepachangelog.com/en/1.1.0/)).
 
-**`setuptools-scm` works cleanly with prefixed tags — verified two ways.** Its docs document `tag.prefix` as "A literal prefix that version tags must start with… Use this for monorepos or multi-package repositories where each package has its own tag namespace" ([config](https://setuptools-scm.readthedocs.io/en/latest/config/)). A throwaway two-package uv workspace was built with tags `pkg-a/v0.3.0` and `pkg-b/v1.5.0`: it produced `pkg_a-0.3.0` and `pkg_b-1.5.1.dev1+g…` with correct per-package isolation and no cross-package file leakage. `ing-bank/ordeq` does this in production.
+We have few packages. An automatic changelog would give us little, and it would need a commit message standard for all of us.
 
-**Recommendation is nonetheless the static version.** It stays visible in the PR diff next to the changelog entry, it is what nearly every large Python project does, and `uv version --package <pkg> --bump <part>` automates the edit (verified working, including `--short --frozen` to read it without a network round trip). setuptools-scm's real prize — eliminating tag/metadata drift — is obtainable with a three-line CI guard, without requiring `fetch-depth: 0`.
+### 4.9 Two errors we corrected
 
-### Changelogs
+The earlier release proposal, [Ingest-Barentswatch#20](https://github.com/Havbruksdataforeningen/Ingest-Barentswatch/pull/20), has two errors. Both are real. Both are corrected in `release.yml`.
 
-Keep a Changelog's own rationale against generating from commits: they "are full of noise. Things like merge commits, commits with obscure titles, documentation changes", whereas "a changelog entry is to document the noteworthy difference, often across multiple commits" ([keepachangelog.com](https://keepachangelog.com/en/1.1.0/)). With a small package count, commit-derived changelogs buy little and cost a Conventional Commits mandate across shared history.
+**Error 1. The choice of PyPI or TestPyPI was incorrect.** The proposal looks for the text `-rc` or `-dev` in the tag. The function `contains()` examines the complete tag, and the tag starts with the package name ([expressions](https://docs.github.com/en/actions/reference/workflows-and-actions/expressions)).
 
-### Two confirmed defects in the earlier draft
-
-Both issues in the [Ingest-Barentswatch#20](https://github.com/Havbruksdataforeningen/Ingest-Barentswatch/pull/20) sketch are real.
-
-**(a) Prerelease routing.** `contains()` is a plain, case-insensitive substring test over the whole ref ([expressions](https://docs.github.com/en/actions/reference/workflows-and-actions/expressions)):
-
-| tag | correct | draft routes to |
+| Tag | Correct index | The proposal used |
 |---|---|---|
-| `dlt-source-devices/v2.0.0` | PyPI | **TestPyPI** — name contains `-dev` |
-| `dlt-source-y/v1.0.0b2` | TestPyPI | **PyPI** — valid PEP 440 prerelease, no `-rc`/`-dev` |
+| `dlt-source-devices/v2.0.0` | PyPI | **TestPyPI** — the name contains `-dev` |
+| `dlt-source-y/v1.0.0b2` | TestPyPI | **PyPI** — a real pre-release, but no `-rc` or `-dev` |
 
-The second is the dangerous one: a genuine prerelease published irrevocably to production.
+The second row is the dangerous one. A test version goes to the real index, and you cannot remove it.
 
-**(b) No tag-vs-version guard.** Nothing stops tagging `v0.3.0` while `pyproject.toml` says `0.1.0`. `encode/httpx` guards exactly this in `scripts/publish`:
+**Error 2. Nothing compared the tag with the version.** The workflow publishes the version in `pyproject.toml`. The tag only selects the package. You could therefore tag `v0.3.0` when `pyproject.toml` contained `0.1.0`. `encode/httpx` makes this comparison in `scripts/publish`:
 
 ```sh
 if [ "refs/tags/${VERSION}" != "${GITHUB_REF}" ] ; then
@@ -333,63 +339,68 @@ if [ "refs/tags/${VERSION}" != "${GITHUB_REF}" ] ; then
 fi
 ```
 
-**A third, unrelated to the draft:** `git push --tags` is unsafe as a documented step — GitHub creates no push event when more than three tags are pushed at once, so the release silently never runs. Push the one tag by name.
+**One more problem, not in the proposal file.** The instructions said `git push --tags`. GitHub sends no push event when more than three tags arrive together. The release then does not start, and GitHub gives no error. Push one tag by name.
 
-### Action versions, verified 2026-08-14
+### 4.10 How we publish
 
-Verified via the GitHub API, each SHA corroborated by two endpoints.
+From the PyPI documentation ([add a publisher](https://docs.pypi.org/trusted-publishers/adding-a-publisher/), [use a publisher](https://docs.pypi.org/trusted-publishers/using-a-publisher/)):
 
-| Action | Tag | SHA |
-|---|---|---|
-| `actions/checkout` | v7.0.1 | `3d3c42e5aac5ba805825da76410c181273ba90b1` |
-| `astral-sh/setup-uv` | v10.0.1 | `20cfd1bf945f4377ade1205e4dbc17946fc9a30d` |
-| `actions/upload-artifact` | v7.0.1 | `043fb46d1a93c77aae656e7c1c64a875d1fc6a0a` |
-| `actions/download-artifact` | v8.0.1 | `3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c` |
-| `pypa/gh-action-pypi-publish` | v1.14.2 | `dc37677b2e1c63e2034f94d8a5b11f265b73ba33` |
+- A publisher has four fields: the repository owner, the repository name, the **workflow file name**, and the **environment name**.
+- The permission `id-token: write` is necessary. Give it at **job** level. PyPI calls workflow level "discouraged".
+- A pending publisher "does **not** create a project or reserve a project's name **until** it is actually used to publish".
+- TestPyPI is a separate service. It needs its own account and its own publisher.
 
-`download-artifact` v8 makes digest mismatches **fatal** where they were previously a warning. The PyPA action's README advises pinning "to tagged versions or sha1 commit identifiers" rather than branch pointers — it holds the publishing identity, so pin the SHA.
+**Why not `uv publish`.** The uv documentation says: "`uv publish` does not currently generate attestations; attestations must be created separately before publishing" ([package guide](https://github.com/astral-sh/uv/blob/main/docs/guides/package.md)). The PyPA action makes and sends them automatically ([attestations](https://docs.pypi.org/attestations/producing-attestations/)).
 
----
+There is a second reason. The uv option `--trusted-publishing` has three values. The value `automatic` is the default, and the uv source describes it as: "Attempt trusted publishing when we're in a supported environment, **continue if that fails**." A failure is therefore hidden.
 
-## 9. Blocker: the approval gate cannot work today
+**Why the environment names are fixed text.** An expression works, but GitHub creates an environment that does not exist, "with no protection rules or secrets". A new package name would then publish with no approval.
 
-Verified via the GitHub API: the `Havbruksdataforeningen` org is on the **Free** plan and `dlt-sources` is **private**. GitHub's documentation is unambiguous ([deployments and environments](https://docs.github.com/en/actions/reference/workflows-and-actions/deployments-and-environments)):
+**Action versions**, checked on 2026-08-14 with the GitHub API:
+
+| Action | Tag |
+|---|---|
+| `actions/checkout` | v7.0.1 |
+| `astral-sh/setup-uv` | v10.0.1 |
+| `actions/upload-artifact` | v7.0.1 |
+| `actions/download-artifact` | v8.0.1 |
+| `pypa/gh-action-pypi-publish` | v1.14.2 |
+
+Give the publish action a commit SHA, not a tag. Its own documentation asks for this. That action holds our identity on PyPI.
+
+### 4.11 The approval step
+
+We checked the GitHub API. The organization uses the **Free** plan, and this repository is **private**. The GitHub documentation is clear ([environments](https://docs.github.com/en/actions/reference/workflows-and-actions/deployments-and-environments)):
 
 > "If you are on a GitHub Free, GitHub Pro, or GitHub Team plan, required reviewers are only available for public repositories."
 > "If you are using GitHub Free, environment secrets are only available in public repositories."
 
-So the maintainer-approval gate — the safety mechanism the whole release design leans on — does not function as written. Three ways out:
+The approval step is the safety control for the complete release system. Today it does not operate. Section [3.5](#35-one-decision-you-must-make) gives the three options.
 
-1. **Make the repo public.** Cheapest, immediate, and matches every precedent cited here: pip, ruff, httpx and ordeq are all public. The packages go to public PyPI regardless.
-2. **Upgrade the org plan.**
-3. **Stay private and gate on tag creation** — restrict who may create tags matching the release pattern. PyPI's own security model suggests this: "if you use a tag-based publishing workflow… you can limit tag creation and modification to maintainers and higher" ([security model](https://docs.pypi.org/trusted-publishers/security-model/)). Weaker: it gates *who tags*, not a second pair of eyes at publish time.
+The daily job has the same problem. It needs credentials, and environment secrets do not work on this plan. For this reason `live.yml` uses repository secrets.
 
-This also affects the nightly canary, which needs credentials: on Free + private, environment secrets are unavailable, so it must use repository secrets.
+### 4.12 What we do not build
 
----
+Each item below is a real practice. A larger project needs it. We do not need it yet.
 
-## 10. What is deliberately not adopted
-
-Each is a real practice that a much larger project needs and this one does not — yet.
-
-- **Changed-package CI matrices.** Airbyte computes affected connectors with `dorny/paths-filter`; verified-sources with a `git diff | sed` pipeline. Both have 37–300+ connectors. A flat loop over `packages/*/` is correct here; the trigger to change is CI wall-clock, not package count.
-- **An acceptance-test harness.** Airbyte's CAT is a governance tool for hundreds of third-party contributions.
-- **A spec-derived mock server.** stripe-mock is elegant, but its own README concedes it is stateless, that responses are "hardcoded, and will not necessarily represent realistic responses", and that testing specific errors "is currently not supported. It will return a success response instead". It validates *request* shape — the half a connector cares least about.
-- **Schemathesis.** It generates inputs from a schema to find bugs in the *provider*. Wrong direction for a consumer.
-- **Snapshot-testing frameworks.** For one golden schema per resource, a plain comparison plus an update flag suffices.
-- **A shared test-utils package before the third package.**
-- **Blanket `filterwarnings = ["error"]`.** dlt ships its own `DeprecationWarning` noise which a dependent inherits.
-- **Codecov.** Setup cost and flaky-upload failures outweigh the signal at this size.
+- **A CI system that finds the changed packages.** Airbyte and verified-sources both build one. They have 37 and more than 300 packages. We use a simple loop over `packages/*/`. Change this when CI becomes slow, not when the number of packages increases.
+- **An acceptance test system.** The Airbyte system controls hundreds of packages from outside contributors. We read every pull request.
+- **A mock server from an API specification.** The stripe-mock documentation says that it is stateless, that its responses are "hardcoded", and that error responses are "currently not supported". It checks the shape of the *request*. A source package cares most about the *response*.
+- **Schemathesis.** It makes inputs to find errors in the *supplier*. We are the consumer.
+- **A snapshot test library.** We have one saved schema for each resource. A comparison and an update option are sufficient.
+- **A shared test library.** Do not build one before the third package needs it.
+- **Codecov.** The setup cost and the upload failures are larger than the benefit at our size.
 
 ---
 
-## What could not be verified
+## 5. What we did not confirm
 
-1. **Branch-protection state anywhere.** Required-check configuration is a repo setting, not in-tree. Blocking-ness is only provable where encoded as `needs:` — dlt's lint→tests edge, stripe's `publish: needs: [build, test, lint]`.
-2. **Whether a nightly response-payload drift job exists in any well-known Python project.** Extensive search found only spec-diff and codegen-diff jobs. §4's golden-schema approach is flagged as a synthesis.
-3. **Per-package monorepo support in `python-semantic-release`, `commitizen` and `towncrier`** — the fetched docs did not contain the needed statements. The hand-written-changelog recommendation rests on Keep a Changelog's rationale and team size, not a completed comparison.
-4. **A broad tag-format survey** across `googleapis/google-cloud-python`, `Azure/azure-sdk-for-python`, `apache/airflow` and the JS exemplars — that sub-investigation did not return. §8's tag recommendation rests on `ing-bank/ordeq` plus the release-please default.
-5. **The Go modules spec sentence** on `sub/dir/vX.Y.Z` tagging — the page truncated on fetch.
-6. **Whether GitHub refuses to create an environment at all on Free + private, or creates an unprotected one.** Worth a two-minute check in Settings → Environments before choosing between the §9 options.
-7. **CI orchestration research is thinner than the rest.** The agent covering matrix-vs-loop, path filtering, required checks, merge queues and dependency automation terminated on a session limit. §10's first bullet and the workflow shapes rest on what the other two investigations surfaced plus GitHub's own docs, not on a completed survey. **Worth revisiting** if the CI design is questioned.
-8. **`dlt-plus-tests`.** A dlt+ pytest plugin appears to exist; its docs page 404'd. What *was* verified: published open-source `dlt` 1.30.0 declares **no `pytest11` entry point**, so it ships no pytest fixtures — plan on writing your own.
+Read this before you use this document as proof of something.
+
+1. **Branch protection settings.** These are repository settings. They are not in the code. We can only prove that a check blocks a release when a workflow file says `needs:`.
+2. **A daily schema check in another project.** We found none. Section [4.3](#43-how-we-find-supplier-api-changes) joins two proven ideas. It does not copy one project.
+3. **Changelog tools.** We did not confirm how `python-semantic-release`, `commitizen` and `towncrier` support one version for each package. Our choice uses the Keep a Changelog reason and our team size.
+4. **A wide survey of tag formats.** One agent did not complete this work. Section [4.7](#47-the-tag-format) uses `ing-bank/ordeq` and the release-please default.
+5. **CI structure.** The agent that examined matrices, path filters, merge queues and dependency tools stopped early. That work uses the GitHub documentation and the other two studies. Examine it again if you disagree with the CI design.
+6. **GitHub behaviour on the Free plan.** We do not know if GitHub refuses to make an environment, or makes one with no protection. Look at Settings → Environments before you choose an option in [3.5](#35-one-decision-you-must-make).
+7. **dlt test fixtures.** The published `dlt` 1.30.0 package declares no `pytest11` entry point. It gives you no pytest fixtures. Write your own.
