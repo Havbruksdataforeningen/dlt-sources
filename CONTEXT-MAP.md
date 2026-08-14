@@ -52,25 +52,21 @@ Taking the records out of the wrapper object a supplier returns, so the consumer
 The field a resource uses to ask the supplier for only what is new since the last run.
 
 **Drift**:
-A change a supplier makes to their API that alters the shape of the data we receive. The primary risk this repository is built to detect.
+A change a supplier makes to their API that alters the shape of the data we receive. The main risk to a source package. We do not detect it automatically — see [testing.md](./docs/agents/testing.md#live-tests-are-optional-and-per-package).
 _Avoid_: breakage, schema change (too broad — a change we make is not drift)
 
-**Golden schema**:
-The committed dlt schema for a resource, held in the package's `tests/schemas/`. It records the shape we agreed to. Both test tiers compare against it.
-_Avoid_: snapshot, baseline
-
 **Schema contract**:
-The dlt setting that decides what happens when incoming data does not match the schema. We use two of its modes: **evolve** in released packages, so a new supplier field cannot stop a consumer's pipeline, and **freeze** in the live tier, so the same field produces a failure we can see.
+The dlt setting that decides what happens when incoming data does not match the schema. Released packages use **evolve**, so a new supplier field cannot stop a consumer's pipeline.
 
 ### Testing and release
 
-**Unit tier**:
-The tests in `tests/unit/`. They never use the network. They run on every pull request.
-_Avoid_: integration test (ambiguous across the industry — it usually still means offline)
+**Sample response**:
+A saved JSON file in a package's `tests/fixtures/`, standing in for one supplier endpoint. Taken from the supplier's documented examples where they publish any, otherwise from one real response.
+_Avoid_: cassette, recording, snapshot
 
-**Live tier**:
-The tests in `tests/live/`. They use the real supplier API. They never run on a pull request.
-_Avoid_: integration test, e2e, smoke test
+**Live test**:
+An optional test that calls the real supplier API. It lives in `tests/live/` and is excluded from the default test run. Most packages have none.
+_Avoid_: integration test (ambiguous — in most projects it still means offline), e2e, smoke test
 
 **Rehearsal**:
 A release to TestPyPI, using a pre-release version, done to check a release before the real one. Each rehearsal needs its own version number.

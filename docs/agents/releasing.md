@@ -1,6 +1,8 @@
 # Releasing
 
-Target state. Reasoning and citations live in [`docs/research/ci-cd.md`](../research/ci-cd.md); the automation is [`.github/workflows/release.yml`](../../.github/workflows/release.yml).
+How to release a source package. The reasoning is in [`docs/research/ci-cd.md`](../research/ci-cd.md), the citations in [`ci-cd-evidence.md`](../research/ci-cd-evidence.md), and the automation in [`.github/workflows/release.yml`](../../.github/workflows/release.yml).
+
+Vocabulary: [`CONTEXT-MAP.md`](../../CONTEXT-MAP.md).
 
 The goal is that **adding a source is adding a folder**. No workflow edit, no release ceremony beyond a tag.
 
@@ -18,19 +20,19 @@ Rehearsal: tag `…/v0.2.0rc1` instead — same build, goes to TestPyPI, no appr
 
 ## Rules
 
-- **Versions are independent per package.** The monorepo is invisible to consumers; a bump to one source means nothing to another.
-- **Tag format is `<package>/vX.Y.Z`.** *`ing-bank/ordeq` — a real uv-workspace monorepo publishing to PyPI — uses exactly this in production.* It also has a functional advantage: GitHub's `*` does not match `/`, so `dlt-source-aquabyte/v*` is an exact per-package selector, and `${REF_NAME%%/*}` is unambiguous because package names never contain `/`.
-- **Push the tag by name. Never `git push --tags`.** GitHub creates **no push event at all** when more than three tags arrive at once — the release would silently never run.
-- **The version lives statically in `pyproject.toml`**, bumped with `uv version --package <pkg> --bump <part>`. It stays visible in the PR diff next to the changelog entry. `setuptools-scm` does work correctly with prefixed tags (verified — via `[tool.setuptools_scm.tag] prefix`), but its one real prize, eliminating tag/metadata drift, is obtainable with the CI guard below and without requiring full-history checkouts.
-- **CI asserts the tag matches the declared version**, compared as PEP 440 values so `v0.2.0-rc1` equals `0.2.0rc1`. Without it, tagging `v0.3.0` while `pyproject.toml` still says `0.1.0` publishes the wrong version *irrevocably* — PyPI never allows a version number to be reused. *`encode/httpx` guards the same way in `scripts/publish`.*
-- **Prerelease routing is decided by PEP 440, never by substring matching on the tag.** Asking whether the ref contains `-rc` or `-dev` is wrong in both directions: a package named `dlt-source-devices` looks like a dev release, and `v1.0.0b2` — a genuine prerelease — looks like a final one and would go straight to production PyPI.
-- **Trusted Publishing only. No stored PyPI tokens.** `id-token: write` at **job** level, never workflow level.
-- **Publish with `pypa/gh-action-pypi-publish`, not `uv publish`.** uv's own docs state it does not generate PEP 740 attestations; the PyPA action generates and uploads them by default and checks metadata before upload. Also, `uv publish --trusted-publishing automatic` is the *default* and **swallows OIDC failures silently** — if you ever do use uv, pass `always` so a broken setup fails loudly.
-- **Build with `uv build --package <pkg> --no-sources`.** `--no-sources` builds the package as a consumer receives it, with workspace redirects disabled, so a dependency that wouldn't resolve from PyPI fails in CI rather than downstream.
-- **Pin the publish action by SHA, not tag.** It holds the publishing identity. The action's own README says to pin to a SHA rather than a branch pointer.
-- **Environments are static — `pypi` and `testpypi`.** Not built from an expression: GitHub *implicitly creates* an unknown environment with no protection rules, so a new package name would silently produce an ungated publish path.
-- **Changelogs are hand-written**, per package, in Keep a Changelog format, edited in the same PR as the bump. Commit logs are full of merge commits and obscure titles; a changelog entry documents a noteworthy difference, often spanning several commits. Revisit `release-please` manifest mode only when the package count makes this tedious.
-- **Pre-1.0 is not a licence to break things quietly.** Breaking changes get a minor bump while at 0.x, and say so at the top of the changelog entry.
+- **Each package has its own version.** Releasing one says nothing about the others. A consumer never sees this repo.
+- **Tags are `<package>/vX.Y.Z`.** GitHub's `*` does not match `/`, so `dlt-source-aquabyte/v*` selects exactly one package, and `${REF_NAME%%/*}` always gives the package name. `ing-bank/ordeq`, a uv workspace publishing to PyPI, uses the same scheme.
+- **Push the tag by name. Never `git push --tags`.** GitHub sends **no push event at all** when more than three tags arrive at once, so the release silently does not run.
+- **The version is written in `pyproject.toml`.** Bump it with `uv version --package <pkg> --bump <part>`. Keeping it in the file means you see it in the PR diff, next to the changelog entry. (`setuptools-scm` can derive it from the tag instead, and does work with our tag format — but the only real gain is that tag and version cannot disagree, and the CI check below gives us that for three lines.)
+- **CI checks the tag against the version in the file**, comparing them as PEP 440 values so `v0.2.0-rc1` equals `0.2.0rc1`. Without it, tagging `v0.3.0` while the file says `0.1.0` publishes the wrong version **permanently** — PyPI never lets a version number be reused. `encode/httpx` checks this the same way.
+- **PyPI or TestPyPI is decided by parsing the version**, never by looking for text in the tag. Text matching is wrong in both directions: a package called `dlt-source-devices` looks like a dev release, and `v1.0.0b2` — a real pre-release — looks final and would go to production PyPI.
+- **Trusted Publishing only. No stored PyPI tokens.** Put `id-token: write` at **job** level, never workflow level.
+- **Publish with `pypa/gh-action-pypi-publish`, not `uv publish`.** uv's own docs say it does not generate PEP 740 attestations; the PyPA action creates and uploads them by default, and checks the metadata first. Also, `uv publish` defaults to `--trusted-publishing automatic`, which **hides authentication failures**. If you ever do use uv, pass `always`.
+- **Build with `uv build --package <pkg> --no-sources`.** `--no-sources` builds the package the way a consumer gets it, so a dependency that would not resolve from PyPI fails here instead of downstream.
+- **Pin the publish action to a commit SHA, not a tag.** It holds our PyPI identity, and its own README asks for this.
+- **Environment names are fixed text — `pypi` and `testpypi`.** If you build the name from an expression, GitHub creates any environment that does not exist yet **with no protection rules**, so a new package would publish with no approval.
+- **Changelogs are written by hand**, per package, in Keep a Changelog format, in the same PR as the version bump. Consider `release-please` only when this becomes tedious.
+- **Being pre-1.0 is not permission to break things quietly.** While at 0.x, a breaking change gets a minor bump and says so at the top of the changelog entry.
 
 ## One-time setup per package
 

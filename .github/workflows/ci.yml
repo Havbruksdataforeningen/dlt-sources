@@ -13,8 +13,9 @@
 # because they have 37 and 300+ connectors. The trigger to add that here is CI
 # wall-clock getting painful, not the package count going up.
 #
-# Nothing here touches the network beyond installing dependencies. Live-API
-# tests are in live.yml, on a schedule, and never on a pull request.
+# Nothing here touches the network beyond installing dependencies. We run no
+# tests against a supplier's live API, on a schedule or otherwise — see
+# docs/agents/testing.md for why that is a deliberate choice.
 
 name: CI
 
@@ -117,10 +118,10 @@ jobs:
           enable-cache: true
           python-version: ${{ matrix.python-version }}
       - run: uv sync --all-packages --all-groups --locked
-      # No -m filter here on purpose: each package's addopts already deselects
-      # the live tier, so a bare `pytest` is offline by construction both here
-      # and on a laptop. Coverage is printed, never enforced — see
-      # docs/agents/testing.md on why a floor is the wrong gate for connectors.
+      # No filter flags here on purpose. Tests are offline by default, and a
+      # package that has optional live tests excludes them in its own addopts.
+      # So this command means the same thing here and on a laptop.
+      # Coverage is printed, never enforced — see docs/agents/testing.md.
       - name: pytest
         run: |
           set -euo pipefail
