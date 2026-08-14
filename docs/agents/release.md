@@ -4,7 +4,7 @@ How to publish a new version of a source package to PyPI, written for your first
 
 The examples use `dlt-source-aquabyte` going from `0.1.0` to `0.2.0`. Substitute your package and versions.
 
-Why the repo works this way: [`monorepo.md`](monorepo.md). The vocabulary (test release, release candidate, workspace) is in [`CONTEXT-MAP.md`](../../CONTEXT-MAP.md).
+Why the repo works this way: [`monorepo.md`](monorepo.md).
 
 ## The one thing to understand first
 

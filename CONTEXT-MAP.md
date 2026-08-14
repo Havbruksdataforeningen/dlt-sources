@@ -9,13 +9,11 @@ This repository holds one context per source package, plus the shared language b
 ## Relationships
 
 - **Package → package**: none, deliberately. Packages share conventions, not code. A term that two packages both need belongs in this file, not in a shared library.
-- **Package → consumer**: a consumer installs one package from PyPI and never sees this repository. Terms below that describe the repository itself (workspace, test release) are ours, not theirs.
+- **Package → consumer**: a consumer installs one package from PyPI and never sees this repository. Terms below that describe the repository itself (such as workspace) are ours, not theirs.
 
 ## Shared language
 
 These terms mean the same thing in every package.
-
-### The packages themselves
 
 **Source package**:
 One installable distribution that reads one supplier's API. The unit of versioning and release.
@@ -39,38 +37,3 @@ A member of Havbruksdataforeningen. The reason a package exists, and the most co
 **Workspace**:
 The uv workspace at the repository root. It exists for us. It is invisible to a consumer.
 _Avoid_: monorepo (when referring to the buildable unit)
-
-**Mechanics**:
-The concerns a source package is permitted to have an opinion about: authentication, pagination, envelope unwrapping, incremental cursors, and overridable key and write-disposition defaults. Everything else belongs to the consumer.
-
-### Data shape and change
-
-**Envelope unwrapping**:
-Taking the records out of the wrapper object a supplier returns, so the consumer receives records rather than the wrapper.
-
-**Incremental cursor**:
-The field a resource uses to ask the supplier for only what is new since the last run.
-
-**Drift**:
-A change a supplier makes to their API that alters the shape of the data we receive. The main risk to a source package. Detecting it is up to each package — see [testing.md](./docs/agents/testing.md).
-_Avoid_: breakage, schema change (too broad — a change we make is not drift)
-
-**Schema contract**:
-The dlt setting that decides what happens when incoming data does not match the schema. Released packages use **evolve**, so a new supplier field cannot stop a consumer's pipeline.
-
-### Testing and release
-
-**Sample response**:
-A saved response body a package's tests use in place of a real call to the supplier. Where it comes from and how it is stored is the package's choice.
-_Avoid_: cassette, recording, snapshot
-
-**Live test**:
-A test that calls the real supplier API. It needs credentials, so it is kept out of the default test run. Most packages have none.
-_Avoid_: integration test (ambiguous — in most projects it still means offline), e2e, smoke test
-
-**Test release**:
-A publish to TestPyPI, using a release candidate version, done to check a package before releasing it properly.
-_Avoid_: rehearsal, dry run (nothing is simulated — it is a real publish to a different index)
-
-**Release candidate**:
-A pre-release version such as `0.2.0rc1`. Publishing one is how a test release is done. Each attempt needs its own number, because neither index accepts a version twice.

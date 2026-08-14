@@ -14,4 +14,4 @@ These are promises. If a change breaks one, the change is wrong.
 - **You have working examples to copy.** Every package solves the same problem the same way, so you start by reading an existing one. This helps the agents too — they have real reference packages instead of inventing a structure.
 - **A green pull request means the package can be released.** CI builds every package on every PR, so packaging mistakes show up then, not on release day.
 - **A release is one tag.** Bump the version, write the changelog entry, push one tag. See [release.md](release.md).
-- **You can run everything on your laptop.** `pytest` needs no credentials, no supplier account and no network.
+- **You can run everything locally.** `pytest` needs no credentials, no supplier account and no network.
