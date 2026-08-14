@@ -75,9 +75,12 @@ git add packages/dlt-source-aquabyte/pyproject.toml
 git commit -m "Release candidate dlt-source-aquabyte 0.2.0rc1"
 git push origin HEAD
 
+uv run scripts/validate_release.py dlt-source-aquabyte/v0.2.0rc1
 git tag -a dlt-source-aquabyte/v0.2.0rc1 -m 'dlt-source-aquabyte 0.2.0rc1'
 git push origin dlt-source-aquabyte/v0.2.0rc1
 ```
+
+The validator catches a reused candidate number before TestPyPI refuses it.
 
 The workflow sees a pre-release version and publishes to TestPyPI, with no approval step. Then install it from there and check it works — dependencies still come from normal PyPI, because TestPyPI does not carry them:
 
@@ -125,10 +128,16 @@ Open the pull request and get it reviewed and merged. The version that gets publ
 
 ## Step 5 — tag the merged commit
 
-Once the pull request is merged:
+Once the pull request is merged, update your checkout and run the validator — it checks the tag you are about to create against `pyproject.toml`, the changelog and the index, before anything becomes permanent:
 
 ```bash
 git switch main && git pull
+uv run scripts/validate_release.py dlt-source-aquabyte/v0.2.0
+```
+
+When it says `Safe to tag`:
+
+```bash
 git tag -a dlt-source-aquabyte/v0.2.0 -m 'dlt-source-aquabyte 0.2.0'
 git push origin dlt-source-aquabyte/v0.2.0
 ```
@@ -142,7 +151,7 @@ Two things to be careful about here:
 
 ## What happens after the push
 
-The workflow checks that the tag matches the version in `pyproject.toml` and that the changelog has a section for it (skipped for release candidates — their entry is not written yet), builds the package, and publishes it — a final version goes to PyPI, a pre-release version (like `0.2.0rc1`) goes to TestPyPI. Watch it under the repo's **Actions** tab, then check the result at `https://pypi.org/p/dlt-source-aquabyte`.
+The workflow runs the same validator you ran in step 5, builds the package, and publishes it — a final version goes to PyPI, a pre-release version (like `0.2.0rc1`) goes to TestPyPI. Watch it under the repo's **Actions** tab, then check the result at `https://pypi.org/p/dlt-source-aquabyte`.
 
 ## First release of a package
 
