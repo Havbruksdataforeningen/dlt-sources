@@ -1,0 +1,122 @@
+# Release one workspace package to PyPI, triggered by pushing a tag like
+# dlt-source-aquabyte/v0.2.0. Final versions go to PyPI, pre-release versions
+# to TestPyPI. How-to and rules: docs/release.md.
+
+name: Release
+
+on:
+  push:
+    tags:
+      # `*` does not match `/`, so this is an exact <package>/v<version> selector.
+      - "dlt-source-*/v*"
+
+# Least privilege by default; each job opts back in to what it needs.
+permissions: {}
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    outputs:
+      package: ${{ steps.meta.outputs.package }}
+      version: ${{ steps.meta.outputs.version }}
+      prerelease: ${{ steps.meta.outputs.prerelease }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          enable-cache: true
+
+      # Split "<package>/v<version>" once, and let `packaging` classify the
+      # version. Handles rc1 / b2 / a1 / .dev1 / .post1 correctly.
+      - name: Parse tag
+        id: meta
+        env:
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          package="${REF_NAME%%/*}"
+          version="${REF_NAME#*/v}"
+          if [ "$package" = "$REF_NAME" ] || [ "$version" = "$REF_NAME" ]; then
+            echo "::error::Tag '$REF_NAME' is not of the form <package>/v<version>"
+            exit 1
+          fi
+          prerelease="$(uv run --no-project --with packaging -- python -c \
+            'import sys; from packaging.version import Version; print(str(Version(sys.argv[1]).is_prerelease).lower())' \
+            "$version")"
+          {
+            echo "package=$package"
+            echo "version=$version"
+            echo "prerelease=$prerelease"
+          } >> "$GITHUB_OUTPUT"
+          echo "Releasing ${package} ${version} (prerelease=${prerelease})"
+
+      # The same validator a developer runs before pushing the tag:
+      # tag format, tag vs pyproject as PEP 440, changelog entry for finals,
+      # and that the version is not already on the target index.
+      - name: Validate release
+        env:
+          REF_NAME: ${{ github.ref_name }}
+        run: uv run scripts/validate_release.py "$REF_NAME"
+
+      # --no-sources builds the package as a consumer would get it, with
+      # tool.uv.sources workspace redirects disabled — so a workspace-internal
+      # dependency that would not resolve from PyPI fails here, not downstream.
+      - name: Build
+        run: uv build --package "${{ steps.meta.outputs.package }}" --no-sources
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: dist
+          path: dist/
+          if-no-files-found: error
+
+  # Pre-release versions -> TestPyPI. No approval; this is the test release.
+  publish-testpypi:
+    name: Publish to TestPyPI
+    needs: build
+    if: needs.build.outputs.prerelease == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: testpypi
+      url: https://test.pypi.org/p/${{ needs.build.outputs.package }}
+    permissions:
+      # Mandatory for Trusted Publishing. Job level, never workflow level.
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
+        with:
+          repository-url: https://test.pypi.org/legacy/
+
+  # Final versions -> PyPI, behind required reviewers on the `pypi` environment.
+  publish-pypi:
+    name: Publish to PyPI
+    needs: build
+    if: needs.build.outputs.prerelease == 'false'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: pypi
+      url: https://pypi.org/p/${{ needs.build.outputs.package }}
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: dist
+          path: dist/
+      # Generates and uploads PEP 740 attestations by default, and runs a
+      # metadata check before upload. No token, no stored secret.
+      # Pinned by SHA rather than tag: this step holds the publishing identity.
+      - uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
