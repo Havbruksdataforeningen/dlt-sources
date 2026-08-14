@@ -2,20 +2,9 @@
 #
 # Shape and rationale: docs/testing.md.
 #
-# Four checks run in PARALLEL, each named for what it checks, each looping over
-# every workspace member. Parallel-and-named means a contributor learns about a
-# type error and a test failure in one round trip instead of two, and learns
-# which one failed without opening a log. This is what stripe-python and
-# meltano/sdk do; dlt chains lint before tests and pays a round trip per typo.
-#
-# Every job loops flatly over packages/*/ rather than computing which packages
-# changed. Airbyte and dlt-hub/verified-sources both compute affected packages —
-# because they have 37 and 300+ connectors. The trigger to add that here is CI
-# wall-clock getting painful, not the package count going up.
-#
-# Nothing here touches the network beyond installing dependencies. We run no
-# tests against a supplier's live API, on a schedule or otherwise — see
-# docs/testing.md for why that is a deliberate choice.
+# The checks run in parallel, each named for what it checks, so one push
+# reports every kind of failure at once. Every job loops over every package —
+# there are few enough that computing which ones changed is not worth it.
 
 name: CI
 
