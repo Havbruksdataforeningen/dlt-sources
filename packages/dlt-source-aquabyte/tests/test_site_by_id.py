@@ -3,6 +3,7 @@
 from unittest.mock import MagicMock, patch
 
 import dlt
+from dlt.sources.helpers.rest_client.paginators import SinglePagePaginator
 
 from dlt_source_aquabyte import site_by_id
 from tests.conftest import assert_row_count, load_mock
@@ -30,4 +31,8 @@ def test_site_by_id_loads_into_duckdb():
         assert load_info is not None
         assert_row_count(pipeline, "site_by_id", 1)
 
-        mock_client.paginate.assert_called_once_with("/sites/site-001", data_selector="sites")
+        call = mock_client.paginate.call_args
+        assert call.args[0] == "/sites/site-001"
+        assert call.kwargs["params"] == {}
+        assert call.kwargs["data_selector"] == "sites"
+        assert isinstance(call.kwargs["paginator"], SinglePagePaginator)

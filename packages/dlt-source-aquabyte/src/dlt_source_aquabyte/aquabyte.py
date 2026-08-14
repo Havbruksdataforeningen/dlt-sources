@@ -1,7 +1,29 @@
+"""dlt source for the Aquabyte API v3 (https://api.aquabyte.ai/v3/docs).
+
+The source's only opinions are mechanics: auth, pagination, envelope unwrapping,
+incremental cursors and overridable key/write-disposition defaults. Records land
+exactly as the API returns them — nothing is renamed, flattened, filtered or dropped.
+Reshaping belongs in the consumer's transform layer.
+
+Each resource takes exactly the query params its endpoint documents in
+`specs/openapi-v3.1.1.json`, plus a `params` escape hatch for anything the API grows
+later. See `docs/parameter-inventory.md` for the full spec-to-code accounting.
+"""
+
+from __future__ import annotations
+
+import logging
+from collections.abc import Iterator
+from typing import Any
+
 import dlt
 from dlt.sources.helpers.rest_client.auth import APIKeyAuth
 from dlt.sources.helpers.rest_client.client import RESTClient
-from dlt.sources.helpers.rest_client.paginators import JSONResponseCursorPaginator
+from dlt.sources.helpers.rest_client.paginators import (
+    BasePaginator,
+    JSONResponseCursorPaginator,
+    SinglePagePaginator,
+)
 
 from dlt_source_aquabyte.schemas import (
     BehaviorBreathingIndex,
@@ -13,131 +35,176 @@ from dlt_source_aquabyte.schemas import (
     LiceCount,
     Pen,
     Site,
-    WelfareScoreDetail,
-    WelfareScoreRow,
+    WelfareScoresRecord,
 )
 
+logger = logging.getLogger(__name__)
 
-@dlt.resource(write_disposition="replace", columns=Site)
+PenId = str | list[str]
+"""The API's `penId` query param: a single pen id, or the literal `"all"`.
+
+A list is a source-side convenience only — it issues one request sequence per pen id
+and yields every record the API returns for each. It filters nothing.
+"""
+
+
+def _make_client(base_url: str, api_key: str) -> RESTClient:
+    """A RESTClient with the API key header and the API's `nextToken` cursor pagination."""
+    return RESTClient(
+        base_url=base_url,
+        auth=APIKeyAuth(name="apikey", api_key=api_key, location="header"),
+        paginator=JSONResponseCursorPaginator(cursor_path="nextToken", cursor_param="nextToken"),
+    )
+
+
+def _query(extra: dict[str, Any] | None = None, **named: Any) -> dict[str, Any]:
+    """Build a query dict: drop unset named params, then merge the caller's passthrough last.
+
+    `extra` is the per-endpoint escape hatch, so it wins over the named params and can
+    carry query params this release does not know about.
+    """
+    params = {key: value for key, value in named.items() if value is not None}
+    if extra:
+        params.update(extra)
+    return params
+
+
+def _window_start(resource: str, param: str, explicit: str | None, cursor_value: str | None) -> str | None:
+    """Choose a window start, preferring an explicit override over the incremental cursor.
+
+    dlt logs the requests and the row counts; what it cannot know is *why* a given
+    window was asked for, which is what a failed or short run needs explaining.
+    """
+    if explicit is not None:
+        logger.info("%s: %s=%s passed explicitly; the incremental cursor is ignored.", resource, param, explicit)
+        return explicit
+    if cursor_value is None:
+        logger.warning(
+            "%s: no %s and no incremental cursor value, so the API's own default window applies.", resource, param
+        )
+        return None
+    logger.debug("%s: resuming from the incremental cursor, %s=%s.", resource, param, cursor_value)
+    return cursor_value
+
+
+def _paginate(
+    client: RESTClient,
+    path: str,
+    *,
+    data_selector: str,
+    params: dict[str, Any] | None = None,
+    paginator: BasePaginator | None = None,
+) -> Iterator[list[dict[str, Any]]]:
+    """Yield pages from one endpoint, unwrapping the API's response envelope."""
+    kwargs: dict[str, Any] = {"data_selector": data_selector}
+    if params is not None:
+        kwargs["params"] = params
+    if paginator is not None:
+        kwargs["paginator"] = paginator
+    yield from client.paginate(path, **kwargs)
+
+
+def _paginate_per_pen(
+    client: RESTClient,
+    path: str,
+    *,
+    pen_id: PenId,
+    params: dict[str, Any],
+    data_selector: str,
+    paginator: BasePaginator | None = None,
+) -> Iterator[list[dict[str, Any]]]:
+    """Yield pages for each requested pen id.
+
+    `penId` always comes from the `pen_id` argument; putting it in a resource's
+    `params` passthrough has no effect.
+    """
+    pen_ids = [pen_id] if isinstance(pen_id, str) else list(pen_id)
+    if len(pen_ids) > 1:
+        logger.info("%s: fanning out over %d pen ids.", path, len(pen_ids))
+    for pid in pen_ids:
+        logger.debug("%s: requesting penId=%s with %s.", path, pid, params)
+        yield from _paginate(
+            client,
+            path,
+            params={**params, "penId": pid},
+            data_selector=data_selector,
+            paginator=paginator,
+        )
+
+
+@dlt.resource(write_disposition="replace", columns=Site, max_table_nesting=0)
 def site_by_id(
     site_id: str,
     base_url: str = dlt.config.value,
     api_key: str = dlt.secrets.value,
+    params: dict[str, Any] | None = None,
 ):
-    """Load a single site by ID from GET /sites/{siteId}."""
-    auth = APIKeyAuth(name="apikey", api_key=api_key, location="header")
-    client = RESTClient(
-        base_url=base_url,
-        auth=auth,
-        paginator=JSONResponseCursorPaginator(cursor_path="nextToken", cursor_param="nextToken"),
+    """A single site from `GET /sites/{siteId}`.
+
+    Standalone (not part of `aquabyte_source`) for targeted lookups.
+
+    Args:
+        site_id: The site id to fetch, interpolated into the path.
+        base_url: API base URL, from config.
+        api_key: API key, from secrets.
+        params: Query params passed through verbatim. The endpoint documents none.
+    """
+    client = _make_client(base_url, api_key)
+    yield from _paginate(
+        client,
+        f"/sites/{site_id}",
+        params=_query(params),
+        data_selector="sites",
+        paginator=SinglePagePaginator(),
     )
-
-    yield from client.paginate(f"/sites/{site_id}", data_selector="sites")
-
-
-WELFARE_CATEGORIES = [
-    "bodyWound",
-    "scaleLoss",
-    "snoutWound",
-    "maturation",
-    "eyeBleeding",
-    "eyeClouding",
-    "exophthalmos",
-    "opercularDamage",
-    "backDeformity",
-    "pelvicFin",
-    "pectoralFin",
-    "caudalFin",
-    "analFin",
-    "dorsalFin",
-    "upperJawDeformity",
-    "lowerJawDeformity",
-    "breathingMouth",
-    "mechHeadWound",
-]
-
-
-def _unpivot_welfare_scores(record: dict) -> list[dict]:
-    """Unpivot a single WelfareScoresRecord into flat rows (one per category with data)."""
-    pen_id = record["penId"]
-    date = record["date"]
-    scores_detail = record.get("welfareScores", {})
-    rows = []
-
-    for category in WELFARE_CATEGORIES:
-        detail_raw = scores_detail.get(category)
-        if detail_raw is None:
-            continue
-
-        detail = WelfareScoreDetail(**detail_raw)
-        row = {
-            "penId": pen_id,
-            "date": date,
-            "category": category,
-            "activeScore1": detail.active.score_1,
-            "activeScore2": detail.active.score_2,
-            "activeScore3": detail.active.score_3,
-            "healedScore1": detail.healed.score_1 if detail.healed else None,
-            "healedScore2": detail.healed.score_2 if detail.healed else None,
-            "healedScore3": detail.healed.score_3 if detail.healed else None,
-            "nothing": detail.nothing,
-            "sampleSize": detail.sampleSize,
-        }
-        rows.append(row)
-
-    return rows
 
 
 @dlt.source
 def aquabyte_source(
-    pen_ids: list[str] | None = None,
-    from_date: str | None = None,
-    to_date: str | None = None,
-    from_time: str | None = None,
-    to_time: str | None = None,
-    environmental_period: str = dlt.config.value,
-    behavior_period: str = dlt.config.value,
-    initial_date: str = dlt.config.value,
-    initial_time: str = dlt.config.value,
     base_url: str = dlt.config.value,
     api_key: str = dlt.secrets.value,
+    initial_date: str = dlt.config.value,
+    initial_time: str = dlt.config.value,
 ):
     """Aquabyte API v3 dlt source.
 
-    Creates a single RESTClient shared by all resources.
+    All resources share one RESTClient. Query params live on the resources, not here —
+    bind them per resource, e.g. `source.biomass.bind(from_date="2026-01-01")`, or set
+    them in config under `[sources.aquabyte.biomass]`.
 
     Args:
-        pen_ids: List of pen IDs to fetch. None for auto-discovery.
-        from_date: Manual start date (YYYY-MM-DD) for date-based endpoints.
-        to_date: Manual end date (YYYY-MM-DD) for date-based endpoints.
-        from_time: Manual start time (ISO 8601) for time-based endpoints.
-        to_time: Manual end time (ISO 8601) for time-based endpoints.
-        environmental_period: Aggregation period for environmental data ('15min', 'h', 'D').
-        behavior_period: Aggregation period for behavior data ('h', 'D').
-        initial_date: Start date for date-based incremental endpoints (YYYY-MM-DD).
-        initial_time: Start time for time-based incremental endpoints (ISO 8601).
-        base_url: API base URL from config.
-        api_key: API key from secrets.
+        base_url: API base URL, from config.
+        api_key: API key, from secrets.
+        initial_date: Cursor start for the date-based resources (YYYY-MM-DD).
+        initial_time: Cursor start for the time-based resources (ISO 8601).
     """
-    auth = APIKeyAuth(name="apikey", api_key=api_key, location="header")
-    client = RESTClient(
-        base_url=base_url,
-        auth=auth,
-        paginator=JSONResponseCursorPaginator(cursor_path="nextToken", cursor_param="nextToken"),
-    )
+    client = _make_client(base_url, api_key)
 
     @dlt.resource(write_disposition="replace", columns=Site, max_table_nesting=0)
-    def sites():
-        """Load all sites from GET /sites."""
-        yield from client.paginate("/sites", data_selector="sites")
+    def sites(site_id: str | None = None, params: dict[str, Any] | None = None):
+        """All sites from `GET /sites`, each with its pens nested as the API nests them.
+
+        Args:
+            site_id: Optional `siteId` filter the endpoint documents.
+            params: Query params passed through verbatim, merged last.
+        """
+        yield from _paginate(
+            client,
+            "/sites",
+            params=_query(params, siteId=site_id),
+            data_selector="sites",
+            paginator=SinglePagePaginator(),
+        )
 
     @dlt.transformer(data_from=sites, write_disposition="replace", columns=Pen)
-    def pens(sites_page: list[dict]):
-        """Extract pens from site data."""
+    def pens(sites_page: list[dict[str, Any]]):
+        """Every pen the `/sites` response nests, unwrapped into its own table.
+
+        Envelope unwrapping only: each pen object is yielded exactly as the API
+        returned it, and no pen is filtered out.
+        """
         for site in sites_page:
-            for pen in site.get("pens", []):
-                if pen_ids is None or pen["id"] in pen_ids:
-                    yield pen
+            yield from site.get("pens") or []
 
     @dlt.resource(
         write_disposition="merge",
@@ -145,34 +212,50 @@ def aquabyte_source(
         columns=EnvironmentalDataPoint,
     )
     def environmental(
+        pen_id: PenId = "all",
+        from_time: str | None = None,
+        to_time: str | None = None,
+        period: str | None = None,
+        params: dict[str, Any] | None = None,
         incremental_from_time: dlt.sources.incremental[str] = dlt.sources.incremental(
             "fromTime", initial_value=initial_time
         ),
     ):
-        """Load environmental data from GET /environmental?penId=all."""
-        params: dict[str, str] = {"period": environmental_period}
-        if from_time is not None:
-            params["fromTime"] = from_time
-        elif incremental_from_time.last_value is not None:
-            params["fromTime"] = incremental_from_time.last_value
-        if to_time is not None:
-            params["toTime"] = to_time
+        """Environmental readings from `GET /environmental`.
 
-        if pen_ids:
-            for pid in pen_ids:
-                params["penId"] = pid
-                for page in client.paginate("/environmental", params=params, data_selector="data"):
-                    yield page
-        else:
-            params["penId"] = "all"
-            for page in client.paginate("/environmental", params=params, data_selector="data"):
-                yield page
+        Args:
+            pen_id: `penId`; `"all"` for every pen, or a list to fan out per pen.
+            from_time: `fromTime` (ISO 8601). Defaults to the incremental cursor.
+            to_time: `toTime` (ISO 8601, exclusive). Omitted means the API's default (today).
+            period: `period` aggregation — `"15min"`, `"h"` or `"D"`. Omitted means the API's default (`"D"`).
+            params: Query params passed through verbatim, merged last.
+            incremental_from_time: Incremental cursor on `fromTime`.
+        """
+        window_start = _window_start("environmental", "fromTime", from_time, incremental_from_time.last_value)
+        yield from _paginate_per_pen(
+            client,
+            "/environmental",
+            pen_id=pen_id,
+            params=_query(params, fromTime=window_start, toTime=to_time, period=period),
+            data_selector="data",
+        )
 
     @dlt.resource(write_disposition="replace", columns=EnvironmentalDataLive)
-    def environmental_latest(pen_id: str = "all"):
-        """Load latest environmental readings from GET /environmental/latest."""
-        params: dict[str, str] = {"penId": pen_id}
-        yield from client.paginate("/environmental/latest", params=params, data_selector="data")
+    def environmental_latest(pen_id: PenId = "all", params: dict[str, Any] | None = None):
+        """The latest environmental reading per pen from `GET /environmental/latest`.
+
+        Args:
+            pen_id: `penId`; `"all"` for every pen, or a list to fan out per pen.
+            params: Query params passed through verbatim, merged last.
+        """
+        yield from _paginate_per_pen(
+            client,
+            "/environmental/latest",
+            pen_id=pen_id,
+            params=_query(params),
+            data_selector="data",
+            paginator=SinglePagePaginator(),
+        )
 
     @dlt.resource(
         write_disposition="merge",
@@ -180,28 +263,31 @@ def aquabyte_source(
         columns=BiomassDailyModel,
     )
     def biomass(
+        pen_id: PenId = "all",
+        from_date: str | None = None,
+        to_date: str | None = None,
+        bucket_size: int | None = None,
+        params: dict[str, Any] | None = None,
         incremental_date: dlt.sources.incremental[str] = dlt.sources.incremental("date", initial_value=initial_date),
     ):
-        """Load biomass data from GET /biomass?penId=all."""
-        params: dict[str, str] = {}
-        if from_date is not None:
-            params["fromDate"] = from_date
-        elif incremental_date.last_value is not None:
-            params["fromDate"] = incremental_date.last_value
-        else:
-            params["fromDate"] = initial_date
-        if to_date is not None:
-            params["toDate"] = to_date
+        """Daily biomass from `GET /biomass`.
 
-        if pen_ids:
-            for pid in pen_ids:
-                params["penId"] = pid
-                for page in client.paginate("/biomass", params=params, data_selector="biomass"):
-                    yield page
-        else:
-            params["penId"] = "all"
-            for page in client.paginate("/biomass", params=params, data_selector="biomass"):
-                yield page
+        Args:
+            pen_id: `penId`; `"all"` for every pen, or a list to fan out per pen.
+            from_date: `fromDate` (YYYY-MM-DD). Defaults to the incremental cursor.
+            to_date: `toDate` (YYYY-MM-DD, inclusive). Omitted means the API's default (today).
+            bucket_size: `bucketSize` in grams for `weightDist`. Omitted means the API's default (1000).
+            params: Query params passed through verbatim, merged last.
+            incremental_date: Incremental cursor on `date`.
+        """
+        window_start = _window_start("biomass", "fromDate", from_date, incremental_date.last_value)
+        yield from _paginate_per_pen(
+            client,
+            "/biomass",
+            pen_id=pen_id,
+            params=_query(params, fromDate=window_start, toDate=to_date, bucketSize=bucket_size),
+            data_selector="biomass",
+        )
 
     @dlt.resource(
         write_disposition="merge",
@@ -209,28 +295,34 @@ def aquabyte_source(
         columns=BiomassHarvestReport,
     )
     def harvest_report(
+        pen_id: PenId = "all",
+        from_date: str | None = None,
+        to_date: str | None = None,
+        params: dict[str, Any] | None = None,
         incremental_slaughter_start_date: dlt.sources.incremental[str] = dlt.sources.incremental(
             "slaughterStartDate", initial_value=initial_date
         ),
     ):
-        """Load harvest reports from GET /biomass/harvestReport?penId=all."""
-        params: dict[str, str] = {}
-        if from_date is not None:
-            params["fromDate"] = from_date
-        elif incremental_slaughter_start_date.last_value is not None:
-            params["fromDate"] = incremental_slaughter_start_date.last_value
-        if to_date is not None:
-            params["toDate"] = to_date
+        """Harvest reports from `GET /biomass/harvestReport`.
 
-        if pen_ids:
-            for pid in pen_ids:
-                params["penId"] = pid
-                for page in client.paginate("/biomass/harvestReport", params=params, data_selector="reports"):
-                    yield page
-        else:
-            params["penId"] = "all"
-            for page in client.paginate("/biomass/harvestReport", params=params, data_selector="reports"):
-                yield page
+        Args:
+            pen_id: `penId`; `"all"` for every pen, or a list to fan out per pen.
+            from_date: `fromDate` (YYYY-MM-DD). Defaults to the incremental cursor.
+            to_date: `toDate` (YYYY-MM-DD, inclusive). Omitted means the API's default (today).
+            params: Query params passed through verbatim, merged last.
+            incremental_slaughter_start_date: Incremental cursor on `slaughterStartDate`.
+        """
+        window_start = _window_start(
+            "harvest_report", "fromDate", from_date, incremental_slaughter_start_date.last_value
+        )
+        yield from _paginate_per_pen(
+            client,
+            "/biomass/harvestReport",
+            pen_id=pen_id,
+            params=_query(params, fromDate=window_start, toDate=to_date),
+            data_selector="reports",
+            paginator=SinglePagePaginator(),
+        )
 
     @dlt.resource(
         write_disposition="merge",
@@ -238,26 +330,29 @@ def aquabyte_source(
         columns=LiceCount,
     )
     def lice_count(
+        pen_id: PenId = "all",
+        from_date: str | None = None,
+        to_date: str | None = None,
+        params: dict[str, Any] | None = None,
         incremental_date: dlt.sources.incremental[str] = dlt.sources.incremental("date", initial_value=initial_date),
     ):
-        """Load lice count data from GET /liceCount?penId=all."""
-        params: dict[str, str] = {}
-        if from_date is not None:
-            params["fromDate"] = from_date
-        elif incremental_date.last_value is not None:
-            params["fromDate"] = incremental_date.last_value
-        if to_date is not None:
-            params["toDate"] = to_date
+        """Lice counts from `GET /liceCount`.
 
-        if pen_ids:
-            for pid in pen_ids:
-                params["penId"] = pid
-                for page in client.paginate("/liceCount", params=params, data_selector="liceCount"):
-                    yield page
-        else:
-            params["penId"] = "all"
-            for page in client.paginate("/liceCount", params=params, data_selector="liceCount"):
-                yield page
+        Args:
+            pen_id: `penId`; `"all"` for every pen, or a list to fan out per pen.
+            from_date: `fromDate` (YYYY-MM-DD). Defaults to the incremental cursor.
+            to_date: `toDate` (YYYY-MM-DD, inclusive). Omitted means the API's default (today).
+            params: Query params passed through verbatim, merged last.
+            incremental_date: Incremental cursor on `date`.
+        """
+        window_start = _window_start("lice_count", "fromDate", from_date, incremental_date.last_value)
+        yield from _paginate_per_pen(
+            client,
+            "/liceCount",
+            pen_id=pen_id,
+            params=_query(params, fromDate=window_start, toDate=to_date),
+            data_selector="liceCount",
+        )
 
     @dlt.resource(
         write_disposition="merge",
@@ -265,28 +360,33 @@ def aquabyte_source(
         columns=BehaviorSwimSpeed,
     )
     def behaviour_swim_speed(
+        pen_id: PenId = "all",
+        from_time: str | None = None,
+        to_time: str | None = None,
+        period: str | None = None,
+        params: dict[str, Any] | None = None,
         incremental_from_time: dlt.sources.incremental[str] = dlt.sources.incremental(
             "fromTime", initial_value=initial_time
         ),
     ):
-        """Load swim speed data from GET /behaviour/swimSpeed?penId=all."""
-        params: dict[str, str] = {"period": behavior_period}
-        if from_time is not None:
-            params["fromTime"] = from_time
-        elif incremental_from_time.last_value is not None:
-            params["fromTime"] = incremental_from_time.last_value
-        if to_time is not None:
-            params["toTime"] = to_time
+        """Swim speed and tilt from `GET /behaviour/swimSpeed`.
 
-        if pen_ids:
-            for pid in pen_ids:
-                params["penId"] = pid
-                for page in client.paginate("/behaviour/swimSpeed", params=params, data_selector="swimSpeed"):
-                    yield page
-        else:
-            params["penId"] = "all"
-            for page in client.paginate("/behaviour/swimSpeed", params=params, data_selector="swimSpeed"):
-                yield page
+        Args:
+            pen_id: `penId`; `"all"` for every pen, or a list to fan out per pen.
+            from_time: `fromTime` (ISO 8601). Defaults to the incremental cursor.
+            to_time: `toTime` (ISO 8601, exclusive). Omitted means the API's default (today).
+            period: `period` aggregation — `"h"` or `"D"`. Omitted means the API's default (`"D"`).
+            params: Query params passed through verbatim, merged last.
+            incremental_from_time: Incremental cursor on `fromTime`.
+        """
+        window_start = _window_start("behaviour_swim_speed", "fromTime", from_time, incremental_from_time.last_value)
+        yield from _paginate_per_pen(
+            client,
+            "/behaviour/swimSpeed",
+            pen_id=pen_id,
+            params=_query(params, fromTime=window_start, toTime=to_time, period=period),
+            data_selector="swimSpeed",
+        )
 
     @dlt.resource(
         write_disposition="merge",
@@ -294,66 +394,70 @@ def aquabyte_source(
         columns=BehaviorBreathingIndex,
     )
     def behaviour_breathing_index(
+        pen_id: PenId = "all",
+        from_time: str | None = None,
+        to_time: str | None = None,
+        params: dict[str, Any] | None = None,
         incremental_from_time: dlt.sources.incremental[str] = dlt.sources.incremental(
             "fromTime", initial_value=initial_time
         ),
     ):
-        """Load breathing index data from GET /behaviour/breathingIndex?penId=all."""
-        params: dict[str, str] = {}
-        if from_time is not None:
-            params["fromTime"] = from_time
-        elif incremental_from_time.last_value is not None:
-            params["fromTime"] = incremental_from_time.last_value
-        if to_time is not None:
-            params["toTime"] = to_time
+        """Breathing index from `GET /behaviour/breathingIndex`.
 
-        if pen_ids:
-            for pid in pen_ids:
-                params["penId"] = pid
-                for page in client.paginate("/behaviour/breathingIndex", params=params, data_selector="breathingIndex"):
-                    yield page
-        else:
-            params["penId"] = "all"
-            for page in client.paginate("/behaviour/breathingIndex", params=params, data_selector="breathingIndex"):
-                yield page
+        The endpoint documents no `period` param, unlike `/behaviour/swimSpeed`.
+
+        Args:
+            pen_id: `penId`; `"all"` for every pen, or a list to fan out per pen.
+            from_time: `fromTime` (ISO 8601). Defaults to the incremental cursor.
+            to_time: `toTime` (ISO 8601, exclusive). Omitted means the API's default (today).
+            params: Query params passed through verbatim, merged last.
+            incremental_from_time: Incremental cursor on `fromTime`.
+        """
+        window_start = _window_start(
+            "behaviour_breathing_index", "fromTime", from_time, incremental_from_time.last_value
+        )
+        yield from _paginate_per_pen(
+            client,
+            "/behaviour/breathingIndex",
+            pen_id=pen_id,
+            params=_query(params, fromTime=window_start, toTime=to_time),
+            data_selector="breathingIndex",
+        )
 
     @dlt.resource(
         write_disposition="merge",
-        primary_key=["penId", "date", "category"],
-        columns=WelfareScoreRow,
+        primary_key=["penId", "date"],
+        columns=WelfareScoresRecord,
+        max_table_nesting=0,
     )
     def welfare_scores(
+        pen_id: PenId = "all",
+        from_date: str | None = None,
+        to_date: str | None = None,
+        params: dict[str, Any] | None = None,
         incremental_date: dlt.sources.incremental[str] = dlt.sources.incremental("date", initial_value=initial_date),
     ):
-        """Load welfare scores from GET /welfareScores?penId=all.
+        """Welfare scores from `GET /welfareScores`, one row per pen and date.
 
-        Unpivots nested welfare categories into flat rows (one per pen+date+category).
+        The nested `welfareScores` object lands as a single JSON column, categories and
+        all — including any category added after this release. Flattening it into one
+        row per category belongs in the consumer's transform layer.
+
+        Args:
+            pen_id: `penId`; `"all"` for every pen, or a list to fan out per pen.
+            from_date: `fromDate` (YYYY-MM-DD). Defaults to the incremental cursor.
+            to_date: `toDate` (YYYY-MM-DD, inclusive). Omitted means the API's default (today).
+            params: Query params passed through verbatim, merged last.
+            incremental_date: Incremental cursor on `date`.
         """
-        params: dict[str, str] = {}
-        if from_date is not None:
-            params["fromDate"] = from_date
-        elif incremental_date.last_value is not None:
-            params["fromDate"] = incremental_date.last_value
-        if to_date is not None:
-            params["toDate"] = to_date
-
-        if pen_ids:
-            for pid in pen_ids:
-                params["penId"] = pid
-                for page in client.paginate("/welfareScores", params=params, data_selector="welfareScores"):
-                    unpivoted_rows: list[dict] = []
-                    for record in page:
-                        unpivoted_rows.extend(_unpivot_welfare_scores(record))
-                    if unpivoted_rows:
-                        yield unpivoted_rows
-        else:
-            params["penId"] = "all"
-            for page in client.paginate("/welfareScores", params=params, data_selector="welfareScores"):
-                unpivoted_rows_all: list[dict] = []
-                for record in page:
-                    unpivoted_rows_all.extend(_unpivot_welfare_scores(record))
-                if unpivoted_rows_all:
-                    yield unpivoted_rows_all
+        window_start = _window_start("welfare_scores", "fromDate", from_date, incremental_date.last_value)
+        yield from _paginate_per_pen(
+            client,
+            "/welfareScores",
+            pen_id=pen_id,
+            params=_query(params, fromDate=window_start, toDate=to_date),
+            data_selector="welfareScores",
+        )
 
     return (
         sites,

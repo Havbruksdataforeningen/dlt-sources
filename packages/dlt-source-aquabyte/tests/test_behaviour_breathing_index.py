@@ -1,4 +1,6 @@
-"""Tests for the behaviour_breathing_index resource (v3.1 standalone with penId=all)."""
+"""Tests for the behaviour_breathing_index resource."""
+
+import pytest
 
 from dlt_source_aquabyte import aquabyte_source
 from tests.conftest import (
@@ -8,62 +10,50 @@ from tests.conftest import (
     assert_pen_ids,
     assert_row_count,
     load_mock,
-    make_per_pen_data,
+    params_sent,
+    query,
     run_source,
+    serve,
 )
+
+RECORDS = load_mock("breathing_index.json")["breathingIndex"]
 
 
 def test_behaviour_breathing_index_loads_into_duckdb(mock_rest_client):
-    """Behaviour breathing index resource loads mock data into DuckDB standalone."""
-    breathing_records = load_mock("breathing_index.json")["breathingIndex"]
-    pen_id = "pen-001"
+    """Behaviour breathing index resource loads mock data into DuckDB for a single pen."""
+    mock_rest_client.paginate.side_effect = serve({"/behaviour/breathingIndex": RECORDS})
 
-    def paginate_side_effect(url: str, **kwargs):
-        if url == "/behaviour/breathingIndex":
-            params = kwargs.get("params", {})
-            if params.get("penId") == pen_id:
-                # Verify period is NOT in params (v3.1 breaking change)
-                assert "period" not in params, "period must not be passed for breathingIndex in v3.1"
-                return iter([make_per_pen_data(breathing_records, pen_id)])
-        return iter([])
-
-    mock_rest_client.paginate.side_effect = paginate_side_effect
-
-    source = aquabyte_source(pen_ids=[pen_id], **TIME_RANGE, **SOURCE_CONFIG)
+    source = aquabyte_source(**SOURCE_CONFIG)
+    source.behaviour_breathing_index.bind(pen_id="pen-001", **TIME_RANGE)
     pipeline, load_info = run_source("test_behaviour_breathing", source, ["behaviour_breathing_index"])
 
     assert load_info is not None
-    assert_row_count(pipeline, "behaviour_breathing_index", len(breathing_records))
-    assert_pen_ids(pipeline, "behaviour_breathing_index", [pen_id])
+    assert_row_count(pipeline, "behaviour_breathing_index", len(RECORDS))
+    assert_pen_ids(pipeline, "behaviour_breathing_index", ["pen-001"])
+    assert "period" not in params_sent(mock_rest_client, "/behaviour/breathingIndex")[0]
 
-    # Verify nullable breathing_index field is handled correctly
-    with pipeline.sql_client() as client:
-        result = client.execute_sql(
-            "SELECT breathing_index FROM behaviour_breathing_index WHERE from_time = '2026-01-11T00:00:00Z'"
-        )
-        assert result is not None
-        assert result[0][0] is None
+    rows = query(
+        pipeline,
+        "SELECT breathing_index FROM behaviour_breathing_index WHERE from_time = '2026-01-11T00:00:00Z'",
+    )
+    assert rows[0][0] is None
 
 
-def test_behaviour_breathing_index_pen_id_all(mock_rest_client):
-    """Behaviour breathing index resource fetches data for all pens when pen_ids is None."""
-    breathing_records = load_mock("breathing_index.json")["breathingIndex"]
+def test_behaviour_breathing_index_has_no_period_param():
+    """The endpoint documents no period, so the resource does not offer one."""
+    source = aquabyte_source(**SOURCE_CONFIG)
+    with pytest.raises(TypeError):
+        source.behaviour_breathing_index.bind(period="h")
 
-    def paginate_side_effect(url: str, **kwargs):
-        if url == "/behaviour/breathingIndex":
-            params = kwargs.get("params", {})
-            if params.get("penId") == "all":
-                all_records: list[dict] = []
-                for pid in ACTIVE_PEN_IDS:
-                    all_records.extend(make_per_pen_data(breathing_records, pid))
-                return iter([all_records])
-        return iter([])
 
-    mock_rest_client.paginate.side_effect = paginate_side_effect
+def test_behaviour_breathing_index_defaults_to_all_pens(mock_rest_client):
+    """Behaviour breathing index resource fetches every pen with a single penId=all request."""
+    mock_rest_client.paginate.side_effect = serve({"/behaviour/breathingIndex": RECORDS})
 
-    source = aquabyte_source(**TIME_RANGE, **SOURCE_CONFIG)
+    source = aquabyte_source(**SOURCE_CONFIG)
+    source.behaviour_breathing_index.bind(**TIME_RANGE)
     pipeline, load_info = run_source("test_breathing_all_pens", source, ["behaviour_breathing_index"])
 
     assert load_info is not None
-    assert_row_count(pipeline, "behaviour_breathing_index", len(breathing_records) * len(ACTIVE_PEN_IDS))
+    assert_row_count(pipeline, "behaviour_breathing_index", len(RECORDS) * len(ACTIVE_PEN_IDS))
     assert_pen_ids(pipeline, "behaviour_breathing_index", ACTIVE_PEN_IDS)

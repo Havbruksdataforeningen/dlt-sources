@@ -1,5 +1,11 @@
-"""Scheduled daily load: first run backfills from initial_date/initial_time config,
-later runs resume from dlt's stored incremental cursor."""
+"""Scheduled daily load.
+
+Nothing is bound: the first run starts from the `initial_date`/`initial_time` in
+config, and every later run resumes from the incremental cursor dlt stored. Which
+scheduler triggers this — cron, Airflow, Prefect, a CI job — is your choice.
+
+    uv run python examples/daily_load.py
+"""
 
 import sys
 
@@ -7,7 +13,7 @@ import dlt
 
 from dlt_source_aquabyte import aquabyte_source
 
-# environmental_latest is excluded: realtime polling, not a daily batch concern
+# environmental_latest is excluded: realtime polling, not a daily batch concern.
 DAILY_RESOURCES = [
     "sites",
     "pens",

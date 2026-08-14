@@ -1,29 +1,46 @@
-"""Pydantic models generated from the Aquabyte API v3 OpenAPI spec."""
+"""Pydantic models mirroring the Aquabyte API v3 schemas (`specs/openapi-v3.1.1.json`).
 
-from pydantic import BaseModel
+The models exist for two reasons only:
+
+1. They give dlt proper column types at ingest, so a destination table is well typed
+   even when the first page happens to be full of nulls.
+2. They document the API's own record shapes — field names and nesting are the API's,
+   never renamed or flattened.
+
+Every model allows extra fields (`extra="allow"`), which dlt translates into the
+`evolve` column contract: a field the API adds after this release lands in the
+destination instead of failing the load. Fields the spec marks nullable default to
+``None`` so a field the API stops sending does not fail the load either.
+"""
+
+from typing import Any
+
+from pydantic import BaseModel, ConfigDict, Field
 
 
-class Pen(BaseModel):
+class AquabyteModel(BaseModel):
+    """Base for every Aquabyte record model: unknown fields pass through untouched."""
+
+    model_config = ConfigDict(extra="allow")
+
+
+class Pen(AquabyteModel):
     id: str
     name: str
-    penCode: str | None
+    penCode: str | None = None
     isActive: bool
     external_id: str | None = None
 
 
-class Site(BaseModel):
+class Site(AquabyteModel):
     id: str
     name: str
-    governmentSiteNumber: int | None
+    governmentSiteNumber: int | None = None
     external_site_id: str | None = None
-    pens: list[Pen]
+    pens: list[Pen] = Field(default_factory=list)
 
 
-class SitesResponse(BaseModel):
-    sites: list[Site]
-
-
-class EnvironmentalDataPoint(BaseModel):
+class EnvironmentalDataPoint(AquabyteModel):
     penId: str
     fromTime: str
     toTime: str
@@ -36,7 +53,7 @@ class EnvironmentalDataPoint(BaseModel):
     fishDensity: float | None = None
 
 
-class EnvironmentalDataLive(BaseModel):
+class EnvironmentalDataLive(AquabyteModel):
     penId: str | None = None
     time: str
     temperature: float | None = None
@@ -45,12 +62,12 @@ class EnvironmentalDataLive(BaseModel):
     salinity: float | None = None
 
 
-class WeightDistModel(BaseModel):
-    interval: list[float]
-    distribution: list[float]
+class WeightDistModel(AquabyteModel):
+    interval: list[float] = Field(default_factory=list)
+    distribution: list[float] = Field(default_factory=list)
 
 
-class BiomassDailyModel(BaseModel):
+class BiomassDailyModel(AquabyteModel):
     penId: str
     date: str
     sampleSize: float | None = None
@@ -60,7 +77,7 @@ class BiomassDailyModel(BaseModel):
     weightDist: WeightDistModel | None = None
 
 
-class BiomassHarvestReport(BaseModel):
+class BiomassHarvestReport(AquabyteModel):
     penId: str
     mainReport: bool
     asOfDate: str
@@ -69,86 +86,76 @@ class BiomassHarvestReport(BaseModel):
     slaughterEndDate: str
     temperature: float
     lossFactor: float
-    packingMethod: str | None
+    packingMethod: str | None = None
     measurementCount: int
     coefficientOfVariation: float
     avgPackedWeightGrams: float
     avgRoundWeightGrams: float
     superiorRate: float
-    packedWeightDistribution: dict[str, float]
-    roundWeightDistribution: dict[str, float]
+    packedWeightDistribution: dict[str, float] = Field(default_factory=dict)
+    roundWeightDistribution: dict[str, float] = Field(default_factory=dict)
     createdAt: str
 
 
-class LiceCount(BaseModel):
+class LiceCount(AquabyteModel):
     penId: str
     date: str
     sampleSize: float
-    adultFemale: float | None
-    adultFemaleConverted: float | None
-    mobile: float | None
-    mobileConverted: float | None
-    caligus: float | None
+    adultFemale: float | None = None
+    adultFemaleConverted: float | None = None
+    mobile: float | None = None
+    mobileConverted: float | None = None
+    caligus: float | None = None
 
 
-class BehaviorSwimSpeed(BaseModel):
+class BehaviorSwimSpeed(AquabyteModel):
     penId: str
     fromTime: str
     toTime: str
     swimSpeedsampleSize: float
-    swimSpeed: float | None
+    swimSpeed: float | None = None
     swimTiltsampleSize: float
-    swimTilt: float | None
+    swimTilt: float | None = None
 
 
-class BehaviorBreathingIndex(BaseModel):
+class BehaviorBreathingIndex(AquabyteModel):
     penId: str
     fromTime: str
     toTime: str
     sampleSize: float
-    breathingIndex: float | None
+    breathingIndex: float | None = None
 
 
-class WelfareScoreProportions(BaseModel):
-    score_1: float
-    score_2: float
-    score_3: float
+class WelfareScoreDetail(AquabyteModel):
+    """Documentation model for one welfare category inside a `WelfareScoresRecord`.
 
-    model_config = {"populate_by_name": True}
+    Not used to validate rows — `welfare_scores` lands the whole nested object as a
+    single JSON column (see `WelfareScoresRecord`) — but it is the shape a consumer's
+    transform layer will find there. `active` and `healed` are keyed by the score
+    bands the API uses literally: `"1"`, `"2"`, `"3"`.
+    """
 
-    def __init__(self, **data: float):
-        # Map numeric keys "1", "2", "3" to score_1, score_2, score_3
-        mapped = {}
-        for key, value in data.items():
-            if key == "1":
-                mapped["score_1"] = value
-            elif key == "2":
-                mapped["score_2"] = value
-            elif key == "3":
-                mapped["score_3"] = value
-            else:
-                mapped[key] = value
-        super().__init__(**mapped)
-
-
-class WelfareScoreDetail(BaseModel):
-    active: WelfareScoreProportions
+    active: dict[str, float]
     nothing: float
     sampleSize: float
-    healed: WelfareScoreProportions | None = None
+    healed: dict[str, float] | None = None
 
 
-class WelfareScoreRow(BaseModel):
-    """Flat output model for unpivoted welfare scores (one row per pen+date+category)."""
+class WelfareScoresRecord(AquabyteModel):
+    """A `/welfareScores` record exactly as the API returns it.
+
+    `welfareScores` maps a category name to a `WelfareScoreDetail` object (or null).
+    It is deliberately typed as a plain mapping rather than a fixed list of
+    categories: a category the API adds later must land untouched, and the resource
+    sets `max_table_nesting=0` so the whole mapping becomes one JSON column anyway.
+    Flattening it into one row per category is the consumer's transform.
+
+    The categories the spec documents today: bodyWound, scaleLoss, snoutWound,
+    maturation, eyeBleeding, eyeClouding, exophthalmos, opercularDamage,
+    backDeformity, pelvicFin, pectoralFin, caudalFin, analFin, dorsalFin,
+    upperJawDeformity, lowerJawDeformity, breathingMouth, mechHeadWound.
+    """
 
     penId: str
     date: str
-    category: str
-    activeScore1: float
-    activeScore2: float
-    activeScore3: float
-    healedScore1: float | None = None
-    healedScore2: float | None = None
-    healedScore3: float | None = None
-    nothing: float
-    sampleSize: float
+    welfareScores: dict[str, Any] | None = None

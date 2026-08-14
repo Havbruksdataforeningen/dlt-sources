@@ -11,19 +11,27 @@
 # Docs: https://api.aquabyte.ai/v3/
 base_url = "https://api.aquabyte.ai/v3/"
 
-# Aggregation period for environmental data
-# Options: "15min", "h" (hourly), "D" (daily)
-# Higher granularity = more data points and API calls per pen
-environmental_period = "D"
-
-# Aggregation period for behavior data (only used by behaviour_swim_speed)
-# Options: "h" (hourly), "D" (daily)
-behavior_period = "D"
-
-# Initial value for date-based incremental endpoints (biomass, harvest_report, lice_count, welfare_scores)
-# Format: YYYY-MM-DD
+# Where the date-based incremental cursors start on a first run
+# (biomass, harvest_report, lice_count, welfare_scores). Format: YYYY-MM-DD
 initial_date = "2020-01-01"
 
-# Initial value for time-based incremental endpoints (environmental, behaviour_swim_speed, behaviour_breathing_index)
-# Format: ISO 8601 timestamp
+# Where the time-based incremental cursors start on a first run
+# (environmental, behaviour_swim_speed, behaviour_breathing_index). Format: ISO 8601
 initial_time = "2020-01-01T00:00:00Z"
+
+# Query params belong to the resource that sends them, so they are configured per
+# resource — the same names the API documents, in snake_case. Everything below is
+# optional: leave a param out and the API's own default applies.
+# See docs/parameter-inventory.md for the full list.
+
+# [sources.aquabyte.environmental]
+# period = "D"          # "15min", "h" or "D" (API default: "D")
+
+# [sources.aquabyte.behaviour_swim_speed]
+# period = "D"          # "h" or "D" (API default: "D")
+
+# [sources.aquabyte.biomass]
+# bucket_size = 1000    # weightDist bucket size in grams (API default: 1000)
+
+# [sources.aquabyte.welfare_scores]
+# pen_id = "all"        # a single pen id, or "all" (the default)
