@@ -1,0 +1,9 @@
+# Changelog
+
+All notable changes to `dlt-source-aquabyte`, written for people using the package. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); how to write an entry is in [`docs/agents/release.md`](../../docs/agents/release.md).
+
+## [Unreleased]
+
+### Added
+
+- Initial source for Aquabyte API v3: sites, pens, biomass, lice counts, welfare scores, behaviour (swim speed, breathing index), environmental readings and harvest reports.

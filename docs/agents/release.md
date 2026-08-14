@@ -110,7 +110,7 @@ Two things to be careful about here:
 
 ## What happens after the push
 
-The workflow checks that the tag matches the version in `pyproject.toml`, builds the package, and publishes it — a final version goes to PyPI, a pre-release version (like `0.2.0rc1`) goes to TestPyPI. Watch it under the repo's **Actions** tab, then check the result at `https://pypi.org/p/dlt-source-aquabyte`.
+The workflow checks that the tag matches the version in `pyproject.toml` and that the changelog has a section for it (skipped for release candidates — their entry is not written yet), builds the package, and publishes it — a final version goes to PyPI, a pre-release version (like `0.2.0rc1`) goes to TestPyPI. Watch it under the repo's **Actions** tab, then check the result at `https://pypi.org/p/dlt-source-aquabyte`.
 
 ## Optional: do a test release first
 

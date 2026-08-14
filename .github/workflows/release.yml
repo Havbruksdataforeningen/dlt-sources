@@ -92,6 +92,23 @@ jobs:
             'import sys; from packaging.version import Version; tag, dec = sys.argv[1:3]; sys.exit(f"::error::tag version {tag!r} != pyproject version {dec!r}") if Version(tag) != Version(dec) else print(f"OK: tag {tag} matches pyproject {dec}")' \
             "$TAG_VERSION" "$declared"
 
+      # A final release must have its changelog entry (docs/agents/release.md,
+      # step 3). Release candidates are tagged before the entry is written, so
+      # pre-release versions skip this check.
+      - name: Assert changelog has this version
+        if: steps.meta.outputs.prerelease == 'false'
+        env:
+          PACKAGE: ${{ steps.meta.outputs.package }}
+          VERSION: ${{ steps.meta.outputs.version }}
+        run: |
+          set -euo pipefail
+          if grep -qF "## [${VERSION}]" "packages/${PACKAGE}/CHANGELOG.md"; then
+            echo "OK: changelog has a section for ${VERSION}"
+          else
+            echo "::error::packages/${PACKAGE}/CHANGELOG.md has no '## [${VERSION}]' section. Write the changelog entry before tagging — docs/agents/release.md, step 3."
+            exit 1
+          fi
+
       # --no-sources builds the package as a consumer would get it, with
       # tool.uv.sources workspace redirects disabled — so a workspace-internal
       # dependency that would not resolve from PyPI fails here, not downstream.
