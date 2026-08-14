@@ -1,7 +1,7 @@
 """The published parameter surface is checked against the committed OpenAPI spec.
 
-`docs/parameter-inventory.md` is the prose version of this; these tests are the part
-that fails when the spec and the code drift apart.
+These tests are what fails when the spec and the code drift apart; the README explains
+which endpoints and params the source deliberately does not expose.
 """
 
 import inspect

@@ -76,8 +76,8 @@ source.environmental.bind(period="15min")
 pipeline.run(source)
 ```
 
-- **`pen_id`** defaults to `"all"` — the API's own value for "every pen", in one request. Pass a single pen id, or a list to issue one request per pen.
-- **Window params** (`from_date`/`from_time`) default to the incremental cursor. Passing one explicitly overrides the cursor for that run.
+- **`pen_id`** defaults to `"all"` — the API's own value for "every pen", in one request. Pass a single pen id, or a list to issue one request per pen. It is the one param `params` cannot override: `penId` is re-stamped per request after the merge, because it drives the fan-out.
+- **Window params** (`from_date`/`from_time`) default to the incremental cursor, and are always sent — falling back to the configured `initial_date`/`initial_time` if there is no cursor value, so a run never silently inherits the API's own default window. Passing one explicitly overrides the cursor for that run.
 - **`params`** is on every resource and merged into the query string last — the escape hatch for a query param the API grows later, no release needed.
 
 Params can also be set in config, per resource:
@@ -87,7 +87,17 @@ Params can also be set in config, per resource:
 period = "15min"
 ```
 
-[`docs/parameter-inventory.md`](docs/parameter-inventory.md) accounts for every parameter and endpoint in the spec — implemented, or omitted with the reason. `tests/test_param_surface.py` checks the code against the same spec file, so the two cannot drift apart.
+`tests/test_param_surface.py` asserts each resource's signature against `specs/openapi-v3.1.1.json`, so the published parameter surface cannot drift from the spec.
+
+### What the source does not expose
+
+**`nextToken`**, on the six endpoints that document it. It is pagination mechanics, owned by dlt's `JSONResponseCursorPaginator`, which reads `nextToken` from each response and sends it on the next request until it is absent. Exposing it would let a caller break their own pagination. The other four read endpoints — `/sites`, `/sites/{siteId}`, `/environmental/latest` and `/biomass/harvestReport` — return no `nextToken` at all, so their resources read a single page (`SinglePagePaginator`) rather than hoping a cursor paginator terminates.
+
+**The eight `/pens/{penId}/…` path variants.** These are the v3.0 shape of the same data; v3.1 replaced them with `?penId=` on the flat endpoints, and the spec's own migration note recommends the flat form. None of them accepts a `nextToken` query param either, so a result set past the API's 10,000-record cap cannot be paged through — and `penId=all` fetches every pen in one request where the path variants need one per pen, which matters against a 1000 requests/hour limit. To read one pen, bind `pen_id="pen-abc"`; to read several, bind a list.
+
+**`POST /superiorRate`.** The spec marks it "(Experimental API) … subject to change", and it is a POST computation rather than a read endpoint. Worth revisiting once it leaves preview.
+
+The API's own limits are worth knowing either way: **1000 requests/hour**, and a **10,000-record cap** per result set, paginated beyond that with `nextToken`. The package does not throttle; a consumer close to the limit should prefer `pen_id="all"` over per-pen fan-out.
 
 ## Schemas
 
@@ -95,7 +105,7 @@ The Pydantic models in `schemas.py` give the destination proper column types eve
 
 ## Logging
 
-The package logs on the named logger `dlt_source_aquabyte` and installs no handlers — routing is yours, via standard `logging`. It logs only what dlt cannot: an explicit window overriding the incremental cursor (INFO), no window start at all (WARNING), the cursor value a run resumed from and each request's params (DEBUG). On failure it raises. See [`examples/logging_setup.py`](examples/logging_setup.py).
+The package logs on the named logger `dlt_source_aquabyte` and installs no handlers — routing is yours, via standard `logging`. It logs only what dlt cannot: an explicit window overriding the incremental cursor (INFO), a pen-id fan-out (INFO), a window start falling back to config because there was no cursor value (WARNING), and the cursor value a run resumed from (DEBUG). dlt itself logs the requests. On failure it raises. See [`examples/logging_setup.py`](examples/logging_setup.py).
 
 ## Configuration
 
@@ -143,7 +153,6 @@ dlt-source-aquabyte/
 │   ├── __init__.py      # Re-exports aquabyte_source, site_by_id, __version__
 │   ├── aquabyte.py      # Source, resources and transformer
 │   └── schemas.py       # Pydantic models from the OpenAPI schemas
-├── docs/                # Parameter inventory
 ├── examples/            # Runnable consumer-side setups
 ├── specs/               # OpenAPI spec (source of truth)
 ├── tests/               # pytest tests + mock_responses/ + conftest.py

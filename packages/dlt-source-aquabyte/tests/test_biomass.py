@@ -1,5 +1,7 @@
 """Tests for the biomass resource."""
 
+import dlt
+
 from dlt_source_aquabyte import aquabyte_source
 from tests.conftest import (
     ACTIVE_PEN_IDS,
@@ -48,6 +50,18 @@ def test_biomass_from_date_always_present(mock_rest_client):
 
     source = aquabyte_source(**SOURCE_CONFIG)
     _, load_info = run_source("test_biomass_from_date", source, ["biomass"])
+
+    assert load_info is not None
+    assert params_sent(mock_rest_client, "/biomass") == [{"penId": "all", "fromDate": SOURCE_CONFIG["initial_date"]}]
+
+
+def test_biomass_from_date_falls_back_to_the_configured_start(mock_rest_client):
+    """An incremental override with no initial value still sends fromDate, from config."""
+    mock_rest_client.paginate.side_effect = serve({"/biomass": RECORDS})
+
+    source = aquabyte_source(**SOURCE_CONFIG)
+    source.biomass.apply_hints(incremental=dlt.sources.incremental("date"))
+    _, load_info = run_source("test_biomass_from_date_fallback", source, ["biomass"])
 
     assert load_info is not None
     assert params_sent(mock_rest_client, "/biomass") == [{"penId": "all", "fromDate": SOURCE_CONFIG["initial_date"]}]

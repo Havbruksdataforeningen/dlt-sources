@@ -1,4 +1,4 @@
-- Revisit `POST /superiorRate` once it leaves preview — see `docs/parameter-inventory.md`.
+- Revisit `POST /superiorRate` once it leaves preview — see "What the source does not expose" in the README.
 - Consider a `CONTEXT.md` for the package, per `docs/agents/domain.md`.
 
 Resolved:

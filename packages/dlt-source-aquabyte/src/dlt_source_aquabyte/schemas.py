@@ -126,34 +126,16 @@ class BehaviorBreathingIndex(AquabyteModel):
     breathingIndex: float | None = None
 
 
-class WelfareScoreDetail(AquabyteModel):
-    """Documentation model for one welfare category inside a `WelfareScoresRecord`.
-
-    Not used to validate rows — `welfare_scores` lands the whole nested object as a
-    single JSON column (see `WelfareScoresRecord`) — but it is the shape a consumer's
-    transform layer will find there. `active` and `healed` are keyed by the score
-    bands the API uses literally: `"1"`, `"2"`, `"3"`.
-    """
-
-    active: dict[str, float]
-    nothing: float
-    sampleSize: float
-    healed: dict[str, float] | None = None
-
-
 class WelfareScoresRecord(AquabyteModel):
     """A `/welfareScores` record exactly as the API returns it.
 
-    `welfareScores` maps a category name to a `WelfareScoreDetail` object (or null).
+    `welfareScores` maps a category name to that category's scores (or null) —
+    `active` and `healed` keyed by the score bands the API uses literally (`"1"`,
+    `"2"`, `"3"`), plus `nothing` and `sampleSize`; see `specs/openapi-v3.1.1.json`.
     It is deliberately typed as a plain mapping rather than a fixed list of
     categories: a category the API adds later must land untouched, and the resource
     sets `max_table_nesting=0` so the whole mapping becomes one JSON column anyway.
     Flattening it into one row per category is the consumer's transform.
-
-    The categories the spec documents today: bodyWound, scaleLoss, snoutWound,
-    maturation, eyeBleeding, eyeClouding, exophthalmos, opercularDamage,
-    backDeformity, pelvicFin, pectoralFin, caudalFin, analFin, dorsalFin,
-    upperJawDeformity, lowerJawDeformity, breathingMouth, mechHeadWound.
     """
 
     penId: str

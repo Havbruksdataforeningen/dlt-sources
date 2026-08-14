@@ -1,13 +1,7 @@
 """dlt source for the Aquabyte API v3 (https://api.aquabyte.ai/v3/docs).
 
-The source's only opinions are mechanics: auth, pagination, envelope unwrapping,
-incremental cursors and overridable key/write-disposition defaults. Records land
-exactly as the API returns them — nothing is renamed, flattened, filtered or dropped.
-Reshaping belongs in the consumer's transform layer.
-
 Each resource takes exactly the query params its endpoint documents in
-`specs/openapi-v3.1.1.json`, plus a `params` escape hatch for anything the API grows
-later. See `docs/parameter-inventory.md` for the full spec-to-code accounting.
+`specs/openapi-v3.1.1.json`, plus a `params` escape hatch; see the README.
 """
 
 import logging
@@ -67,39 +61,28 @@ def _query(extra: dict[str, Any] | None = None, **named: Any) -> dict[str, Any]:
     return params
 
 
-def _window_start(resource: str, param: str, explicit: str | None, cursor_value: str | None) -> str | None:
-    """Choose a window start, preferring an explicit override over the incremental cursor.
+def _window_start(resource: str, param: str, explicit: str | None, cursor_value: str | None, fallback: str) -> str:
+    """Choose a window start: an explicit override, else the incremental cursor, else config.
 
-    dlt logs the requests and the row counts; what it cannot know is *why* a given
-    window was asked for, which is what a failed or short run needs explaining.
+    A window start is always sent, so a run never silently inherits the API's own
+    default window. dlt logs the requests and the row counts; what it cannot know is
+    *why* a given window was asked for, which is what a failed or short run needs
+    explaining.
     """
     if explicit is not None:
         logger.info("%s: %s=%s passed explicitly; the incremental cursor is ignored.", resource, param, explicit)
         return explicit
     if cursor_value is None:
         logger.warning(
-            "%s: no %s and no incremental cursor value, so the API's own default window applies.", resource, param
+            "%s: no %s and no incremental cursor value, so the configured start applies, %s=%s.",
+            resource,
+            param,
+            param,
+            fallback,
         )
-        return None
+        return fallback
     logger.debug("%s: resuming from the incremental cursor, %s=%s.", resource, param, cursor_value)
     return cursor_value
-
-
-def _paginate(
-    client: RESTClient,
-    path: str,
-    *,
-    data_selector: str,
-    params: dict[str, Any] | None = None,
-    paginator: BasePaginator | None = None,
-) -> Iterator[list[dict[str, Any]]]:
-    """Yield pages from one endpoint, unwrapping the API's response envelope."""
-    kwargs: dict[str, Any] = {"data_selector": data_selector}
-    if params is not None:
-        kwargs["params"] = params
-    if paginator is not None:
-        kwargs["paginator"] = paginator
-    yield from client.paginate(path, **kwargs)
 
 
 def _paginate_per_pen(
@@ -120,9 +103,7 @@ def _paginate_per_pen(
     if len(pen_ids) > 1:
         logger.info("%s: fanning out over %d pen ids.", path, len(pen_ids))
     for pid in pen_ids:
-        logger.debug("%s: requesting penId=%s with %s.", path, pid, params)
-        yield from _paginate(
-            client,
+        yield from client.paginate(
             path,
             params={**params, "penId": pid},
             data_selector=data_selector,
@@ -148,8 +129,7 @@ def site_by_id(
         params: Query params passed through verbatim. The endpoint documents none.
     """
     client = _make_client(base_url, api_key)
-    yield from _paginate(
-        client,
+    yield from client.paginate(
         f"/sites/{site_id}",
         params=_query(params),
         data_selector="sites",
@@ -186,8 +166,7 @@ def aquabyte_source(
             site_id: Optional `siteId` filter the endpoint documents.
             params: Query params passed through verbatim, merged last.
         """
-        yield from _paginate(
-            client,
+        yield from client.paginate(
             "/sites",
             params=_query(params, siteId=site_id),
             data_selector="sites",
@@ -229,7 +208,9 @@ def aquabyte_source(
             params: Query params passed through verbatim, merged last.
             incremental_from_time: Incremental cursor on `fromTime`.
         """
-        window_start = _window_start("environmental", "fromTime", from_time, incremental_from_time.last_value)
+        window_start = _window_start(
+            "environmental", "fromTime", from_time, incremental_from_time.last_value, initial_time
+        )
         yield from _paginate_per_pen(
             client,
             "/environmental",
@@ -278,7 +259,7 @@ def aquabyte_source(
             params: Query params passed through verbatim, merged last.
             incremental_date: Incremental cursor on `date`.
         """
-        window_start = _window_start("biomass", "fromDate", from_date, incremental_date.last_value)
+        window_start = _window_start("biomass", "fromDate", from_date, incremental_date.last_value, initial_date)
         yield from _paginate_per_pen(
             client,
             "/biomass",
@@ -311,7 +292,7 @@ def aquabyte_source(
             incremental_slaughter_start_date: Incremental cursor on `slaughterStartDate`.
         """
         window_start = _window_start(
-            "harvest_report", "fromDate", from_date, incremental_slaughter_start_date.last_value
+            "harvest_report", "fromDate", from_date, incremental_slaughter_start_date.last_value, initial_date
         )
         yield from _paginate_per_pen(
             client,
@@ -343,7 +324,7 @@ def aquabyte_source(
             params: Query params passed through verbatim, merged last.
             incremental_date: Incremental cursor on `date`.
         """
-        window_start = _window_start("lice_count", "fromDate", from_date, incremental_date.last_value)
+        window_start = _window_start("lice_count", "fromDate", from_date, incremental_date.last_value, initial_date)
         yield from _paginate_per_pen(
             client,
             "/liceCount",
@@ -377,7 +358,9 @@ def aquabyte_source(
             params: Query params passed through verbatim, merged last.
             incremental_from_time: Incremental cursor on `fromTime`.
         """
-        window_start = _window_start("behaviour_swim_speed", "fromTime", from_time, incremental_from_time.last_value)
+        window_start = _window_start(
+            "behaviour_swim_speed", "fromTime", from_time, incremental_from_time.last_value, initial_time
+        )
         yield from _paginate_per_pen(
             client,
             "/behaviour/swimSpeed",
@@ -412,7 +395,7 @@ def aquabyte_source(
             incremental_from_time: Incremental cursor on `fromTime`.
         """
         window_start = _window_start(
-            "behaviour_breathing_index", "fromTime", from_time, incremental_from_time.last_value
+            "behaviour_breathing_index", "fromTime", from_time, incremental_from_time.last_value, initial_time
         )
         yield from _paginate_per_pen(
             client,
@@ -448,7 +431,7 @@ def aquabyte_source(
             params: Query params passed through verbatim, merged last.
             incremental_date: Incremental cursor on `date`.
         """
-        window_start = _window_start("welfare_scores", "fromDate", from_date, incremental_date.last_value)
+        window_start = _window_start("welfare_scores", "fromDate", from_date, incremental_date.last_value, initial_date)
         yield from _paginate_per_pen(
             client,
             "/welfareScores",
