@@ -2,15 +2,7 @@
 # requires-python = ">=3.11"
 # dependencies = ["packaging"]
 # ///
-"""Validate a release tag before it is pushed. CI runs the same script.
-
-Usage, from the repo root, on the commit you are about to tag:
-
-    uv run scripts/validate_release.py dlt-source-aquabyte/v0.2.0
-
-main() runs one function per check. Exit code 0 means the tag is safe
-to push. See docs/release.md, step 5.
-"""
+"""Validate a release tag before it is pushed (docs/release.md, step 5). CI runs the same script."""
 
 from __future__ import annotations
 
