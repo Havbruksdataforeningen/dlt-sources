@@ -4,7 +4,7 @@ This repository holds one context per source package, plus the shared language b
 
 ## Contexts
 
-- [dlt-source-aquabyte](./packages/dlt-source-aquabyte/CONTEXT.md) — the Aquabyte API v3: sites, pens, biomass, lice, welfare, behaviour and environment.
+- [dlt-source-aquabyte](./packages/dlt-source-aquabyte/CONTEXT.md) — Aquabyte, a supplier of camera-based monitoring of farmed salmon in sea pens. Their API reports sites, pens, biomass, lice, welfare, behaviour and environment.
 
 ## Relationships
 
