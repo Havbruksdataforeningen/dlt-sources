@@ -10,8 +10,6 @@ Each resource takes exactly the query params its endpoint documents in
 later. See `docs/parameter-inventory.md` for the full spec-to-code accounting.
 """
 
-from __future__ import annotations
-
 import logging
 from collections.abc import Iterator
 from typing import Any

@@ -1,7 +1,5 @@
 """Shared fixtures and helpers for Aquabyte pipeline tests."""
 
-from __future__ import annotations
-
 import copy
 import json
 from pathlib import Path
