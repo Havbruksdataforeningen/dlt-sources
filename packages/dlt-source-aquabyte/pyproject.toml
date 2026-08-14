@@ -29,8 +29,17 @@ target-version = "py311"
 src = ["src", "tests"]
 
 [tool.ruff.lint]
-select = ["E", "W", "F", "I", "B", "C4", "UP", "SIM", "RUF"]
+# S is ruff's port of bandit: hardcoded credentials, requests without a
+# timeout, disabled TLS verification — the risks of code that talks to a
+# supplier's API with credentials.
+select = ["E", "W", "F", "I", "B", "C4", "UP", "SIM", "RUF", "S"]
 ignore = ["E501", "B008"]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests use assert (S101) — that is what a test is. They also query their own
+# local duckdb with f-string SQL (S608): table names cannot be bound as
+# parameters, and the interpolated values are test constants.
+"tests/**" = ["S101", "S608"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["dlt_source_aquabyte"]
@@ -59,9 +68,6 @@ filterwarnings = [
     "ignore::DeprecationWarning:dlt.common.libs.pydantic",
     "ignore::DeprecationWarning:dlt.extract.validation",
 ]
-
-[tool.bandit]
-exclude_dirs = ["tests"]
 
 [build-system]
 requires = ["setuptools>=75.0"]
