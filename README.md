@@ -5,9 +5,9 @@ Shared [dlt](https://dlthub.com/) source packages for Havbruksdataforeningen mem
 > **Status: proposal.** This repo is the concrete example for the layout discussion in
 > [Ingest-Barentswatch#12](https://github.com/Havbruksdataforeningen/Ingest-Barentswatch/issues/12). Nothing is decided yet.
 
-## Packages
+## Source packages
 
-| Package | Description |
+| Source package | Description |
 |---|---|
 | [`dlt-source-aquabyte`](packages/dlt-source-aquabyte/) | Aquabyte — camera-based monitoring of farmed salmon (sites, pens, biomass, lice, welfare, environment) |
 
