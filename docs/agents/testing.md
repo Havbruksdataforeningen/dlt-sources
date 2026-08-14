@@ -42,5 +42,5 @@ If your package has tests that need real credentials or a real API, keep them ou
 
 These are about not breaking other people, not about testing style:
 
-- **Do not write files outside `tmp_path`.** dlt will otherwise leave a `.duckdb` file wherever the tests happened to run.
+- **The default test run writes only inside `tmp_path`.** It runs on other people's machines and in CI, and should leave nothing behind. Tests you run by hand — live tests especially — are welcome to write a `.duckdb` file into the package directory so you can inspect what was ingested; `*.duckdb` is gitignored, so it stays on your machine.
 - **Give test files names that will not collide** across packages, or put `__init__.py` in your test folders. Two packages both having a bare `test_sites.py` confuses pytest's default import mode.
