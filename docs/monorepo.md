@@ -8,7 +8,7 @@ Each source package is a separate product on PyPI, with its own version and its 
 
 Compared to one repository per source package:
 
-- **Conventions cannot drift.** Formatter, linter, CI and docs are defined once and apply to every package. With separate repos, each copy ages on its own.
+- **Conventions cannot drift.** Coding standards, contribution guidelines, licensing and docs are defined once and apply to every package. With separate repos, each copy ages on its own.
 - **A new package starts free.** Adding a folder is all it takes: no repository to create, no workflows to copy, no access to set up.
 - **The plumbing is shared.** The CI quality gate, the release validation and the publishing workflow are built once, and every package gets them — and every later improvement to them — for free.
 - **The examples are next door.** You copy a working package, not a template that rots.
