@@ -1,6 +1,6 @@
 # Pull-request and main-branch quality gate.
 #
-# Shape and rationale: docs/agents/testing.md, evidence in docs/research/ci-cd.md.
+# Shape and rationale: docs/agents/testing.md.
 #
 # Four checks run in PARALLEL, each named for what it checks, each looping over
 # every workspace member. Parallel-and-named means a contributor learns about a

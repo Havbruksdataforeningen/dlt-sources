@@ -4,7 +4,7 @@ How to publish a new version of a source package to PyPI, written for your first
 
 The examples use `dlt-source-aquabyte` going from `0.1.0` to `0.2.0`. Substitute your package and versions.
 
-The reasoning behind this setup is in [`docs/research/ci-cd.md`](../research/ci-cd.md). The vocabulary (test release, release candidate, workspace) is in [`CONTEXT-MAP.md`](../../CONTEXT-MAP.md).
+Why the repo works this way: [`monorepo.md`](monorepo.md). The vocabulary (test release, release candidate, workspace) is in [`CONTEXT-MAP.md`](../../CONTEXT-MAP.md).
 
 ## The one thing to understand first
 
@@ -63,6 +63,38 @@ uv version --package dlt-source-aquabyte --bump minor
 
 This changes one line — `version` in `packages/dlt-source-aquabyte/pyproject.toml`. Check with `git diff` that that is all it changed.
 
+## Optional: do a test release
+
+Before continuing you can do a **test release**: publish a **release candidate** version (`0.2.0rc1`) to TestPyPI, to check that the package builds and installs correctly. Nothing lands on the real index. Recommended for a first release or a risky change; skip ahead to step 3 otherwise.
+
+On your release branch:
+
+```bash
+uv version --package dlt-source-aquabyte --bump minor --bump rc   # 0.1.0 -> 0.2.0rc1
+git add packages/dlt-source-aquabyte/pyproject.toml
+git commit -m "Release candidate dlt-source-aquabyte 0.2.0rc1"
+git push origin HEAD
+
+git tag -a dlt-source-aquabyte/v0.2.0rc1 -m 'dlt-source-aquabyte 0.2.0rc1'
+git push origin dlt-source-aquabyte/v0.2.0rc1
+```
+
+The workflow sees a pre-release version and publishes to TestPyPI, with no approval step. Then install it from there and check it works — dependencies still come from normal PyPI, because TestPyPI does not carry them:
+
+```bash
+uv run --with 'dlt-source-aquabyte==0.2.0rc1' \
+  --index https://test.pypi.org/simple/ --index-strategy unsafe-best-match \
+  python -c 'import dlt_source_aquabyte'
+```
+
+If something is wrong, fix it on the branch and bump to `rc2` with `uv version --package dlt-source-aquabyte --bump rc` — both indexes refuse a version number that has already been used, so every attempt needs a fresh one.
+
+When it looks good, drop the candidate marker and continue at step 3:
+
+```bash
+uv version --package dlt-source-aquabyte --bump stable   # 0.2.0rc1 -> 0.2.0
+```
+
 ## Step 3 — write the changelog entry
 
 In `packages/dlt-source-aquabyte/CHANGELOG.md`, move the `Unreleased` content into a new section for this version:
@@ -112,38 +144,6 @@ Two things to be careful about here:
 
 The workflow checks that the tag matches the version in `pyproject.toml` and that the changelog has a section for it (skipped for release candidates — their entry is not written yet), builds the package, and publishes it — a final version goes to PyPI, a pre-release version (like `0.2.0rc1`) goes to TestPyPI. Watch it under the repo's **Actions** tab, then check the result at `https://pypi.org/p/dlt-source-aquabyte`.
 
-## Optional: do a test release first
-
-Before the real release you can do a **test release**: publish a **release candidate** version (`0.2.0rc1`) to TestPyPI, to check that the package builds and installs correctly. Nothing lands on the real index. Recommended for a first release or a risky change.
-
-Do it between steps 2 and 3. On your release branch:
-
-```bash
-uv version --package dlt-source-aquabyte --bump minor --bump rc   # 0.1.0 -> 0.2.0rc1
-git add packages/dlt-source-aquabyte/pyproject.toml
-git commit -m "Release candidate dlt-source-aquabyte 0.2.0rc1"
-git push origin HEAD
-
-git tag -a dlt-source-aquabyte/v0.2.0rc1 -m 'dlt-source-aquabyte 0.2.0rc1'
-git push origin dlt-source-aquabyte/v0.2.0rc1
-```
-
-The workflow sees a pre-release version and publishes to TestPyPI, with no approval step. Then install it from there and check it works — dependencies still come from normal PyPI, because TestPyPI does not carry them:
-
-```bash
-uv run --with 'dlt-source-aquabyte==0.2.0rc1' \
-  --index https://test.pypi.org/simple/ --index-strategy unsafe-best-match \
-  python -c 'import dlt_source_aquabyte'
-```
-
-If something is wrong, fix it on the branch and bump to `rc2` with `uv version --package dlt-source-aquabyte --bump rc` — both indexes refuse a version number that has already been used, so every attempt needs a fresh one.
-
-When it looks good, drop the candidate marker and continue at step 3:
-
-```bash
-uv version --package dlt-source-aquabyte --bump stable   # 0.2.0rc1 -> 0.2.0
-```
-
 ## First release of a package
 
 The workflow authenticates with **Trusted Publishing**: PyPI accepts the upload because the workflow matches a registered publisher, not because anyone holds a token. For a package that does not exist on PyPI yet, that registration is a **pending publisher**, and a human has to create it once, by hand, before the first publish. If it is missing, the release fails at the very last step with an `invalid-publisher` error that does not explain itself.
@@ -159,3 +159,15 @@ Register it on **both** indexes — TestPyPI is a separate service with its own 
 | Environment | `pypi` | `testpypi` |
 
 A pending publisher does not reserve the name — the name is claimed the first time the publish actually runs — so also check the name is still free on both indexes. For a first release, a test release is strongly recommended: it proves the whole chain (tag, workflow, publisher, install) before anything lands permanently on PyPI.
+
+## Rules for the release workflow
+
+You only need these if you are changing [`release.yml`](../../.github/workflows/release.yml). Whatever you change, keep these true:
+
+- **Tags are `<package>/vX.Y.Z`.** GitHub's `*` does not match `/`, so `dlt-source-aquabyte/v*` selects exactly one package. `ing-bank/ordeq`, a uv workspace publishing to PyPI, uses the same scheme.
+- **PyPI or TestPyPI is decided by parsing the version** with `packaging`, never by looking for text in the tag. Text matching is wrong in both directions: a package named `dlt-source-devices` looks like a dev release, and `1.0.0b2` — a real pre-release — looks final.
+- **Publish with `pypa/gh-action-pypi-publish`, not `uv publish`.** uv generates no PEP 740 attestations, and its default trusted-publishing mode hides authentication failures.
+- **Trusted Publishing only, no stored tokens.** `id-token: write` goes at job level, never workflow level.
+- **Build with `uv build --package <pkg> --no-sources`,** so the package is built the way someone installing it from PyPI gets it.
+- **Environment names are fixed text — `pypi` and `testpypi`.** If the name came from an expression, GitHub would create any unknown environment with no protection rules, and a new package would publish ungated.
+- **Pin the publish action to a commit SHA.** It holds our PyPI identity.

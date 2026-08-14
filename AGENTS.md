@@ -21,9 +21,9 @@ Each package owns how it tests itself. `docs/agents/testing.md` covers only how 
 
 ## Releasing
 
-Before cutting a release or touching release automation, read `docs/agents/release.md` — the step-by-step guide.
+Before publishing a release or touching release automation, read `docs/agents/release.md` — the step-by-step guide, including the rules the release workflow must keep to.
 
-The reasoning behind the testing and release setup is in `docs/research/ci-cd.md`, with the citations in `docs/research/ci-cd-evidence.md`.
+Why the repo is one workspace of independently versioned packages, and what that promises contributors: `docs/agents/monorepo.md`.
 
 ## Agent skills
 
