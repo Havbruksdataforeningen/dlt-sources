@@ -22,7 +22,7 @@ from tests.conftest import (
     serve,
 )
 
-SPEC = json.loads((Path(__file__).parent.parent / "specs" / "openapi-v3.1.1.json").read_text())
+SPEC = json.loads((Path(__file__).parent.parent / "specs" / "openapi.json").read_text())
 
 # Resource → the endpoint it reads.
 ENDPOINTS = {

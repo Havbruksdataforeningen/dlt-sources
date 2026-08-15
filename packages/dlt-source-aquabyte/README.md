@@ -55,7 +55,11 @@ print(pipeline.run(aquabyte_source()))
 | `behaviour_breathing_index` | `GET /behaviour/breathingIndex` | merge | `penId`, `fromTime` |
 | `welfare_scores` | `GET /welfareScores` | merge | `penId`, `date` |
 
-`site_by_id` (`GET /sites/{siteId}`) is a standalone resource for targeted lookups.
+`sites` always returns every site — the endpoint documents no filter. To fetch one, use the standalone `site_by_id` resource (`GET /sites/{siteId}`), which is the API's only way to do it:
+
+```python
+pipeline.run(site_by_id("site-001"))
+```
 
 `pens` unwraps the pens the `/sites` response nests inside each site — every pen, active or not. The data resources do not depend on it: they use the API's own `penId=all`, one request instead of one per pen.
 
@@ -101,13 +105,13 @@ Params can also be set in config, per resource:
 period = "15min"
 ```
 
-`tests/test_param_surface.py` asserts each resource's signature against `specs/openapi-v3.1.1.json`, so the published parameter surface cannot drift from the spec.
+`tests/test_param_surface.py` asserts each resource's signature against `specs/openapi.json`, so the published parameter surface cannot drift from the spec.
 
 ### What the source does not expose
 
 **`nextToken`**, on the six endpoints that document it. It is pagination mechanics, owned by dlt's `JSONResponseCursorPaginator`, which reads `nextToken` from each response and sends it on the next request until it is absent. Exposing it would let a caller break their own pagination. The other four read endpoints — `/sites`, `/sites/{siteId}`, `/environmental/latest` and `/biomass/harvestReport` — return no `nextToken` at all, so their resources read a single page (`SinglePagePaginator`) rather than hoping a cursor paginator terminates.
 
-**The eight `/pens/{penId}/…` path variants.** These are the v3.0 shape of the same data; v3.1 replaced them with `?penId=` on the flat endpoints, and the spec's own migration note recommends the flat form. None of them accepts a `nextToken` query param either, so a result set past the API's 10,000-record cap cannot be paged through — and `penId=all` fetches every pen in one request where the path variants need one per pen, which matters against a 1000 requests/hour limit. To read one pen, bind `pen_id="pen-abc"`; to read several, bind a list.
+**The eight `/pens/{penId}/…` path variants.** The spec marks every one of them `deprecated: true`. They are the v3.0 shape of the same data; v3.1 replaced them with `?penId=` on the flat endpoints. None of them accepts a `nextToken` query param either, so a result set past the API's 10,000-record cap cannot be paged through — and `penId=all` fetches every pen in one request where the path variants need one per pen, which matters against a 1000 requests/hour limit. To read one pen, bind `pen_id="pen-abc"`; to read several, bind a list.
 
 **`POST /superiorRate`.** The spec marks it "(Experimental API) … subject to change", and it is a POST computation rather than a read endpoint. Worth revisiting once it leaves preview.
 

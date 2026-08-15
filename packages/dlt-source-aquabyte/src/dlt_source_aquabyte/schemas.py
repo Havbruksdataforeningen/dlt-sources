@@ -1,4 +1,4 @@
-"""Pydantic models mirroring the Aquabyte API v3 schemas (`specs/openapi-v3.1.1.json`).
+"""Pydantic models mirroring the Aquabyte API v3 schemas (`specs/openapi.json`).
 
 The models exist for two reasons only:
 
@@ -137,7 +137,7 @@ class WelfareScoresRecord(AquabyteModel):
     The nested `welfareScores` mapping is undeclared on purpose — see the module
     docstring. It maps a category name to that category's scores (or null): `active`
     and `healed` keyed by the score bands the API uses literally (`"1"`, `"2"`,
-    `"3"`), plus `nothing` and `sampleSize`; see `specs/openapi-v3.1.1.json`. Nothing
+    `"3"`), plus `nothing` and `sampleSize`; see `specs/openapi.json`. Nothing
     here enumerates categories, so a category the API adds later lands untouched.
     """
 

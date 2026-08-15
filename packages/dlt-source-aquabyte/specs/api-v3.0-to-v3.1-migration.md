@@ -1,6 +1,8 @@
 # Aquabyte API v3.0 → v3.1 Migration Guide
 
-Reference specs: `specs/openapi-v3.0.json` (old) and `specs/openapi-v3.1.json` (new).
+Reference specs: `openapi-v3.0.json` (old) and `openapi-v3.1.json` (new), both deleted
+once the migration was done — read them from git history. The current spec is
+`specs/openapi.json`.
 
 ## Summary
 

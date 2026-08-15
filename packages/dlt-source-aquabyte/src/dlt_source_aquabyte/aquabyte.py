@@ -1,7 +1,7 @@
 """dlt source for the Aquabyte API v3 (https://api.aquabyte.ai/v3/docs).
 
 Each resource takes exactly the query params its endpoint documents in
-`specs/openapi-v3.1.1.json`, plus a `params` escape hatch; see the README.
+`specs/openapi.json`, plus a `params` escape hatch; see the README.
 """
 
 import logging
@@ -160,16 +160,18 @@ def aquabyte_source(
     client = _make_client(base_url, api_key)
 
     @dlt.resource(write_disposition="replace", columns=Site)
-    def sites(site_id: str | None = None, params: dict[str, Any] | None = None):
+    def sites(params: dict[str, Any] | None = None):
         """All sites from `GET /sites`, each with its pens nested as the API nests them.
 
+        The endpoint documents no query params — it always returns every site. Use the
+        standalone `site_by_id` resource to fetch one.
+
         Args:
-            site_id: Optional `siteId` filter the endpoint documents.
             params: Query params passed through verbatim, merged last.
         """
         yield from client.paginate(
             "/sites",
-            params=_query(params, siteId=site_id),
+            params=_query(params),
             data_selector="sites",
             paginator=SinglePagePaginator(),
         )
