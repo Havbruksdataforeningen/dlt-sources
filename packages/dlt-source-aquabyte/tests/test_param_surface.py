@@ -24,33 +24,39 @@ from tests.conftest import (
 
 SPEC = json.loads((Path(__file__).parent.parent / "specs" / "openapi.json").read_text())
 
-# Resource → the endpoint it reads.
+# Resource → the endpoints it reads. `sites` reads two, switching on `site_id`, so its
+# surface is the union — which is how the per-site endpoint's path param gets checked.
 ENDPOINTS = {
-    "sites": "/sites",
-    "environmental": "/environmental",
-    "environmental_latest": "/environmental/latest",
-    "biomass": "/biomass",
-    "harvest_report": "/biomass/harvestReport",
-    "lice_count": "/liceCount",
-    "behaviour_swim_speed": "/behaviour/swimSpeed",
-    "behaviour_breathing_index": "/behaviour/breathingIndex",
-    "welfare_scores": "/welfareScores",
+    "sites": ("/sites", "/sites/{siteId}"),
+    "environmental": ("/environmental",),
+    "environmental_latest": ("/environmental/latest",),
+    "biomass": ("/biomass",),
+    "harvest_report": ("/biomass/harvestReport",),
+    "lice_count": ("/liceCount",),
+    "behaviour_swim_speed": ("/behaviour/swimSpeed",),
+    "behaviour_breathing_index": ("/behaviour/breathingIndex",),
+    "welfare_scores": ("/welfareScores",),
 }
 
 # nextToken is pagination mechanics: the paginator owns it, so no resource exposes it.
 PARAMS_OWNED_BY_MECHANICS = {"next_token"}
 
-# Resource arguments that are not query params.
-NON_QUERY_ARGS = {"params"}
+# Resource arguments that are not API params.
+NON_API_ARGS = {"params"}
 
 
 def _snake(name: str) -> str:
     return re.sub(r"(?<!^)(?=[A-Z])", "_", name).lower()
 
 
-def _spec_query_params(path: str) -> set[str]:
-    parameters = SPEC["paths"][path]["get"].get("parameters", [])
-    return {_snake(param["name"]) for param in parameters if param["in"] == "query"}
+def _spec_params(paths: tuple[str, ...]) -> set[str]:
+    """Every query and path param the given endpoints document, snake_cased."""
+    return {
+        _snake(param["name"])
+        for path in paths
+        for param in SPEC["paths"][path]["get"].get("parameters", [])
+        if param["in"] in {"query", "path"}
+    }
 
 
 def _signature(resource_name: str) -> inspect.Signature:
@@ -60,13 +66,13 @@ def _signature(resource_name: str) -> inspect.Signature:
 
 def _resource_params(resource_name: str) -> set[str]:
     names = _signature(resource_name).parameters
-    return {name for name in names if name not in NON_QUERY_ARGS and not name.startswith("incremental")}
+    return {name for name in names if name not in NON_API_ARGS and not name.startswith("incremental")}
 
 
-@pytest.mark.parametrize(("resource_name", "path"), ENDPOINTS.items())
-def test_resource_offers_exactly_its_endpoints_query_params(resource_name, path):
-    """Each resource's signature lists its endpoint's query params — no more, no fewer."""
-    expected = _spec_query_params(path) - PARAMS_OWNED_BY_MECHANICS
+@pytest.mark.parametrize(("resource_name", "paths"), ENDPOINTS.items())
+def test_resource_offers_exactly_its_endpoints_params(resource_name, paths):
+    """Each resource's signature lists its endpoints' params — no more, no fewer."""
+    expected = _spec_params(paths) - PARAMS_OWNED_BY_MECHANICS
     assert _resource_params(resource_name) == expected
 
 

@@ -44,7 +44,7 @@ print(pipeline.run(aquabyte_source()))
 
 | Resource | Endpoint | Load strategy | Primary key |
 |---|---|---|---|
-| `sites` | `GET /sites` | replace | — |
+| `sites` | `GET /sites`, `GET /sites/{siteId}` | replace | — |
 | `pens` | _(transformer over `sites`)_ | replace | — |
 | `environmental` | `GET /environmental` | merge | `penId`, `fromTime` |
 | `environmental_latest` | `GET /environmental/latest` | replace | — |
@@ -55,11 +55,14 @@ print(pipeline.run(aquabyte_source()))
 | `behaviour_breathing_index` | `GET /behaviour/breathingIndex` | merge | `penId`, `fromTime` |
 | `welfare_scores` | `GET /welfareScores` | merge | `penId`, `date` |
 
-`sites` always returns every site — the endpoint documents no filter. To fetch one, use the standalone `site_by_id` resource (`GET /sites/{siteId}`), which is the API's only way to do it:
+`sites` reads every site by default. Binding `site_id` switches it to `GET /sites/{siteId}`, the API's only way to ask for one:
 
 ```python
-pipeline.run(site_by_id("site-001"))
+source = aquabyte_source()
+source.sites.bind(site_id="site-001")
 ```
+
+⚠️ Both endpoints write the same `sites` table, and the resource replaces it on every run — so a run with `site_id` bound leaves the table holding that one site. Bind it only when that is what you want stored.
 
 `pens` unwraps the pens the `/sites` response nests inside each site — every pen, active or not. The data resources do not depend on it: they use the API's own `penId=all`, one request instead of one per pen.
 
@@ -85,7 +88,7 @@ This is also why the Pydantic models in `schemas.py` declare scalar fields only.
 
 ## Parameters
 
-Each resource takes exactly the query params its endpoint documents, in snake_case:
+Each resource takes exactly the params its endpoint documents, in snake_case:
 
 ```python
 source = aquabyte_source()
@@ -168,7 +171,7 @@ uv run python -m pytest -m integration                    # Integration tests (n
 ```
 dlt-source-aquabyte/
 ├── src/dlt_source_aquabyte/
-│   ├── __init__.py      # Re-exports aquabyte_source, site_by_id, __version__
+│   ├── __init__.py      # Re-exports aquabyte_source, __version__
 │   ├── aquabyte.py      # Source, resources and transformer
 │   └── schemas.py       # Pydantic models from the OpenAPI schemas
 ├── examples/            # Runnable consumer-side setups

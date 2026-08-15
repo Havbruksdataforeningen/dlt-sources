@@ -1,6 +1,6 @@
 """dlt source for the Aquabyte API v3 (https://api.aquabyte.ai/v3/docs).
 
-Each resource takes exactly the query params its endpoint documents in
+Each resource takes exactly the params its endpoint documents in
 `specs/openapi.json`, plus a `params` escape hatch; see the README.
 """
 
@@ -38,15 +38,6 @@ PenId = str | list[str]
 A list is a source-side convenience only — it issues one request sequence per pen id
 and yields every record the API returns for each. It filters nothing.
 """
-
-
-def _make_client(base_url: str, api_key: str) -> RESTClient:
-    """A RESTClient with the API key header and the API's `nextToken` cursor pagination."""
-    return RESTClient(
-        base_url=base_url,
-        auth=APIKeyAuth(name="apikey", api_key=api_key, location="header"),
-        paginator=JSONResponseCursorPaginator(cursor_path="nextToken", cursor_param="nextToken"),
-    )
 
 
 def _query(extra: dict[str, Any] | None = None, **named: Any) -> dict[str, Any]:
@@ -111,33 +102,6 @@ def _paginate_per_pen(
         )
 
 
-# Standalone, so it carries the source's max_table_nesting=0 default itself.
-@dlt.resource(write_disposition="replace", columns=Site, max_table_nesting=0)
-def site_by_id(
-    site_id: str,
-    base_url: str = dlt.config.value,
-    api_key: str = dlt.secrets.value,
-    params: dict[str, Any] | None = None,
-):
-    """A single site from `GET /sites/{siteId}`.
-
-    Standalone (not part of `aquabyte_source`) for targeted lookups.
-
-    Args:
-        site_id: The site id to fetch, interpolated into the path.
-        base_url: API base URL, from config.
-        api_key: API key, from secrets.
-        params: Query params passed through verbatim. The endpoint documents none.
-    """
-    client = _make_client(base_url, api_key)
-    yield from client.paginate(
-        f"/sites/{site_id}",
-        params=_query(params),
-        data_selector="sites",
-        paginator=SinglePagePaginator(),
-    )
-
-
 @dlt.source(max_table_nesting=0)
 def aquabyte_source(
     base_url: str = dlt.config.value,
@@ -157,20 +121,28 @@ def aquabyte_source(
         initial_date: Cursor start for the date-based resources (YYYY-MM-DD).
         initial_time: Cursor start for the time-based resources (ISO 8601).
     """
-    client = _make_client(base_url, api_key)
+    client = RESTClient(
+        base_url=base_url,
+        auth=APIKeyAuth(name="apikey", api_key=api_key, location="header"),
+        paginator=JSONResponseCursorPaginator(cursor_path="nextToken", cursor_param="nextToken"),
+    )
 
     @dlt.resource(write_disposition="replace", columns=Site)
-    def sites(params: dict[str, Any] | None = None):
-        """All sites from `GET /sites`, each with its pens nested as the API nests them.
+    def sites(site_id: str | None = None, params: dict[str, Any] | None = None):
+        """Every site from `GET /sites`, or one from `GET /sites/{siteId}`.
 
-        The endpoint documents no query params — it always returns every site. Use the
-        standalone `site_by_id` resource to fetch one.
+        Pens stay nested inside each site, as the API nests them.
+
+        Both endpoints write the same `sites` table, which is replaced on every run — so
+        binding `site_id` leaves the table holding that one site. Bind it only when that
+        is what you want stored.
 
         Args:
+            site_id: `siteId`, the path param of the per-site endpoint. Omitted means every site.
             params: Query params passed through verbatim, merged last.
         """
         yield from client.paginate(
-            "/sites",
+            f"/sites/{site_id}" if site_id is not None else "/sites",
             params=_query(params),
             data_selector="sites",
             paginator=SinglePagePaginator(),

@@ -27,6 +27,24 @@ def test_sites_resource_loads_into_duckdb(mock_rest_client):
     assert params_sent(mock_rest_client, "/sites") == [{}]
 
 
+def test_sites_reads_one_site_when_site_id_is_bound(mock_rest_client):
+    """A bound site_id switches the path to the API's per-site endpoint, same table."""
+    single_site = [load_mock("sites.json")["sites"][0]]
+
+    mock_rest_client.paginate.return_value = iter([single_site])
+
+    source = aquabyte_source(**SOURCE_CONFIG)
+    source.sites.bind(site_id="site-001")
+    pipeline, load_info = run_source("test_sites_by_id", source, ["sites"])
+
+    assert load_info is not None
+    assert_row_count(pipeline, "sites", 1)
+    (call,) = calls_to(mock_rest_client, "/sites/site-001")
+    assert call["params"] == {}
+    assert call["data_selector"] == "sites"
+    assert isinstance(call["paginator"], SinglePagePaginator)
+
+
 def test_sites_is_not_cursor_paginated(mock_rest_client):
     """/sites returns no nextToken, so it is read as a single page."""
     mock_rest_client.paginate.return_value = iter([load_mock("sites.json")["sites"]])
