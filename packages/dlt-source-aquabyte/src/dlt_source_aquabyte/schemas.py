@@ -135,10 +135,8 @@ class WelfareScoresRecord(AquabyteModel):
     """A `/welfareScores` record exactly as the API returns it.
 
     The nested `welfareScores` mapping is undeclared on purpose — see the module
-    docstring. It maps a category name to that category's scores (or null): `active`
-    and `healed` keyed by the score bands the API uses literally (`"1"`, `"2"`,
-    `"3"`), plus `nothing` and `sampleSize`; see `specs/openapi.json`. Nothing
-    here enumerates categories, so a category the API adds later lands untouched.
+    docstring; its shape is in `specs/openapi.json`. Nothing here enumerates
+    categories, so one the API adds or drops later lands untouched either way.
     """
 
     penId: str

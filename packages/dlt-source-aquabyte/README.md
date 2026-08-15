@@ -111,11 +111,11 @@ period = "15min"
 
 **`nextToken`**, on the six endpoints that document it. It is pagination mechanics, owned by dlt's `JSONResponseCursorPaginator`, which reads `nextToken` from each response and sends it on the next request until it is absent. Exposing it would let a caller break their own pagination. The other four read endpoints — `/sites`, `/sites/{siteId}`, `/environmental/latest` and `/biomass/harvestReport` — return no `nextToken` at all, so their resources read a single page (`SinglePagePaginator`) rather than hoping a cursor paginator terminates.
 
-**The eight `/pens/{penId}/…` path variants.** The spec marks every one of them `deprecated: true`. They are the v3.0 shape of the same data; v3.1 replaced them with `?penId=` on the flat endpoints. None of them accepts a `nextToken` query param either, so a result set past the API's 10,000-record cap cannot be paged through — and `penId=all` fetches every pen in one request where the path variants need one per pen, which matters against a 1000 requests/hour limit. To read one pen, bind `pen_id="pen-abc"`; to read several, bind a list.
+**The eight `/pens/{penId}/…` path variants.** The spec marks every one of them `deprecated: true`. They are the v3.0 shape of the same data; v3.1 replaced them with `?penId=` on the flat endpoints. None of them accepts a `nextToken` query param either, so a result set past the API's record cap cannot be paged through — and `penId=all` fetches every pen in one request where the path variants need one per pen. To read one pen, bind `pen_id="pen-abc"`; to read several, bind a list.
 
 **`POST /superiorRate`.** The spec marks it "(Experimental API) … subject to change", and it is a POST computation rather than a read endpoint. Worth revisiting once it leaves preview.
 
-The API's own limits are worth knowing either way: **1000 requests/hour**, and a **10,000-record cap** per result set, paginated beyond that with `nextToken`. The package does not throttle; a consumer close to the limit should prefer `pen_id="all"` over per-pen fan-out.
+The API's rate limit and result cap are documented in `specs/openapi.json`. The package does not throttle; a consumer close to the limit should prefer `pen_id="all"` over per-pen fan-out, which is one request instead of one per pen.
 
 ## Schemas
 

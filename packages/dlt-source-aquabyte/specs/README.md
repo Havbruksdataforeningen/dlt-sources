@@ -1,18 +1,9 @@
-# Aquabyte Public API
+# Specs
 
-To use our API you must be issued an API key.
-
-Instructions: For all HTTPS requests you will need to pass in your API key as part of the header: apikey: {API_KEY}
-
-Our base url is https://api.aquabyte.ai/v3/
-
-Requests are limited to 1000 requests/hour
-
-## `openapi.json`
-
-The source of truth for this package. `tests/test_param_surface.py` asserts each
-resource's signature against it, so the published parameter surface cannot drift from
-the spec.
+`openapi.json` is the Aquabyte API's own OpenAPI document, and the source of truth for
+this package. Everything about the API itself — auth, base URL, rate limit, the
+`nextToken` pagination protocol, what changed in v3.1 — is in there, most of it under
+`info.description`.
 
 | | |
 |---|---|
@@ -20,8 +11,10 @@ the spec.
 | `info.version` | `v3.1` |
 | Fetched on | 2026-08-15 |
 
-Refresh it by overwriting this file from that URL and running the tests — the filename
-stays put so `git log -p specs/openapi.json` reads as a history of the API's own
-changes. Earlier snapshots (`openapi-v3.0.json`, `openapi-v3.1.json` and a hand-edited
-`openapi-v3.1.1.json` that documented a `/sites` `siteId` query param the API does not
-have) were deleted; they remain in git history.
+Refresh it by overwriting the file from that URL and running the tests —
+`tests/test_param_surface.py` asserts every resource's signature against it. The
+filename stays put, so `git log -p specs/openapi.json` reads as a history of the API's
+own changes.
+
+`api-v3.0-to-v3.1-migration.md` records a migration that is done; the specs it
+references were deleted and live in git history.
