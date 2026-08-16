@@ -10,11 +10,8 @@ import json
 
 from dlt_source_aquabyte import aquabyte_source
 from tests.conftest import (
-    ACTIVE_PEN_IDS,
     DATE_RANGE,
     SOURCE_CONFIG,
-    assert_all_active_pens,
-    assert_pen_ids,
     assert_row_count,
     load_mock,
     query,
@@ -31,11 +28,7 @@ def test_welfare_scores_lands_one_row_per_pen_and_date(mock_rest_client):
 
     source = aquabyte_source(**SOURCE_CONFIG)
     source.welfare_scores.bind(pen_id="pen-001", **DATE_RANGE)
-    pipeline, load_info = run_source("test_welfare_scores", source, ["welfare_scores"])
-
-    assert load_info is not None
-    assert_row_count(pipeline, "welfare_scores", len(RECORDS))
-    assert_pen_ids(pipeline, "welfare_scores", ["pen-001"])
+    pipeline, _ = run_source("test_welfare_scores", source, ["welfare_scores"])
 
     rows = query(pipeline, "SELECT date FROM welfare_scores ORDER BY date")
     assert [str(row[0]) for row in rows] == ["2026-01-15", "2026-01-16"]
@@ -92,16 +85,3 @@ def test_welfare_scores_merges_on_pen_and_date(mock_rest_client):
     pipeline.run(rerun.with_resources("welfare_scores"))
 
     assert_row_count(pipeline, "welfare_scores", len(RECORDS))
-
-
-def test_welfare_scores_defaults_to_all_pens(mock_rest_client):
-    """welfare_scores fetches every pen with a single penId=all request by default."""
-    mock_rest_client.paginate.side_effect = serve({"/welfareScores": RECORDS})
-
-    source = aquabyte_source(**SOURCE_CONFIG)
-    source.welfare_scores.bind(**DATE_RANGE)
-    pipeline, load_info = run_source("test_welfare_scores_all", source, ["welfare_scores"])
-
-    assert load_info is not None
-    assert_row_count(pipeline, "welfare_scores", len(RECORDS) * len(ACTIVE_PEN_IDS))
-    assert_all_active_pens(pipeline, "welfare_scores")

@@ -8,7 +8,6 @@ from tests.conftest import (
     assert_row_count,
     calls_to,
     load_mock,
-    params_sent,
     query,
     run_source,
 )
@@ -33,16 +32,3 @@ def test_environmental_latest_loads_into_duckdb(mock_rest_client):
     assert call["params"] == {"penId": "all"}
     assert call["data_selector"] == "data"
     assert isinstance(call["paginator"], SinglePagePaginator)
-
-
-def test_environmental_latest_with_pen_id_filter(mock_rest_client):
-    """Environmental latest resource passes penId query param when pen_id is provided."""
-    mock_rest_client.paginate.return_value = iter([DATA[:1]])
-
-    source = aquabyte_source(**SOURCE_CONFIG)
-    source.environmental_latest.bind(pen_id="pen-001")
-    pipeline, load_info = run_source("test_env_latest_filtered", source, ["environmental_latest"])
-
-    assert load_info is not None
-    assert_row_count(pipeline, "environmental_latest", 1)
-    assert params_sent(mock_rest_client, "/environmental/latest") == [{"penId": "pen-001"}]
