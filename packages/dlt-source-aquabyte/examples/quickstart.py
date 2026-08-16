@@ -1,29 +1,10 @@
-"""Minimal quickstart: load every Aquabyte resource into a local DuckDB file.
-
-    uv run python examples/quickstart.py
-
-Needs `.dlt/config.toml` and `.dlt/secrets.toml` (copy the `.example` files first).
-DuckDB is this example's choice, not the package's — swap `destination=` for any
-dlt destination.
-"""
-
-import sys
+"""Load every Aquabyte resource into a local DuckDB file."""
 
 import dlt
 
 from dlt_source_aquabyte import aquabyte_source
 
+# DuckDB is this example's choice, not the package's — swap destination= for any dlt one.
+pipeline = dlt.pipeline(pipeline_name="aquabyte", destination="duckdb", dataset_name="aquabyte_data")
 
-def main() -> None:
-    pipeline = dlt.pipeline(
-        pipeline_name="aquabyte",
-        destination="duckdb",
-        dataset_name="aquabyte_data",
-    )
-
-    load_info = pipeline.run(aquabyte_source())
-    print(load_info)
-
-
-if __name__ == "__main__":
-    sys.exit(main() or 0)
+print(pipeline.run(aquabyte_source()))

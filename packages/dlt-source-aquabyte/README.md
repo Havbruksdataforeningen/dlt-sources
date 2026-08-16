@@ -165,12 +165,14 @@ api_key = "your-api-key-here"
 
 ## Examples
 
-| Example | What it shows |
+One concept each, in a dozen lines or so — run any of them with `uv run python examples/<name>.py`.
+
+| Example | The one concept |
 |---|---|
-| [`quickstart.py`](examples/quickstart.py) | Minimal run of every resource into DuckDB |
-| [`daily_load.py`](examples/daily_load.py) | Scheduled incremental load, resuming from the stored cursor |
-| [`backfill.py`](examples/backfill.py) | Re-loading an explicit historical window |
-| [`logging_setup.py`](examples/logging_setup.py) | Routing the package's logger consumer-side |
+| [`quickstart.py`](examples/quickstart.py) | Load every resource into DuckDB |
+| [`daily_load.py`](examples/daily_load.py) | Re-running resumes from the stored cursor |
+| [`backfill.py`](examples/backfill.py) | Bind an explicit window, ignoring the cursor |
+| [`logging_setup.py`](examples/logging_setup.py) | Route the package's logger consumer-side |
 
 ## Development
 
