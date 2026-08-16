@@ -22,7 +22,7 @@ initial_time = "2020-01-01T00:00:00Z"
 # Query params belong to the resource that sends them, so they are configured per
 # resource — the same names the API documents, in snake_case. Everything below is
 # optional: leave a param out and the API's own default applies.
-# See docs/parameter-inventory.md for the full list.
+# The full list is the spec: specs/openapi.json, or https://api.aquabyte.ai/v3/docs.
 
 # [sources.aquabyte.environmental]
 # period = "D"          # "15min", "h" or "D" (API default: "D")

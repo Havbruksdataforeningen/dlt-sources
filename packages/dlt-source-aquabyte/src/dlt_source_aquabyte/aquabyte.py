@@ -1,7 +1,11 @@
-"""dlt source for the Aquabyte API v3 (https://api.aquabyte.ai/v3/docs).
+"""dlt source for the Aquabyte API v3.
 
-Each resource takes exactly the params its endpoint documents in
-`specs/openapi.json`, plus a `params` escape hatch; see the README.
+Endpoints, params and record shapes: https://api.aquabyte.ai/v3/docs — committed as
+`specs/openapi.json`, which `tests/test_param_surface.py` pins every signature against.
+
+Each resource takes its endpoint's params in snake_case, plus a `params` escape hatch
+merged into the query string last. Bind them per resource or set them in config under
+`[sources.aquabyte.<resource>]`; see the README.
 """
 
 import hashlib
@@ -36,46 +40,33 @@ from dlt_source_aquabyte.schemas import (
 logger = logging.getLogger(__name__)
 
 PenId = str | list[str]
-"""The API's `penId` query param: a single pen id, or the literal `"all"`.
-
-A list is a source-side convenience only — it issues one request sequence per pen id
-and yields every record the API returns for each. It filters nothing.
-"""
+"""A single pen id or the literal `"all"`. A list is request fan-out — it filters nothing."""
 
 SCD2: TScd2StrategyDict = {"disposition": "merge", "strategy": "scd2"}
 """Registry tables are versioned, never replaced: a row is retired, never deleted.
 
-Always paired with `merge_key="id"`, which scopes retirement to the ids a load actually
-carried — so reading one site does not retire the others. The trade-off: something
-absent from a *full* response is not retired either.
-
-https://dlthub.com/docs/general-usage/merge-loading#scd2-strategy
+Always paired with `merge_key="id"`, which scopes retirement to the ids a load carried,
+so reading one site does not retire the others. The trade-off, and how to take the other
+side, are in the README. https://dlthub.com/docs/general-usage/merge-loading#scd2-strategy
 """
 
 SITE_VERSION_COLUMN = "_site_version"
-"""The column that decides when a site gets a new version: its own fields, minus `pens`.
+SITES_SCD2: TScd2StrategyDict = {**SCD2, "row_version_column_name": SITE_VERSION_COLUMN}
+"""As `SCD2`, but a site versions on its own fields only.
 
-dlt's default row hash covers the whole record, nested data included, so renaming one
-pen would version its site too. Pens have their own scd2 table for that.
+dlt's default row hash covers the whole record, nested data included, so a renamed pen
+would otherwise version its site too. Pens have their own scd2 table for that.
 """
 
 
 def _site_version(site: dict[str, Any]) -> str:
-    """Digest of a site's own fields — everything the API returns for it except `pens`.
-
-    Not an allow-list: a site-level field the API adds later versions the site, as it
-    should. Only `pens` is held out.
-    """
+    """Digest of everything the API returns for a site except `pens`."""
     own = {key: value for key, value in site.items() if key != "pens"}
     return hashlib.sha256(json.dumps(own, sort_keys=True, default=str).encode()).hexdigest()
 
 
 def _query(extra: dict[str, Any] | None = None, **named: Any) -> dict[str, Any]:
-    """Build a query dict: drop unset named params, then merge the caller's passthrough last.
-
-    `extra` is the per-endpoint escape hatch, so it wins over the named params and can
-    carry query params this release does not know about.
-    """
+    """Drop unset named params, then merge the caller's passthrough last so it wins."""
     params = {key: value for key, value in named.items() if value is not None}
     if extra:
         params.update(extra)
@@ -83,12 +74,10 @@ def _query(extra: dict[str, Any] | None = None, **named: Any) -> dict[str, Any]:
 
 
 def _window_start(resource: str, param: str, explicit: str | None, cursor_value: str | None, fallback: str) -> str:
-    """Choose a window start: an explicit override, else the incremental cursor, else config.
+    """An explicit override, else the incremental cursor, else config — never nothing.
 
-    A window start is always sent, so a run never silently inherits the API's own
-    default window. dlt logs the requests and the row counts; what it cannot know is
-    *why* a given window was asked for, which is what a failed or short run needs
-    explaining.
+    A window start is always sent, so a run cannot silently inherit the API's own default
+    window. dlt logs the requests; what it cannot know is *why* a window was asked for.
     """
     if explicit is not None:
         logger.info("%s: %s=%s passed explicitly; the incremental cursor is ignored.", resource, param, explicit)
@@ -115,20 +104,13 @@ def _paginate_per_pen(
     data_selector: str,
     paginator: BasePaginator | None = None,
 ) -> Iterator[list[dict[str, Any]]]:
-    """Yield pages for each requested pen id.
-
-    `penId` always comes from the `pen_id` argument; putting it in a resource's
-    `params` passthrough has no effect.
-    """
+    """Yield pages per requested pen id. `penId` comes from `pen_id`; `params` cannot set it."""
     pen_ids = [pen_id] if isinstance(pen_id, str) else list(pen_id)
     if len(pen_ids) > 1:
         logger.info("%s: fanning out over %d pen ids.", path, len(pen_ids))
     for pid in pen_ids:
         yield from client.paginate(
-            path,
-            params={**params, "penId": pid},
-            data_selector=data_selector,
-            paginator=paginator,
+            path, params={**params, "penId": pid}, data_selector=data_selector, paginator=paginator
         )
 
 
@@ -139,11 +121,7 @@ def aquabyte_source(
     initial_date: str = dlt.config.value,
     initial_time: str = dlt.config.value,
 ):
-    """Aquabyte API v3 dlt source.
-
-    All resources share one RESTClient. Query params live on the resources, not here —
-    bind them per resource, e.g. `source.biomass.bind(from_date="2026-01-01")`, or set
-    them in config under `[sources.aquabyte.biomass]`.
+    """Aquabyte API v3 dlt source. All resources share one RESTClient.
 
     Args:
         base_url: API base URL, from config.
@@ -157,20 +135,12 @@ def aquabyte_source(
         paginator=JSONResponseCursorPaginator(cursor_path="nextToken", cursor_param="nextToken"),
     )
 
-    @dlt.resource(
-        write_disposition={**SCD2, "row_version_column_name": SITE_VERSION_COLUMN},
-        merge_key="id",
-        columns=Site,
-    )
+    @dlt.resource(write_disposition=SITES_SCD2, merge_key="id", columns=Site)
     def sites(site_id: str | None = None, params: dict[str, Any] | None = None):
-        """Every site from `GET /sites`, or one from `GET /sites/{siteId}`.
+        """Every site from `GET /sites`, or one from `GET /sites/{siteId}` when `site_id` is bound.
 
-        Pens stay nested inside each site, as the API nests them, but do not version it —
-        see `SITE_VERSION_COLUMN`. Both endpoints write the same table.
-
-        Args:
-            site_id: `siteId`, the path param of the per-site endpoint. Omitted means every site.
-            params: Query params passed through verbatim, merged last.
+        Both endpoints write the same table. Pens stay nested as the API nests them, but
+        do not version the site — see `SITES_SCD2`.
         """
         pages = client.paginate(
             f"/sites/{site_id}" if site_id is not None else "/sites",
@@ -185,23 +155,15 @@ def aquabyte_source(
     # both hand it to the same hint machinery, so the dict is fine at runtime.
     @dlt.transformer(data_from=sites, write_disposition=SCD2, merge_key="id", columns=Pen)  # type: ignore[arg-type]
     def pens(sites_page: list[dict[str, Any]]):
-        """Every pen the `/sites` response nests, unwrapped into its own table.
+        """Every pen the `/sites` response nests, unwrapped into its own table — none filtered.
 
-        Envelope unwrapping only: each pen object is yielded exactly as the API
-        returned it, and no pen is filtered out.
-
-        Versioned per `SCD2` — a pen drops out of `/sites` once it is emptied, and its
-        history has to outlive it. Pen records are flat, so dlt's own row hash already
-        means "this pen changed"; no `SITE_VERSION_COLUMN` equivalent is needed.
+        Versioned because a pen leaves `/sites` once it is emptied, and its history has to
+        outlive it.
         """
         for site in sites_page:
             yield from site.get("pens") or []
 
-    @dlt.resource(
-        write_disposition="merge",
-        primary_key=["penId", "fromTime"],
-        columns=EnvironmentalDataPoint,
-    )
+    @dlt.resource(write_disposition="merge", primary_key=["penId", "fromTime"], columns=EnvironmentalDataPoint)
     def environmental(
         pen_id: PenId = "all",
         from_time: str | None = None,
@@ -212,16 +174,7 @@ def aquabyte_source(
             "fromTime", initial_value=initial_time
         ),
     ):
-        """Environmental readings from `GET /environmental`.
-
-        Args:
-            pen_id: `penId`; `"all"` for every pen, or a list to fan out per pen.
-            from_time: `fromTime` (ISO 8601). Defaults to the incremental cursor.
-            to_time: `toTime` (ISO 8601, exclusive). Omitted means the API's default (today).
-            period: `period` aggregation — `"15min"`, `"h"` or `"D"`. Omitted means the API's default (`"D"`).
-            params: Query params passed through verbatim, merged last.
-            incremental_from_time: Incremental cursor on `fromTime`.
-        """
+        """Environmental readings from `GET /environmental`."""
         window_start = _window_start(
             "environmental", "fromTime", from_time, incremental_from_time.last_value, initial_time
         )
@@ -235,12 +188,7 @@ def aquabyte_source(
 
     @dlt.resource(write_disposition="replace", columns=EnvironmentalDataLive)
     def environmental_latest(pen_id: PenId = "all", params: dict[str, Any] | None = None):
-        """The latest environmental reading per pen from `GET /environmental/latest`.
-
-        Args:
-            pen_id: `penId`; `"all"` for every pen, or a list to fan out per pen.
-            params: Query params passed through verbatim, merged last.
-        """
+        """The latest environmental reading per pen from `GET /environmental/latest`."""
         yield from _paginate_per_pen(
             client,
             "/environmental/latest",
@@ -250,11 +198,7 @@ def aquabyte_source(
             paginator=SinglePagePaginator(),
         )
 
-    @dlt.resource(
-        write_disposition="merge",
-        primary_key=["penId", "date"],
-        columns=BiomassDailyModel,
-    )
+    @dlt.resource(write_disposition="merge", primary_key=["penId", "date"], columns=BiomassDailyModel)
     def biomass(
         pen_id: PenId = "all",
         from_date: str | None = None,
@@ -263,16 +207,7 @@ def aquabyte_source(
         params: dict[str, Any] | None = None,
         incremental_date: dlt.sources.incremental[str] = dlt.sources.incremental("date", initial_value=initial_date),
     ):
-        """Daily biomass from `GET /biomass`.
-
-        Args:
-            pen_id: `penId`; `"all"` for every pen, or a list to fan out per pen.
-            from_date: `fromDate` (YYYY-MM-DD). Defaults to the incremental cursor.
-            to_date: `toDate` (YYYY-MM-DD, inclusive). Omitted means the API's default (today).
-            bucket_size: `bucketSize` in grams for `weightDist`. Omitted means the API's default (1000).
-            params: Query params passed through verbatim, merged last.
-            incremental_date: Incremental cursor on `date`.
-        """
+        """Daily biomass from `GET /biomass`."""
         window_start = _window_start("biomass", "fromDate", from_date, incremental_date.last_value, initial_date)
         yield from _paginate_per_pen(
             client,
@@ -282,11 +217,7 @@ def aquabyte_source(
             data_selector="biomass",
         )
 
-    @dlt.resource(
-        write_disposition="merge",
-        primary_key=["penId", "slaughterStartDate"],
-        columns=BiomassHarvestReport,
-    )
+    @dlt.resource(write_disposition="merge", primary_key=["penId", "slaughterStartDate"], columns=BiomassHarvestReport)
     def harvest_report(
         pen_id: PenId = "all",
         from_date: str | None = None,
@@ -296,15 +227,7 @@ def aquabyte_source(
             "slaughterStartDate", initial_value=initial_date
         ),
     ):
-        """Harvest reports from `GET /biomass/harvestReport`.
-
-        Args:
-            pen_id: `penId`; `"all"` for every pen, or a list to fan out per pen.
-            from_date: `fromDate` (YYYY-MM-DD). Defaults to the incremental cursor.
-            to_date: `toDate` (YYYY-MM-DD, inclusive). Omitted means the API's default (today).
-            params: Query params passed through verbatim, merged last.
-            incremental_slaughter_start_date: Incremental cursor on `slaughterStartDate`.
-        """
+        """Harvest reports from `GET /biomass/harvestReport`."""
         window_start = _window_start(
             "harvest_report", "fromDate", from_date, incremental_slaughter_start_date.last_value, initial_date
         )
@@ -317,11 +240,7 @@ def aquabyte_source(
             paginator=SinglePagePaginator(),
         )
 
-    @dlt.resource(
-        write_disposition="merge",
-        primary_key=["penId", "date"],
-        columns=LiceCount,
-    )
+    @dlt.resource(write_disposition="merge", primary_key=["penId", "date"], columns=LiceCount)
     def lice_count(
         pen_id: PenId = "all",
         from_date: str | None = None,
@@ -329,15 +248,7 @@ def aquabyte_source(
         params: dict[str, Any] | None = None,
         incremental_date: dlt.sources.incremental[str] = dlt.sources.incremental("date", initial_value=initial_date),
     ):
-        """Lice counts from `GET /liceCount`.
-
-        Args:
-            pen_id: `penId`; `"all"` for every pen, or a list to fan out per pen.
-            from_date: `fromDate` (YYYY-MM-DD). Defaults to the incremental cursor.
-            to_date: `toDate` (YYYY-MM-DD, inclusive). Omitted means the API's default (today).
-            params: Query params passed through verbatim, merged last.
-            incremental_date: Incremental cursor on `date`.
-        """
+        """Lice counts from `GET /liceCount`."""
         window_start = _window_start("lice_count", "fromDate", from_date, incremental_date.last_value, initial_date)
         yield from _paginate_per_pen(
             client,
@@ -347,11 +258,7 @@ def aquabyte_source(
             data_selector="liceCount",
         )
 
-    @dlt.resource(
-        write_disposition="merge",
-        primary_key=["penId", "fromTime"],
-        columns=BehaviorSwimSpeed,
-    )
+    @dlt.resource(write_disposition="merge", primary_key=["penId", "fromTime"], columns=BehaviorSwimSpeed)
     def behaviour_swim_speed(
         pen_id: PenId = "all",
         from_time: str | None = None,
@@ -362,16 +269,7 @@ def aquabyte_source(
             "fromTime", initial_value=initial_time
         ),
     ):
-        """Swim speed and tilt from `GET /behaviour/swimSpeed`.
-
-        Args:
-            pen_id: `penId`; `"all"` for every pen, or a list to fan out per pen.
-            from_time: `fromTime` (ISO 8601). Defaults to the incremental cursor.
-            to_time: `toTime` (ISO 8601, exclusive). Omitted means the API's default (today).
-            period: `period` aggregation — `"h"` or `"D"`. Omitted means the API's default (`"D"`).
-            params: Query params passed through verbatim, merged last.
-            incremental_from_time: Incremental cursor on `fromTime`.
-        """
+        """Swim speed and tilt from `GET /behaviour/swimSpeed`."""
         window_start = _window_start(
             "behaviour_swim_speed", "fromTime", from_time, incremental_from_time.last_value, initial_time
         )
@@ -383,11 +281,7 @@ def aquabyte_source(
             data_selector="swimSpeed",
         )
 
-    @dlt.resource(
-        write_disposition="merge",
-        primary_key=["penId", "fromTime"],
-        columns=BehaviorBreathingIndex,
-    )
+    @dlt.resource(write_disposition="merge", primary_key=["penId", "fromTime"], columns=BehaviorBreathingIndex)
     def behaviour_breathing_index(
         pen_id: PenId = "all",
         from_time: str | None = None,
@@ -397,17 +291,7 @@ def aquabyte_source(
             "fromTime", initial_value=initial_time
         ),
     ):
-        """Breathing index from `GET /behaviour/breathingIndex`.
-
-        The endpoint documents no `period` param, unlike `/behaviour/swimSpeed`.
-
-        Args:
-            pen_id: `penId`; `"all"` for every pen, or a list to fan out per pen.
-            from_time: `fromTime` (ISO 8601). Defaults to the incremental cursor.
-            to_time: `toTime` (ISO 8601, exclusive). Omitted means the API's default (today).
-            params: Query params passed through verbatim, merged last.
-            incremental_from_time: Incremental cursor on `fromTime`.
-        """
+        """Breathing index from `GET /behaviour/breathingIndex`, which documents no `period`."""
         window_start = _window_start(
             "behaviour_breathing_index", "fromTime", from_time, incremental_from_time.last_value, initial_time
         )
@@ -419,11 +303,7 @@ def aquabyte_source(
             data_selector="breathingIndex",
         )
 
-    @dlt.resource(
-        write_disposition="merge",
-        primary_key=["penId", "date"],
-        columns=WelfareScoresRecord,
-    )
+    @dlt.resource(write_disposition="merge", primary_key=["penId", "date"], columns=WelfareScoresRecord)
     def welfare_scores(
         pen_id: PenId = "all",
         from_date: str | None = None,
@@ -431,19 +311,7 @@ def aquabyte_source(
         params: dict[str, Any] | None = None,
         incremental_date: dlt.sources.incremental[str] = dlt.sources.incremental("date", initial_value=initial_date),
     ):
-        """Welfare scores from `GET /welfareScores`, one row per pen and date.
-
-        The nested `welfareScores` object lands as a single JSON column, categories and
-        all — including any category added after this release. Flattening it into one
-        row per category belongs in the consumer's transform layer.
-
-        Args:
-            pen_id: `penId`; `"all"` for every pen, or a list to fan out per pen.
-            from_date: `fromDate` (YYYY-MM-DD). Defaults to the incremental cursor.
-            to_date: `toDate` (YYYY-MM-DD, inclusive). Omitted means the API's default (today).
-            params: Query params passed through verbatim, merged last.
-            incremental_date: Incremental cursor on `date`.
-        """
+        """Welfare scores from `GET /welfareScores` — one row per pen and date, categories nested."""
         window_start = _window_start("welfare_scores", "fromDate", from_date, incremental_date.last_value, initial_date)
         yield from _paginate_per_pen(
             client,
