@@ -176,7 +176,7 @@ api_key = "your-api-key-here"
 
 ```bash
 uv sync --group dev                                      # Install dependencies
-uv run ruff check --fix src/ tests/ && uv run ruff format src/ tests/  # Lint and format
+uv run ruff check --fix src/ tests/ examples/ && uv run ruff format src/ tests/ examples/  # Lint and format
 uv run pyright                                            # Type check
 uv run bandit -r src/ -c pyproject.toml                   # Security scan
 uv run python -m pytest -m "not integration"              # Unit tests (mocked API)

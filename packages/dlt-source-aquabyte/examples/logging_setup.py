@@ -10,8 +10,9 @@ three lines point them at a file, syslog, or whatever handler your stack already
 What the package logs, and nothing more: the decisions dlt cannot narrate for you.
 
     INFO     an explicit from_date/from_time overrode the incremental cursor
-    WARNING  no window start at all, so the API's own default window applies
-    DEBUG    the cursor value a run resumed from, and each request's params
+    INFO     a pen-id list fanned out into one request per pen
+    WARNING  no cursor value yet, so the configured initial_date/initial_time applies
+    DEBUG    the cursor value a run resumed from
 
 dlt itself logs the requests, row counts and load outcomes on its own `dlt` logger,
 configured through dlt's `runtime` settings — see
@@ -36,8 +37,8 @@ def route_source_logs(level: int = logging.INFO) -> None:
     logger.addHandler(handler)
 
     # Set level=logging.DEBUG above to also see the cursor value each resource resumed
-    # from and the query params of every request — the first thing to look at when a
-    # run returns fewer rows than expected.
+    # from — the first thing to look at when a run returns fewer rows than expected.
+    # The requests themselves are dlt's to log, on its own `dlt` logger.
 
 
 def main() -> None:
