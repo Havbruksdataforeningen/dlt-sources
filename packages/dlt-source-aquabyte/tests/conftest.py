@@ -82,18 +82,23 @@ def params_sent(mock_client: Any, path: str) -> list[dict[str, Any]]:
     return [kwargs.get("params", {}) for kwargs in calls_to(mock_client, path)]
 
 
+def make_pipeline(pipeline_name: str) -> Any:
+    """A DuckDB pipeline in a throwaway dataset, for tests that load more than once."""
+    return dlt.pipeline(
+        pipeline_name=pipeline_name,
+        destination="duckdb",
+        dataset_name=f"{pipeline_name}_data",
+        dev_mode=True,
+    )
+
+
 def run_source(
     pipeline_name: str,
     source: Any,
     resources: list[str],
 ) -> tuple[Any, Any]:
     """Run a dlt source into DuckDB and return (pipeline, load_info)."""
-    pipeline = dlt.pipeline(
-        pipeline_name=pipeline_name,
-        destination="duckdb",
-        dataset_name=f"{pipeline_name}_data",
-        dev_mode=True,
-    )
+    pipeline = make_pipeline(pipeline_name)
     load_info = pipeline.run(source.with_resources(*resources))
     return pipeline, load_info
 

@@ -4,11 +4,14 @@ Each resource takes exactly the params its endpoint documents in
 `specs/openapi.json`, plus a `params` escape hatch; see the README.
 """
 
+import hashlib
+import json
 import logging
 from collections.abc import Iterator
 from typing import Any
 
 import dlt
+from dlt.common.schema.typing import TScd2StrategyDict
 from dlt.sources.helpers.rest_client.auth import APIKeyAuth
 from dlt.sources.helpers.rest_client.client import RESTClient
 from dlt.sources.helpers.rest_client.paginators import (
@@ -38,6 +41,33 @@ PenId = str | list[str]
 A list is a source-side convenience only — it issues one request sequence per pen id
 and yields every record the API returns for each. It filters nothing.
 """
+
+SCD2: TScd2StrategyDict = {"disposition": "merge", "strategy": "scd2"}
+"""Registry tables are versioned, never replaced: a row is retired, never deleted.
+
+Always paired with `merge_key="id"`, which scopes retirement to the ids a load actually
+carried — so reading one site does not retire the others. The trade-off: something
+absent from a *full* response is not retired either.
+
+https://dlthub.com/docs/general-usage/merge-loading#scd2-strategy
+"""
+
+SITE_VERSION_COLUMN = "_site_version"
+"""The column that decides when a site gets a new version: its own fields, minus `pens`.
+
+dlt's default row hash covers the whole record, nested data included, so renaming one
+pen would version its site too. Pens have their own scd2 table for that.
+"""
+
+
+def _site_version(site: dict[str, Any]) -> str:
+    """Digest of a site's own fields — everything the API returns for it except `pens`.
+
+    Not an allow-list: a site-level field the API adds later versions the site, as it
+    should. Only `pens` is held out.
+    """
+    own = {key: value for key, value in site.items() if key != "pens"}
+    return hashlib.sha256(json.dumps(own, sort_keys=True, default=str).encode()).hexdigest()
 
 
 def _query(extra: dict[str, Any] | None = None, **named: Any) -> dict[str, Any]:
@@ -127,33 +157,42 @@ def aquabyte_source(
         paginator=JSONResponseCursorPaginator(cursor_path="nextToken", cursor_param="nextToken"),
     )
 
-    @dlt.resource(write_disposition="replace", columns=Site)
+    @dlt.resource(
+        write_disposition={**SCD2, "row_version_column_name": SITE_VERSION_COLUMN},
+        merge_key="id",
+        columns=Site,
+    )
     def sites(site_id: str | None = None, params: dict[str, Any] | None = None):
         """Every site from `GET /sites`, or one from `GET /sites/{siteId}`.
 
-        Pens stay nested inside each site, as the API nests them.
-
-        Both endpoints write the same `sites` table, which is replaced on every run — so
-        binding `site_id` leaves the table holding that one site. Bind it only when that
-        is what you want stored.
+        Pens stay nested inside each site, as the API nests them, but do not version it —
+        see `SITE_VERSION_COLUMN`. Both endpoints write the same table.
 
         Args:
             site_id: `siteId`, the path param of the per-site endpoint. Omitted means every site.
             params: Query params passed through verbatim, merged last.
         """
-        yield from client.paginate(
+        pages = client.paginate(
             f"/sites/{site_id}" if site_id is not None else "/sites",
             params=_query(params),
             data_selector="sites",
             paginator=SinglePagePaginator(),
         )
+        for page in pages:
+            yield [{**site, SITE_VERSION_COLUMN: _site_version(site)} for site in page]
 
-    @dlt.transformer(data_from=sites, write_disposition="replace", columns=Pen)
+    # `dlt.transformer` types write_disposition as the literals only, unlike `dlt.resource`;
+    # both hand it to the same hint machinery, so the dict is fine at runtime.
+    @dlt.transformer(data_from=sites, write_disposition=SCD2, merge_key="id", columns=Pen)  # type: ignore[arg-type]
     def pens(sites_page: list[dict[str, Any]]):
         """Every pen the `/sites` response nests, unwrapped into its own table.
 
         Envelope unwrapping only: each pen object is yielded exactly as the API
         returned it, and no pen is filtered out.
+
+        Versioned per `SCD2` — a pen drops out of `/sites` once it is emptied, and its
+        history has to outlive it. Pen records are flat, so dlt's own row hash already
+        means "this pen changed"; no `SITE_VERSION_COLUMN` equivalent is needed.
         """
         for site in sites_page:
             yield from site.get("pens") or []

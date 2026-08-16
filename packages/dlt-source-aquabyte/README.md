@@ -42,10 +42,10 @@ print(pipeline.run(aquabyte_source()))
 
 ## Resources
 
-| Resource | Endpoint | Load strategy | Primary key |
+| Resource | Endpoint | Load strategy | Key |
 |---|---|---|---|
-| `sites` | `GET /sites`, `GET /sites/{siteId}` | replace | — |
-| `pens` | _(transformer over `sites`)_ | replace | — |
+| `sites` | `GET /sites`, `GET /sites/{siteId}` | merge, `scd2` | `id` (merge key) |
+| `pens` | _(transformer over `sites`)_ | merge, `scd2` | `id` (merge key) |
 | `environmental` | `GET /environmental` | merge | `penId`, `fromTime` |
 | `environmental_latest` | `GET /environmental/latest` | replace | — |
 | `biomass` | `GET /biomass` | merge | `penId`, `date` |
@@ -62,9 +62,26 @@ source = aquabyte_source()
 source.sites.bind(site_id="site-001")
 ```
 
-⚠️ Both endpoints write the same `sites` table, and the resource replaces it on every run — so a run with `site_id` bound leaves the table holding that one site. Bind it only when that is what you want stored.
+Both endpoints write the same `sites` table. Backfilling one site does not disturb the others — see [The registry tables are versioned](#the-registry-tables-are-versioned).
 
 `pens` unwraps the pens the `/sites` response nests inside each site — every pen, active or not. The data resources do not depend on it: they use the API's own `penId=all`, one request instead of one per pen.
+
+### The registry tables are versioned
+
+`/sites` reports what exists *today*, so replacing `sites` and `pens` each run would drop a row the moment it left the response — and a pen leaves as soon as it is emptied, after possibly years of production. Both tables therefore load with dlt's [`scd2` strategy](https://dlthub.com/docs/general-usage/merge-loading#scd2-strategy): **a row is never deleted**, only retired by stamping `_dlt_valid_to`.
+
+```sql
+SELECT * FROM pens WHERE _dlt_valid_to IS NULL;                    -- current
+SELECT * FROM pens WHERE id = 'pen-002' ORDER BY _dlt_valid_from;  -- one pen's history
+```
+
+**What counts as a new version.** For `pens`, any field changing — including `isActive`. For `sites`, the site's own fields only: dlt hashes the whole record by default, so a renamed pen would otherwise version its site too. `sites` carries a `_site_version` column (everything the API returns for the site except `pens`) and uses it as dlt's [`row_version_column_name`](https://dlthub.com/blog/scd2-nested-json-data-cost-optimization). A consequence worth knowing: when only pens change, the `sites` row is untouched, so its nested `pens` snapshot stays at the older value — `pens` is the table to read for pen state.
+
+**`merge_key="id"`** scopes retirement to the ids a load actually carried, which is what makes `source.sites.bind(site_id=...)` safe: reading one site retires nothing belonging to the others. The deliberate trade-off is that a site or pen absent from a *full* response is not retired either, and stays current indefinitely. Retire-on-absence and safe partial loads are the same switch; this source picks the one that cannot lose data.
+
+⚠️ To choose the other side, drop the merge key — but only on a pipeline's **first** load. dlt stores `merge_key` on the column and does not remove it when a later run stops setting the hint, so `apply_hints(merge_key=())` against an existing table is silently ignored (verified against dlt 1.30). Changing your mind later means editing the stored schema or loading into a fresh dataset.
+
+Background: [SCD2 and incremental loading](https://dlthub.com/blog/scd2-and-incremental-loading).
 
 ### `welfare_scores` is not unpivoted
 
