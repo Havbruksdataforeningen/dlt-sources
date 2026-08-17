@@ -51,7 +51,7 @@ indent-style = "space"
 [tool.pyright]
 pythonVersion = "3.11"
 typeCheckingMode = "basic"
-include = ["src", "tests"]
+include = ["src", "tests", "examples"]
 exclude = [".venv", ".dlt", ".agent"]
 venvPath = "."
 venv = ".venv"

@@ -1,0 +1,3042 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Aquabyte API Documentation",
+    "description": "\n# Aquabyte Public API\n\nTo use our API you must be issued an API key.\n\nInstructions: For all HTTPS requests you will need to pass in your API key as part of the header:\n`apikey: {API_KEY}`\n\nOur base url is https://api.aquabyte.ai/v3/\n\nRequests are limited to 1000 requests/hour\n\n\n# What's new in v3.1\n\nWith v3.1, we have added new APIs to support bulk fetching. One of the\nmain use case is for users to download Aquabyte data into their own database.\nThe new API allows us to download all pens with available data in a single call.\nFor example, to fetch biomass data for all pens, you can use the following API call:\n\n```\nGET \"https://api.aquabyte.ai/v3/biomass?penId=all&fromDate=2026-01-01&toDate=2026-01-02\"\n```\n\nYou can switch to v3.1 API simply by changing the URL from this pattern\n`GET /pens/{penId}/biomass` to this pattern `GET /biomass?penId={penId}`. Similar\npattern is used for other data - environmental, lice, welfare and behaviour.\n\nSince v3.1 supports everything in v3.0. We recommend switching to v3.1 as soon as possible.\nv3.0 support continues during the transition.\n\n\n## Result pagination\n\nCurrently, Aquabyte Public API caps the result set up to 10,000 records.\nIf the result set has more data than the limit, they will be returned in batches.\nIn this case, the response will contain a \"nextToken\". For example:\n\n```\nGET \"https://api.aquabyte.ai/v3/biomass?penId=all&fromDate=2025-01-01&toDate=2025-12-31\"\n\n\nIt returns\n\n{\n  \"biomass\": [\n    ... up to limit number of records ...\n  ]\n  \"nextToken\": \"(A_TOKEN)\"\n}\n```\n\nTo fetch the next batch of data, repeat the request and add the \"nextToken\" to the query parameters.\n\n```\nGET \"https://api.aquabyte.ai/v3/biomass?penId=all&fromDate=2025-01-01&toDate=2025-12-31&nextToken=(A_TOKEN)\"\n```\n\nRepeating the request until \"nextToken\" is not present in the response.\nThis indicates that you have fetched all data.\n\n",
+    "version": "v3.1",
+    "x-logo": {
+      "url": "/v3/static/images/logo_full.png"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://api.aquabyte.ai/v3",
+      "description": "Aquabyte API Server"
+    }
+  ],
+  "paths": {
+    "/sites": {
+      "get": {
+        "summary": "Retrieve all sites and pens details",
+        "description": "Retrieve all available sites and pens in each site",
+        "operationId": "get_sites_sites_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SitesResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/sites/{siteId}": {
+      "get": {
+        "summary": "Retrieve site and pens details of {siteId}",
+        "description": "Retrieve all available sites and pens in each site",
+        "operationId": "get_sites_siteId_sites__siteId__get",
+        "parameters": [
+          {
+            "name": "siteId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SitesResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/environmental": {
+      "get": {
+        "summary": "Historical environmental data",
+        "operationId": "get_environmental_environmental_get",
+        "parameters": [
+          {
+            "name": "penId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "penId to query. Use \"all\" to query all pens"
+            },
+            "description": "penId to query. Use \"all\" to query all pens"
+          },
+          {
+            "name": "fromTime",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "from time. Default is 1 days ago"
+            },
+            "description": "from time. Default is 1 days ago"
+          },
+          {
+            "name": "toTime",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "to time (exclusive). Default is today"
+            },
+            "description": "to time (exclusive). Default is today"
+          },
+          {
+            "name": "period",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/Period15mEnum"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "aggregation period of the metric. Default is daily",
+              "default": "D"
+            },
+            "description": "aggregation period of the metric. Default is daily"
+          },
+          {
+            "name": "nextToken",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "(optional) token to fetch the next batch of result"
+            },
+            "description": "(optional) token to fetch the next batch of result"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/aqua_api__paginator__append_next_token___locals___Wrapped__1"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pens/{penId}/environmental": {
+      "get": {
+        "tags": [
+          "v3.0"
+        ],
+        "summary": "Historical environmental data",
+        "operationId": "get_environmental_deprecated_pens__penId__environmental_get",
+        "deprecated": true,
+        "parameters": [
+          {
+            "name": "penId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "fromTime",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "from time. Default is 1 days ago"
+            },
+            "description": "from time. Default is 1 days ago"
+          },
+          {
+            "name": "toTime",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "to time (exclusive). Default is today"
+            },
+            "description": "to time (exclusive). Default is today"
+          },
+          {
+            "name": "period",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/Period15mEnum"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "aggregation period of the metric. Default is daily",
+              "default": "D"
+            },
+            "description": "aggregation period of the metric. Default is daily"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/aqua_api__paginator__append_next_token___locals___Wrapped__1"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pens/{penId}/environmental/latest": {
+      "get": {
+        "tags": [
+          "v3.0"
+        ],
+        "summary": "Latest environmental data",
+        "operationId": "get_environmental_latest_pens__penId__environmental_latest_get",
+        "deprecated": true,
+        "parameters": [
+          {
+            "name": "penId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnvironmentalDataLive"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/environmental/latest": {
+      "get": {
+        "summary": "Latest environmental data",
+        "operationId": "get_environmental_latest_all_pens_environmental_latest_get",
+        "parameters": [
+          {
+            "name": "penId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "penId to query. Use \"all\" to query all pens"
+            },
+            "description": "penId to query. Use \"all\" to query all pens"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetEnvironmentalLiveAllResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/biomass": {
+      "get": {
+        "tags": [
+          "biomass"
+        ],
+        "summary": "Biomass data for a pen",
+        "operationId": "get_biomass_daily_biomass_get",
+        "parameters": [
+          {
+            "name": "penId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "penId to query. Use \"all\" to query all pens"
+            },
+            "description": "penId to query. Use \"all\" to query all pens"
+          },
+          {
+            "name": "fromDate",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "from date. Default is 7 days before toDate"
+            },
+            "description": "from date. Default is 7 days before toDate"
+          },
+          {
+            "name": "toDate",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "to date (inclusive). Default is today"
+            },
+            "description": "to date (inclusive). Default is today"
+          },
+          {
+            "name": "bucketSize",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "weightDist bucket size. Default 1000g",
+              "default": 1000
+            },
+            "description": "weightDist bucket size. Default 1000g"
+          },
+          {
+            "name": "nextToken",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "(optional) token to fetch the next batch of result"
+            },
+            "description": "(optional) token to fetch the next batch of result"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/aqua_api__paginator__append_next_token___locals___Wrapped__2"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pens/{penId}/biomass": {
+      "get": {
+        "tags": [
+          "v3.0"
+        ],
+        "summary": "Biomass data for a pen",
+        "operationId": "get_biomass_daily_deprecated_pens__penId__biomass_get",
+        "deprecated": true,
+        "parameters": [
+          {
+            "name": "penId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "fromDate",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "from date. Default is 7 days before toDate"
+            },
+            "description": "from date. Default is 7 days before toDate"
+          },
+          {
+            "name": "toDate",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "to date (inclusive). Default is today"
+            },
+            "description": "to date (inclusive). Default is today"
+          },
+          {
+            "name": "bucketSize",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "weightDist bucket size. Default 1000g",
+              "default": 1000
+            },
+            "description": "weightDist bucket size. Default 1000g"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/aqua_api__paginator__append_next_token___locals___Wrapped__2"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/biomass/harvestReport": {
+      "get": {
+        "tags": [
+          "biomass"
+        ],
+        "summary": "Biomass harvest reports in the date range (by slaughter start)",
+        "description": "Returns main reports. If there is no main report, returns the latest one.",
+        "operationId": "get_biomass_harvest_report_biomass_harvestReport_get",
+        "parameters": [
+          {
+            "name": "penId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "penId to query. Use \"all\" to query all pens"
+            },
+            "description": "penId to query. Use \"all\" to query all pens"
+          },
+          {
+            "name": "fromDate",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "description": "from date. Default is 7 days before toDate"
+            },
+            "description": "from date. Default is 7 days before toDate"
+          },
+          {
+            "name": "toDate",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "to date (inclusive). Default is today"
+            },
+            "description": "to date (inclusive). Default is today"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BiomassHarvestReportResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pens/{penId}/biomass/harvestReport": {
+      "get": {
+        "tags": [
+          "v3.0"
+        ],
+        "summary": "Biomass harvest reports in the date range (by slaughter start)",
+        "description": "Returns main reports. If there is no main report, returns the latest one.",
+        "operationId": "get_biomass_harvest_report_deprecated_pens__penId__biomass_harvestReport_get",
+        "deprecated": true,
+        "parameters": [
+          {
+            "name": "penId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "fromDate",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "toDate",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "to date (inclusive). Default is today"
+            },
+            "description": "to date (inclusive). Default is today"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BiomassHarvestReportResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pens/{penId}/liceCount": {
+      "get": {
+        "tags": [
+          "v3.0"
+        ],
+        "summary": "Lice count for one or more pens",
+        "operationId": "get_pen_lice_count_deprecated_pens__penId__liceCount_get",
+        "deprecated": true,
+        "parameters": [
+          {
+            "name": "penId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "fromDate",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "from date. Default is 7 days before toDate"
+            },
+            "description": "from date. Default is 7 days before toDate"
+          },
+          {
+            "name": "toDate",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "to date (inclusive). Default is today"
+            },
+            "description": "to date (inclusive). Default is today"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/aqua_api__paginator__append_next_token___locals___Wrapped__3"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/liceCount": {
+      "get": {
+        "tags": [
+          "lice"
+        ],
+        "summary": "Lice count for one or more pens",
+        "operationId": "get_pen_lice_count_liceCount_get",
+        "parameters": [
+          {
+            "name": "penId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "penId to query. Use \"all\" to query all pens"
+            },
+            "description": "penId to query. Use \"all\" to query all pens"
+          },
+          {
+            "name": "fromDate",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "(optional) from date. Default is 7 days before toDate"
+            },
+            "description": "(optional) from date. Default is 7 days before toDate"
+          },
+          {
+            "name": "toDate",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "(optional) to date (inclusive). Default is today"
+            },
+            "description": "(optional) to date (inclusive). Default is today"
+          },
+          {
+            "name": "nextToken",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "(optional) token to fetch the next batch of result"
+            },
+            "description": "(optional) token to fetch the next batch of result"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/aqua_api__paginator__append_next_token___locals___Wrapped__3"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pens/{penId}/behavior/swimSpeed": {
+      "get": {
+        "tags": [
+          "v3.0"
+        ],
+        "summary": "Swim speed and swim tilt for a pen",
+        "operationId": "get_behavior_swim_speed_deprecated_pens__penId__behavior_swimSpeed_get",
+        "deprecated": true,
+        "parameters": [
+          {
+            "name": "penId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "fromTime",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "from time. Default is 7 days before toTime"
+            },
+            "description": "from time. Default is 7 days before toTime"
+          },
+          {
+            "name": "toTime",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "to time (exclusive). Default is today"
+            },
+            "description": "to time (exclusive). Default is today"
+          },
+          {
+            "name": "period",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/PeriodEnum"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "period of the metric. Default is daily",
+              "default": "D"
+            },
+            "description": "period of the metric. Default is daily"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/aqua_api__paginator__append_next_token___locals___Wrapped__4"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/behaviour/swimSpeed": {
+      "get": {
+        "tags": [
+          "behaviour"
+        ],
+        "summary": "Swim speed and swim tilt for a pen",
+        "operationId": "get_behavior_swim_speed_behaviour_swimSpeed_get",
+        "parameters": [
+          {
+            "name": "penId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "penId to query. Use \"all\" to query all pens"
+            },
+            "description": "penId to query. Use \"all\" to query all pens"
+          },
+          {
+            "name": "fromTime",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "from time. Default is 7 days before toTime"
+            },
+            "description": "from time. Default is 7 days before toTime"
+          },
+          {
+            "name": "toTime",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "to time (exclusive). Default is today"
+            },
+            "description": "to time (exclusive). Default is today"
+          },
+          {
+            "name": "period",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/PeriodEnum"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "period of the metric. Default is daily",
+              "default": "D"
+            },
+            "description": "period of the metric. Default is daily"
+          },
+          {
+            "name": "nextToken",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "(optional) token to fetch the next batch of result"
+            },
+            "description": "(optional) token to fetch the next batch of result"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/aqua_api__paginator__append_next_token___locals___Wrapped__4"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pens/{penId}/behavior/breathingIndex": {
+      "get": {
+        "tags": [
+          "v3.0"
+        ],
+        "summary": "Breathing index for a pen",
+        "operationId": "get_behavior_breathing_index_deprecated_pens__penId__behavior_breathingIndex_get",
+        "deprecated": true,
+        "parameters": [
+          {
+            "name": "penId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "fromTime",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "from time. Default is 7 days before toTime"
+            },
+            "description": "from time. Default is 7 days before toTime"
+          },
+          {
+            "name": "toTime",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "to time (exclusive). Default is today"
+            },
+            "description": "to time (exclusive). Default is today"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/aqua_api__paginator__append_next_token___locals___Wrapped__5"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/behaviour/breathingIndex": {
+      "get": {
+        "tags": [
+          "behaviour"
+        ],
+        "summary": "Breathing index for a pen",
+        "operationId": "get_behavior_breathing_index_behaviour_breathingIndex_get",
+        "parameters": [
+          {
+            "name": "penId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "penId to query. Use \"all\" to query all pens"
+            },
+            "description": "penId to query. Use \"all\" to query all pens"
+          },
+          {
+            "name": "fromTime",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "from time. Default is 7 days before toTime"
+            },
+            "description": "from time. Default is 7 days before toTime"
+          },
+          {
+            "name": "toTime",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "to time (exclusive). Default is today"
+            },
+            "description": "to time (exclusive). Default is today"
+          },
+          {
+            "name": "nextToken",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "(optional) token to fetch the next batch of result"
+            },
+            "description": "(optional) token to fetch the next batch of result"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/aqua_api__paginator__append_next_token___locals___Wrapped__5"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/welfareScores": {
+      "get": {
+        "tags": [
+          "welfare"
+        ],
+        "summary": "Welfare scores for one or more pens",
+        "operationId": "get_pen_welfare_data_welfareScores_get",
+        "parameters": [
+          {
+            "name": "penId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "penId to query. Use \"all\" to query all pens"
+            },
+            "description": "penId to query. Use \"all\" to query all pens"
+          },
+          {
+            "name": "fromDate",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "from date. Default is 7 days before toDate"
+            },
+            "description": "from date. Default is 7 days before toDate"
+          },
+          {
+            "name": "toDate",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "to date (inclusive). Default is today"
+            },
+            "description": "to date (inclusive). Default is today"
+          },
+          {
+            "name": "nextToken",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "(optional) token to fetch the next batch of result"
+            },
+            "description": "(optional) token to fetch the next batch of result"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/aqua_api__paginator__append_next_token___locals___Wrapped__6"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pens/{penId}/welfareScores": {
+      "get": {
+        "tags": [
+          "v3.0"
+        ],
+        "summary": "Welfare scores for one or more pens",
+        "operationId": "get_pen_welfare_data_deprecated_pens__penId__welfareScores_get",
+        "deprecated": true,
+        "parameters": [
+          {
+            "name": "penId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "fromDate",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "from date. Default is 7 days before toDate"
+            },
+            "description": "from date. Default is 7 days before toDate"
+          },
+          {
+            "name": "toDate",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "to date (inclusive). Default is today"
+            },
+            "description": "to date (inclusive). Default is today"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/aqua_api__paginator__append_next_token___locals___Wrapped__6"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/superiorRate": {
+      "post": {
+        "tags": [
+          "welfare"
+        ],
+        "summary": "(Experimental API) Superior rate for a pen. Note: this is a preview version of superior rate API. The details are subject to change. ",
+        "operationId": "get_pen_superior_rate_superiorRate_post",
+        "parameters": [
+          {
+            "name": "penId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "fromDate",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "from date. Default is 7 days before toDate"
+            },
+            "description": "from date. Default is 7 days before toDate"
+          },
+          {
+            "name": "toDate",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "to date (inclusive). Default is today"
+            },
+            "description": "to date (inclusive). Default is today"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DowngradeRuleset",
+                "description": "Downgrade ruleset to apply"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuperiorRateResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "BehaviorBreathingIndex": {
+        "properties": {
+          "penId": {
+            "type": "string"
+          },
+          "fromTime": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "toTime": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "sampleSize": {
+            "type": "number",
+            "description": "Number of samples used for breathingIndex"
+          },
+          "breathingIndex": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Breathing index (0 to 1)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "penId",
+          "fromTime",
+          "toTime",
+          "sampleSize",
+          "breathingIndex"
+        ],
+        "title": "BehaviorBreathingIndex"
+      },
+      "BehaviorSwimSpeed": {
+        "properties": {
+          "penId": {
+            "type": "string"
+          },
+          "fromTime": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "toTime": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "swimSpeedsampleSize": {
+            "type": "number",
+            "description": "Number of samples used for swimSpeed"
+          },
+          "swimSpeed": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Average swim speed (body length/s)"
+          },
+          "swimTiltsampleSize": {
+            "type": "number",
+            "description": "Number of samples used for swimTilt"
+          },
+          "swimTilt": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Average Swim Tilt (degree)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "penId",
+          "fromTime",
+          "toTime",
+          "swimSpeedsampleSize",
+          "swimSpeed",
+          "swimTiltsampleSize",
+          "swimTilt"
+        ],
+        "title": "BehaviorSwimSpeed"
+      },
+      "BiomassDailyModel": {
+        "properties": {
+          "penId": {
+            "type": "string"
+          },
+          "date": {
+            "type": "string",
+            "format": "date"
+          },
+          "sampleSize": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Number of samples used for avgWeight"
+          },
+          "avgWeight": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Average weight in grams"
+          },
+          "kFactor": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "cv": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "weightDist": {
+            "$ref": "#/components/schemas/WeightDistModel"
+          }
+        },
+        "type": "object",
+        "required": [
+          "penId",
+          "date",
+          "sampleSize",
+          "avgWeight",
+          "kFactor",
+          "cv",
+          "weightDist"
+        ],
+        "title": "BiomassDailyModel"
+      },
+      "BiomassHarvestReport": {
+        "properties": {
+          "penId": {
+            "type": "string"
+          },
+          "mainReport": {
+            "type": "boolean",
+            "description": "If this is a main report"
+          },
+          "asOfDate": {
+            "type": "string",
+            "format": "date",
+            "description": "Latest date of data used in the report (primarily for forecasting)."
+          },
+          "lastFeedingDate": {
+            "type": "string",
+            "format": "date",
+            "description": "Last feeding date."
+          },
+          "slaughterStartDate": {
+            "type": "string",
+            "format": "date",
+            "description": "Slaughter start date."
+          },
+          "slaughterEndDate": {
+            "type": "string",
+            "format": "date",
+            "description": "Slaughter end date."
+          },
+          "temperature": {
+            "type": "number",
+            "description": "Temperature."
+          },
+          "lossFactor": {
+            "type": "number",
+            "description": "Total loss factor from packing process (excludes starvation)."
+          },
+          "packingMethod": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Packing method (HOG, WFE, or null if custom loss)."
+          },
+          "fishType": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Fish type. Null for reports created prior to 2025-08-14."
+          },
+          "measurementCount": {
+            "type": "integer",
+            "description": "Total number of fish measured for the report."
+          },
+          "coefficientOfVariation": {
+            "type": "number",
+            "description": "Coefficient of variation."
+          },
+          "avgPackedWeightGrams": {
+            "type": "number",
+            "description": "Average packed weight in grams."
+          },
+          "avgRoundWeightGrams": {
+            "type": "number",
+            "description": "Average round weight in grams of fish on last feeding date."
+          },
+          "superiorRate": {
+            "type": "number",
+            "description": "Superior rate."
+          },
+          "packedWeightDistribution": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object",
+            "description": "Packed weight distribution. Keys express intervals in kg ('4-5' for 4kg to 5kg), values are expressed in percentages (15 for 15%)."
+          },
+          "roundWeightDistribution": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object",
+            "description": "Round weight distribution. Keys express intervals in kg ('4-5' for 4kg to 5kg), values are expressed in percentages (15 for 15%)."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "type": "object",
+        "required": [
+          "penId",
+          "mainReport",
+          "asOfDate",
+          "lastFeedingDate",
+          "slaughterStartDate",
+          "slaughterEndDate",
+          "temperature",
+          "lossFactor",
+          "packingMethod",
+          "fishType",
+          "measurementCount",
+          "coefficientOfVariation",
+          "avgPackedWeightGrams",
+          "avgRoundWeightGrams",
+          "superiorRate",
+          "packedWeightDistribution",
+          "roundWeightDistribution",
+          "createdAt"
+        ],
+        "title": "BiomassHarvestReport"
+      },
+      "BiomassHarvestReportResponse": {
+        "properties": {
+          "reports": {
+            "items": {
+              "$ref": "#/components/schemas/BiomassHarvestReport"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object",
+        "required": [
+          "reports"
+        ],
+        "title": "BiomassHarvestReportResponse"
+      },
+      "DataQualityEnum": {
+        "type": "string",
+        "enum": [
+          "high",
+          "medium",
+          "low",
+          ""
+        ],
+        "title": "DataQualityEnum"
+      },
+      "DowngradeRuleset": {
+        "properties": {
+          "bodyWound": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DowngradeScoresSubcategory"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Downgrade rules for body wounds"
+          },
+          "scaleLoss": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DowngradeScores"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Downgrade rules for scale loss"
+          },
+          "snoutWound": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DowngradeScores"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Downgrade rules for snout wounds"
+          },
+          "maturation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DowngradeScores"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Downgrade rules for maturation"
+          },
+          "eyeBleeding": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DowngradeScores"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Downgrade rules for eye bleeding"
+          },
+          "eyeClouding": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DowngradeScores"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Downgrade rules for eye clouding"
+          },
+          "exophthalmos": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DowngradeScores"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Downgrade rules for exophthalmos"
+          },
+          "opercularDamage": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DowngradeScores"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Downgrade rules for opercular damage"
+          },
+          "backDeformity": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DowngradeScores"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Downgrade rules for back deformity"
+          },
+          "pelvicFin": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DowngradeScores"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Downgrade rules for pelvic fin"
+          },
+          "pectoralFin": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DowngradeScores"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Downgrade rules for pectoral fin"
+          },
+          "caudalFin": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DowngradeScores"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Downgrade rules for caudal fin"
+          },
+          "analFin": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DowngradeScores"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Downgrade rules for anal fin"
+          },
+          "dorsalFin": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DowngradeScores"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Downgrade rules for dorsal fin"
+          },
+          "upperJawDeformity": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DowngradeScores"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Downgrade rules for upper_jaw_deformity"
+          },
+          "lowerJawDeformity": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DowngradeScores"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Downgrade rules for lower_jaw_deformity"
+          },
+          "breathingMouth": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DowngradeScores"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Downgrade rules for breathing_mouth"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "DowngradeRuleset"
+      },
+      "DowngradeScores": {
+        "properties": {
+          "score1": {
+            "type": "number",
+            "description": "Downgrade score for score 1",
+            "default": 0
+          },
+          "score2": {
+            "type": "number",
+            "description": "Downgrade score for score 2",
+            "default": 0
+          },
+          "score3": {
+            "type": "number",
+            "description": "Downgrade score for score 3",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "title": "DowngradeScores"
+      },
+      "DowngradeScoresSubcategory": {
+        "properties": {
+          "active": {
+            "$ref": "#/components/schemas/DowngradeScores",
+            "description": "Downgrade scores for active wounds"
+          },
+          "healed": {
+            "$ref": "#/components/schemas/DowngradeScores",
+            "description": "Downgrade scores for healed wounds"
+          }
+        },
+        "type": "object",
+        "title": "DowngradeScoresSubcategory"
+      },
+      "EnvironmentalDataLive": {
+        "properties": {
+          "penId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "time": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "temperature": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "temperature (celcius)"
+          },
+          "cameraDepth": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "camera depth (meters)"
+          },
+          "oxygenPct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Dissolved Oxygen Saturation (%)"
+          },
+          "salinity": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Salinity parts per thousand (ppt)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "time"
+        ],
+        "title": "EnvironmentalDataLive"
+      },
+      "EnvironmentalDataPoint": {
+        "properties": {
+          "penId": {
+            "type": "string"
+          },
+          "fromTime": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "toTime": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "temperatureAvg": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Average temperature (celcius)"
+          },
+          "cameraDepthAvg": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "camera depth (meters)"
+          },
+          "cameraDepthMin": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "min camera depth (meters)"
+          },
+          "cameraDepthMax": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "max camera depth (meters)"
+          },
+          "oxygenPct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Dissolved Oxygen Saturation (%)"
+          },
+          "salinity": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Salinity parts per thousand (ppt)"
+          },
+          "fishDensity": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Fish density (0 to 1)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "penId",
+          "fromTime",
+          "toTime"
+        ],
+        "title": "EnvironmentalDataPoint"
+      },
+      "GetEnvironmentalLiveAllResponse": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/EnvironmentalDataLive"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "GetEnvironmentalLiveAllResponse"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "LiceCount": {
+        "properties": {
+          "penId": {
+            "type": "string"
+          },
+          "date": {
+            "type": "string",
+            "format": "date"
+          },
+          "sampleSize": {
+            "type": "number",
+            "description": "Number of samples used for estimating lice counts"
+          },
+          "adultFemale": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Average adult female lice per fish"
+          },
+          "adultFemaleConverted": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Average adult female lice (converted) per fish"
+          },
+          "mobile": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Average mobile lice per fish"
+          },
+          "mobileConverted": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Average mobile lice (converted) per fish"
+          },
+          "caligus": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Average caligus lice per fish"
+          }
+        },
+        "type": "object",
+        "required": [
+          "penId",
+          "date",
+          "sampleSize",
+          "adultFemale",
+          "adultFemaleConverted",
+          "mobile",
+          "mobileConverted",
+          "caligus"
+        ],
+        "title": "LiceCount"
+      },
+      "Pen": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "penCode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "isActive": {
+            "type": "boolean"
+          },
+          "external_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "External Id",
+            "description": "The corresponding id from data integration"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "penCode",
+          "isActive"
+        ],
+        "title": "Pen"
+      },
+      "Period15mEnum": {
+        "type": "string",
+        "enum": [
+          "h",
+          "D",
+          "15min"
+        ],
+        "title": "Period15mEnum"
+      },
+      "PeriodEnum": {
+        "type": "string",
+        "enum": [
+          "h",
+          "D"
+        ],
+        "title": "PeriodEnum"
+      },
+      "Site": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "governmentSiteNumber": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "external_site_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "External Site Id",
+            "description": "The corresponding site id from data integration"
+          },
+          "pens": {
+            "items": {
+              "$ref": "#/components/schemas/Pen"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "governmentSiteNumber",
+          "pens"
+        ],
+        "title": "Site"
+      },
+      "SitesResponse": {
+        "properties": {
+          "sites": {
+            "items": {
+              "$ref": "#/components/schemas/Site"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object",
+        "required": [
+          "sites"
+        ],
+        "title": "SitesResponse"
+      },
+      "SuperiorRateRecord": {
+        "properties": {
+          "penId": {
+            "type": "string",
+            "description": "Pen identifier"
+          },
+          "date": {
+            "type": "string",
+            "format": "date",
+            "description": "Date of the superior rate record"
+          },
+          "superiorRate": {
+            "type": "number",
+            "description": "Superior rate value for the pen on the given date"
+          },
+          "dataQuality": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DataQualityEnum"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Data quality for the day"
+          }
+        },
+        "type": "object",
+        "required": [
+          "penId",
+          "date",
+          "superiorRate",
+          "dataQuality"
+        ],
+        "title": "SuperiorRateRecord"
+      },
+      "SuperiorRateResponse": {
+        "properties": {
+          "superiorRate": {
+            "items": {
+              "$ref": "#/components/schemas/SuperiorRateRecord"
+            },
+            "type": "array",
+            "description": "List of superior rate records"
+          }
+        },
+        "type": "object",
+        "required": [
+          "superiorRate"
+        ],
+        "title": "SuperiorRateResponse"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {},
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      },
+      "WeightDistModel": {
+        "properties": {
+          "interval": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array"
+          },
+          "distribution": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object",
+        "required": [
+          "interval",
+          "distribution"
+        ],
+        "title": "WeightDistModel"
+      },
+      "WelfareScoreDetail": {
+        "properties": {
+          "active": {
+            "$ref": "#/components/schemas/WelfareScoreProportions",
+            "description": "Proportions of active welfare scores"
+          },
+          "nothing": {
+            "type": "number",
+            "description": "Proportion of healthy fish"
+          },
+          "sampleSize": {
+            "type": "number",
+            "description": "Number of samples used to calculate scores"
+          },
+          "healed": {
+            "$ref": "#/components/schemas/WelfareScoreProportions",
+            "description": "Proportions of healed welfare scores"
+          }
+        },
+        "type": "object",
+        "required": [
+          "active",
+          "nothing",
+          "sampleSize"
+        ],
+        "title": "WelfareScoreDetail"
+      },
+      "WelfareScoreProportions": {
+        "properties": {
+          "1": {
+            "type": "number",
+            "description": "Proportion of fish with score 1"
+          },
+          "2": {
+            "type": "number",
+            "description": "Proportion of fish with score 2"
+          },
+          "3": {
+            "type": "number",
+            "description": "Proportion of fish with score 3"
+          }
+        },
+        "type": "object",
+        "required": [
+          "1",
+          "2",
+          "3"
+        ],
+        "title": "WelfareScoreProportions"
+      },
+      "WelfareScoresDetail": {
+        "properties": {
+          "bodyWound": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WelfareScoreDetail"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "scaleLoss": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WelfareScoreDetail"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "snoutWound": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WelfareScoreDetail"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "maturation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WelfareScoreDetail"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "eyeBleeding": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WelfareScoreDetail"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "eyeClouding": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WelfareScoreDetail"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "exophthalmos": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WelfareScoreDetail"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "opercularDamage": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WelfareScoreDetail"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "backDeformity": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WelfareScoreDetail"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "pelvicFin": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WelfareScoreDetail"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "pectoralFin": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WelfareScoreDetail"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "caudalFin": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WelfareScoreDetail"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "analFin": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WelfareScoreDetail"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "dorsalFin": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WelfareScoreDetail"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "upperJawDeformity": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WelfareScoreDetail"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "lowerJawDeformity": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WelfareScoreDetail"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "mechHeadWound": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WelfareScoreDetail"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "title": "WelfareScoresDetail"
+      },
+      "WelfareScoresRecord": {
+        "properties": {
+          "penId": {
+            "type": "string",
+            "description": "Pen identifier"
+          },
+          "date": {
+            "type": "string",
+            "format": "date",
+            "description": "Date of the welfare scores"
+          },
+          "welfareScores": {
+            "$ref": "#/components/schemas/WelfareScoresDetail",
+            "description": "Welfare scores for the day"
+          }
+        },
+        "type": "object",
+        "required": [
+          "penId",
+          "date",
+          "welfareScores"
+        ],
+        "title": "WelfareScoresRecord"
+      },
+      "aqua_api__paginator__append_next_token___locals___Wrapped__1": {
+        "properties": {
+          "penId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "unused"
+          },
+          "fromTime": {
+            "type": "string",
+            "format": "date-time",
+            "description": "from time"
+          },
+          "toTime": {
+            "type": "string",
+            "format": "date-time",
+            "description": "to time"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/EnvironmentalDataPoint"
+            },
+            "type": "array"
+          },
+          "nextToken": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "If this is null, the result set is complete. If not null, fetch the next batch of result by passing this token to the next request."
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "Wrapped"
+      },
+      "aqua_api__paginator__append_next_token___locals___Wrapped__2": {
+        "properties": {
+          "biomass": {
+            "items": {
+              "$ref": "#/components/schemas/BiomassDailyModel"
+            },
+            "type": "array"
+          },
+          "nextToken": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "If this is null, the result set is complete. If not null, fetch the next batch of result by passing this token to the next request."
+          }
+        },
+        "type": "object",
+        "required": [
+          "biomass"
+        ],
+        "title": "Wrapped"
+      },
+      "aqua_api__paginator__append_next_token___locals___Wrapped__3": {
+        "properties": {
+          "liceCount": {
+            "items": {
+              "$ref": "#/components/schemas/LiceCount"
+            },
+            "type": "array"
+          },
+          "nextToken": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "If this is null, the result set is complete. If not null, fetch the next batch of result by passing this token to the next request."
+          }
+        },
+        "type": "object",
+        "required": [
+          "liceCount"
+        ],
+        "title": "Wrapped"
+      },
+      "aqua_api__paginator__append_next_token___locals___Wrapped__4": {
+        "properties": {
+          "swimSpeed": {
+            "items": {
+              "$ref": "#/components/schemas/BehaviorSwimSpeed"
+            },
+            "type": "array"
+          },
+          "nextToken": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "If this is null, the result set is complete. If not null, fetch the next batch of result by passing this token to the next request."
+          }
+        },
+        "type": "object",
+        "required": [
+          "swimSpeed"
+        ],
+        "title": "Wrapped"
+      },
+      "aqua_api__paginator__append_next_token___locals___Wrapped__5": {
+        "properties": {
+          "breathingIndex": {
+            "items": {
+              "$ref": "#/components/schemas/BehaviorBreathingIndex"
+            },
+            "type": "array"
+          },
+          "nextToken": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "If this is null, the result set is complete. If not null, fetch the next batch of result by passing this token to the next request."
+          }
+        },
+        "type": "object",
+        "required": [
+          "breathingIndex"
+        ],
+        "title": "Wrapped"
+      },
+      "aqua_api__paginator__append_next_token___locals___Wrapped__6": {
+        "properties": {
+          "welfareScores": {
+            "items": {
+              "$ref": "#/components/schemas/WelfareScoresRecord"
+            },
+            "type": "array",
+            "description": "List of welfare scores records"
+          },
+          "nextToken": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "If this is null, the result set is complete. If not null, fetch the next batch of result by passing this token to the next request."
+          }
+        },
+        "type": "object",
+        "required": [
+          "welfareScores"
+        ],
+        "title": "Wrapped"
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "",
+      "description": ""
+    },
+    {
+      "name": "biomass",
+      "description": "Biomass APIs"
+    },
+    {
+      "name": "lice",
+      "description": "Lice APIs"
+    },
+    {
+      "name": "behaviour",
+      "description": "Behaviour APIs"
+    },
+    {
+      "name": "welfare",
+      "description": "Welfare APIs"
+    },
+    {
+      "name": "v3.0",
+      "description": "Deprecated. Use v3.1 equivalents."
+    }
+  ]
+}

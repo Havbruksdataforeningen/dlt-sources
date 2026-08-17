@@ -21,3 +21,4 @@ Style rules for every document in this repo — the files here, the README, the 
 | [`issue-tracker.md`](issue-tracker.md) | You are creating or working with issues |
 | [`triage-labels.md`](triage-labels.md) | You are labelling issues |
 | [`logging-research.md`](logging-research.md) | Background research on logging in dlt sources — notes, not rules |
+| [`python-version-research.md`](python-version-research.md) | Background research on the `requires-python` floor — notes, not rules |
