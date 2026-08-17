@@ -4,30 +4,35 @@
 
 These files are templates, not recorded payloads. Their *shape* — which fields appear,
 which are omitted, which arrive null, how timestamps are formatted, how deeply things
-nest — was taken from a live comparison against the Aquabyte API on 2026-08-17, written
-up in [`specs/api-observations-2026-08-17.md`](../../specs/api-observations-2026-08-17.md).
-Their *values* were then made up by hand, inside the ranges that run observed. No real
+nest — was taken from a live comparison against the Aquabyte API on 2026-08-17. Their
+*values* were then made up by hand, inside the ranges that run observed. No real
 identifier, site or pen name, government site number or measurement was carried across.
+
+## Before you "fix" an odd-looking shape
+
+Several fixtures carry shapes that look like mistakes and are not: a record missing
+fields its neighbours have, a timestamp without a time zone, a nested key that is absent
+rather than null. They are what the API does, and a fixture that smooths one over makes
+the whole offline suite blind to it.
+
+Which shapes those are is deliberately **not** listed here, so that the API's behaviour
+has one place to be updated rather than four:
+
+| What you want | Where it lives |
+|---|---|
+| What the API does today, and what it means for reading the data | ["API quirks worth knowing"](../../README.md#api-quirks-worth-knowing) in the package README |
+| What we observed and reported to Aquabyte, and on what date | [`specs/api-observations-2026-08-17.md`](../../specs/api-observations-2026-08-17.md) — a dated snapshot, never edited in place; a later comparison gets its own file |
+
+`test_mock_fidelity.py` validates every fixture against its record model, so a shape the
+API could not have produced fails the suite rather than sitting here unnoticed.
+
+## Identifiers and dates
 
 Identifiers are the suite's own scheme (`site-00N`, `pen-00N`, with `pen-002` inactive),
 and dates sit in the fixtures' existing synthetic early-2026 window — January for the
 windowed endpoints, February for `environmental_latest.json`, which reports one moment
 rather than a range. `tests/conftest.py` exports the pen constants; keep them in step
 with `sites.json`.
-
-## Shapes worth not "fixing"
-
-Several of these look like mistakes and are not. They are what the API does, and the
-offline suite is blind to them if a fixture smooths them over.
-
-| File | Shape | Why |
-|---|---|---|
-| `sites.json` | No `external_site_id` on a site, no `external_id` on a pen | Declared in the spec, absent from every live response — the key is missing, not null |
-| `lice_count.json` | The zero-sample record omits all five count fields | Live omits them together on a zero-sample record, rather than sending null |
-| `swim_speed.json`, `breathing_index.json` | Timestamps have no trailing `Z` | These two endpoints return unzoned timestamps; `environmental.json` keeps the `Z` its endpoint does send |
-| `welfare_scores.json` | A category with no data is absent, not null; `healed` appears on `bodyWound` only | Both match live exactly |
-| `biomass.json` | The last record's `weightDist` arrays are empty | Live returns empty arrays for some records |
-| `harvest_report.json` | Distribution keys are `0.0-1.0` … `14.0-15.0`; `createdAt` has microseconds | The live key format and timestamp precision |
 
 ## Per-pen templates
 
