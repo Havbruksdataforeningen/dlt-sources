@@ -10,9 +10,9 @@ API publishes, field by field, and are sending you the differences we found.
 | Endpoints covered | `/sites`, `/sites/{siteId}`, `/environmental`, `/environmental/latest`, `/biomass`, `/biomass/harvestReport`, `/liceCount`, `/behaviour/swimSpeed`, `/behaviour/breathingIndex`, `/welfareScores` |
 
 **All observations come from a single customer account.** Where we report that a field
-never arrived, we cannot tell whether the field is unset for this account or missing for
-everyone. We have flagged which of the two we think is more likely, but we are guessing;
-please read these as questions rather than as confirmed defects.
+never arrived, we usually cannot tell whether the field is unset for this account or
+missing for everyone — findings 8 and 9 are of that kind, and we raise them as questions
+about how the fields are meant to be populated rather than as defects.
 
 Every endpoint returned HTTP 200 and a body matching its declared envelope. **No endpoint
 returned a field the document does not declare**, so nothing below is about undocumented
@@ -21,46 +21,24 @@ that differ from what the document states.
 
 ## Summary
 
+Findings 1–3 look like defects in the API. Findings 4–6 are places the document does not
+match the API's own behaviour or its own conventions. Findings 7–9 are open questions.
+
 | # | Endpoint | Observation | We presume wrong |
 |---|---|---|---|
-| 1 | `/sites`, `/sites/{siteId}` | `Site.external_site_id` declared, never returned | Either — depends on whether it is account-specific |
-| 2 | `/sites`, `/sites/{siteId}` | `Pen.external_id` declared, never returned | Either — depends on whether it is account-specific |
-| 3 | `/liceCount` | Five fields marked required are omitted from some records | The API |
-| 4 | `/behaviour/swimSpeed`, `/behaviour/breathingIndex` | `date-time` fields returned with no UTC offset | The API |
-| 5 | `/biomass/harvestReport` | `createdAt` precision differs from other timestamps | Neither — consistency note |
-| 6 | `/biomass/harvestReport` | `fromDate` typed differently from every comparable parameter | The document |
-| 7 | All | Unknown query parameters are accepted rather than rejected | The API |
-| 8 | All | Result ordering is not documented | The document |
-| 9 | All | `nextToken` pagination could not be exercised | — |
+| 1 | `/liceCount` | Five fields marked required are omitted from some records | The API |
+| 2 | `/behaviour/swimSpeed`, `/behaviour/breathingIndex` | `date-time` fields returned with no UTC offset | The API |
+| 3 | All | Unknown query parameters are accepted rather than rejected | The API |
+| 4 | All | Result ordering is not documented | The document |
+| 5 | `/biomass/harvestReport` | `fromDate` typed differently from every comparable parameter | The document |
+| 6 | `/biomass/harvestReport` | `createdAt` precision differs from other timestamps | Neither — consistency note |
+| 7 | All | `nextToken` pagination could not be exercised | — |
+| 8 | `/sites`, `/sites/{siteId}` | `Site.external_site_id` declared, never returned | Probably neither — see below |
+| 9 | `/sites`, `/sites/{siteId}` | `Pen.external_id` declared, never returned | Probably neither — see below |
 
 ---
 
-## 1. `/sites` and `/sites/{siteId}` — `external_site_id` is never returned
-
-**The document says:** the `Site` schema declares `external_site_id` as a nullable string.
-
-**The API did:** omitted the property entirely from every site object in both endpoints'
-responses. The key is not present; it is not present-and-null.
-
-**Presumed wrong:** we cannot tell. If this field carries a customer's own site
-identifier and is simply unset for our account, the API is behaving correctly and the
-document could say so. If it is meant to be populated for every account, the API is
-dropping it.
-
-We would like to use this field to join your site records to our own master data, so we
-would value knowing which case this is, and how the field gets populated.
-
-## 2. `/sites` and `/sites/{siteId}` — `external_id` is never returned on pens
-
-**The document says:** the `Pen` schema declares `external_id` as a nullable string.
-
-**The API did:** omitted the property entirely from every pen object nested in every site.
-As above, the key is absent rather than null.
-
-**Presumed wrong:** the same open question as finding 1, and the same request: we would
-like to join your pens to our own pen master data.
-
-## 3. `/liceCount` — required fields are omitted from zero-sample records
+## 1. `/liceCount` — required fields are omitted from zero-sample records
 
 **The document says:** the `LiceCount` schema marks `adultFemale`,
 `adultFemaleConverted`, `mobile`, `mobileConverted` and `caligus` as **required**. All
@@ -77,7 +55,7 @@ to the schema. As it stands, a strict validator rejects those records.
 Either fix works for us: return `null`, or drop the five from the schema's `required`
 list. Returning `null` is the smaller change for consumers.
 
-## 4. `/behaviour/swimSpeed` and `/behaviour/breathingIndex` — timestamps carry no UTC offset
+## 2. `/behaviour/swimSpeed` and `/behaviour/breathingIndex` — timestamps carry no UTC offset
 
 **The document says:** `fromTime` and `toTime` on `BehaviorSwimSpeed` and
 `BehaviorBreathingIndex` are declared `"type": "string", "format": "date-time"`. In
@@ -93,35 +71,7 @@ in, and a consumer reading them alongside `/environmental` gets two different fo
 what appears to be the same concept. We are currently assuming UTC, to match the
 endpoints that say so. Please confirm whether that assumption is right.
 
-## 5. `/biomass/harvestReport` — `createdAt` precision differs from other timestamps
-
-**The document says:** `createdAt` is declared `date-time`, like every other timestamp in
-the API.
-
-**The API did:** returned it with microsecond precision and a `Z` designator, where the
-other `date-time` fields in the API are returned with second precision.
-
-**Presumed wrong:** neither — both forms are valid RFC 3339, and this breaks nothing for
-us. We mention it only because a single house format across the API would be easier to
-consume. The date-only fields on this endpoint (`asOfDate`, `lastFeedingDate`,
-`slaughterStartDate`, `slaughterEndDate`) are returned as plain `YYYY-MM-DD` and match
-their declared `date` format.
-
-## 6. `/biomass/harvestReport` — `fromDate` is typed unlike every comparable parameter
-
-**The document says:** `fromDate` on this endpoint is `"required": false` with schema
-`{"type": "string", "format": "date"}`. Every other optional date or time parameter in
-the API — `toDate` on this same endpoint, and `fromDate`/`toDate`/`fromTime`/`toTime`
-elsewhere — is declared as `anyOf: [string, null]`.
-
-**The API did:** accepted the request with `fromDate` omitted and returned 200, which is
-what `"required": false` promises.
-
-**Presumed wrong:** the document. The behaviour is right; only the type declaration is
-inconsistent with its neighbours. Code generators that read the document will produce a
-non-nullable parameter here and a nullable one everywhere else.
-
-## 7. All endpoints — unknown query parameters are accepted, not rejected
+## 3. All endpoints — unknown query parameters are accepted, not rejected
 
 **The document says:** each endpoint declares a closed set of query parameters.
 
@@ -152,7 +102,7 @@ document at its word and do not send `period` to that endpoint. Please confirm t
 `/behaviour/breathingIndex` genuinely has no aggregation period, rather than an
 undocumented one.
 
-## 8. All endpoints — result ordering is not documented
+## 4. All endpoints — result ordering is not documented
 
 **The document says:** nothing about the order of records within a response.
 
@@ -166,7 +116,35 @@ high-water mark mid-pagination. If the grouping and ordering above are a guarant
 than an accident of the current implementation, saying so in the documentation would let
 consumers rely on it. If they are not a guarantee, that is worth saying too.
 
-## 9. All endpoints — `nextToken` pagination could not be exercised
+## 5. `/biomass/harvestReport` — `fromDate` is typed unlike every comparable parameter
+
+**The document says:** `fromDate` on this endpoint is `"required": false` with schema
+`{"type": "string", "format": "date"}`. Every other optional date or time parameter in
+the API — `toDate` on this same endpoint, and `fromDate`/`toDate`/`fromTime`/`toTime`
+elsewhere — is declared as `anyOf: [string, null]`.
+
+**The API did:** accepted the request with `fromDate` omitted and returned 200, which is
+what `"required": false` promises.
+
+**Presumed wrong:** the document. The behaviour is right; only the type declaration is
+inconsistent with its neighbours. Code generators that read the document will produce a
+non-nullable parameter here and a nullable one everywhere else.
+
+## 6. `/biomass/harvestReport` — `createdAt` precision differs from other timestamps
+
+**The document says:** `createdAt` is declared `date-time`, like every other timestamp in
+the API.
+
+**The API did:** returned it with microsecond precision and a `Z` designator, where the
+other `date-time` fields in the API are returned with second precision.
+
+**Presumed wrong:** neither — both forms are valid RFC 3339, and this breaks nothing for
+us. We mention it only because a single house format across the API would be easier to
+consume. The date-only fields on this endpoint (`asOfDate`, `lastFeedingDate`,
+`slaughterStartDate`, `slaughterEndDate`) are returned as plain `YYYY-MM-DD` and match
+their declared `date` format.
+
+## 7. All endpoints — `nextToken` pagination could not be exercised
 
 **The document says:** result sets are capped at 10,000 records, and a capped response
 carries a `nextToken` to fetch the next batch.
@@ -181,6 +159,40 @@ We did confirm one detail of the protocol as documented: when there is no next b
 `nextToken` is **omitted from the response body** rather than returned as `null`. That
 matches how the documentation describes the loop.
 
+## 8. `/sites` and `/sites/{siteId}` — how is `external_site_id` populated?
+
+**The document says:** the `Site` schema declares `external_site_id` as a nullable string.
+
+**The API did:** omitted the property entirely from every site object in both endpoints'
+responses. The key is not present; it is not present-and-null.
+
+**Presumed wrong:** probably neither. Our understanding is that this field holds an
+identifier a customer sets themselves, to line your site records up with a third-party
+system of their own — in which case it is empty because we have not populated it, and the
+API is behaving correctly. We are checking that internally.
+
+Two things would help us regardless of the answer. First, confirmation of how the field
+is meant to be set — whether it is something we configure ourselves in the Aquabyte user
+interface, or something that has to be provisioned at your end. Second, if the field is
+genuinely optional per account, the document could say so, since a nullable declaration
+suggests the key will be present and null rather than absent altogether.
+
+**This is not blocking us.** `governmentSiteNumber` is the identifier we join sites on,
+and it was present and non-null on every site in both endpoints' responses.
+
+## 9. `/sites` and `/sites/{siteId}` — how is `external_id` populated on pens?
+
+**The document says:** the `Pen` schema declares `external_id` as a nullable string.
+
+**The API did:** omitted the property entirely from every pen object nested in every site.
+As above, the key is absent rather than null.
+
+**Presumed wrong:** probably neither — the same open question as finding 8, and the same
+two requests: confirmation of how the field is meant to be populated, and a note in the
+document if an absent key rather than a null value is the expected shape when it is
+unset. `penCode`, which is the pen identifier we can already rely on, was present and
+non-null on every pen.
+
 ---
 
 ## Things we checked that were correct
@@ -189,6 +201,8 @@ So that this is not only a list of problems:
 
 - Every endpoint's response envelope matched its declared wrapper schema.
 - No endpoint returned any property the document does not declare, at any nesting level.
+- `governmentSiteNumber` was present and non-null on every site, from both `/sites` and
+  `/sites/{siteId}`. The same held for `id`, `name` and `penCode` on every pen.
 - `penId` is enforced as required exactly where the document says it is, and `all` works
   as documented on every endpoint that accepts it.
 - `period` enum values are validated against exactly the values the document declares,
@@ -199,7 +213,7 @@ So that this is not only a list of problems:
   appeared in the data at least once, and the proportions within a category always summed
   to exactly 1. Categories with no data are omitted from the object rather than returned
   as null, which conforms — the properties are not marked required — and is worth
-  contrasting with finding 3, where the same style of omission applies to fields that
+  contrasting with finding 1, where the same style of omission applies to fields that
   *are* marked required.
 - The nested `welfareScores` category objects carry `healed` only for some categories,
   which conforms: `healed` is declared but not required on `WelfareScoreDetail`.

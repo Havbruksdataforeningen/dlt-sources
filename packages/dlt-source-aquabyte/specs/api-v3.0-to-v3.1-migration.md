@@ -236,5 +236,5 @@ full live comparison is in `api-observations-2026-08-17.md`.
   never inherits the API's own default window.
 - **`/behaviour/breathingIndex` accepting `period` proves nothing.** The endpoint declares no
   `period`, and sending one returns 200 — but the API ignores *any* unknown query parameter
-  rather than rejecting it (finding 7 of `api-observations-2026-08-17.md`), so the 200 is not
+  rather than rejecting it (finding 3 of `api-observations-2026-08-17.md`), so the 200 is not
   evidence of support. Removing the parameter, as item 9 did, was right.

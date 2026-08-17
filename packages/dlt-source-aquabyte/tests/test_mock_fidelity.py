@@ -71,11 +71,11 @@ def test_sites_fixture_matches_the_pen_constants():
 
 
 def test_no_fixture_carries_an_external_identifier():
-    """These two fields are declared by the API and never sent by it — see the README.
+    """These two fields are declared by the API and were never sent — see the README.
 
-    An earlier fixture invented them, which made the suite assert a shape the API has
-    never produced. If Aquabyte starts sending them, re-record from live and delete this
-    test; do not add them back by hand.
+    An earlier fixture invented them, which made the suite assert a shape the live API
+    has not produced. They most likely arrive once an account populates them, so if that
+    happens, re-record from live and delete this test; do not add them back by hand.
     """
     for path in sorted(MOCK_DIR.glob("*.json")):
         payload = json.dumps(json.loads(path.read_text()))

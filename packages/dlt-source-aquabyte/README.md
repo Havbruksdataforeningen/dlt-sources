@@ -96,7 +96,7 @@ Comparing live responses against the API's own OpenAPI document turned up differ
 - **`behaviour_swim_speed` and `behaviour_breathing_index` return timestamps with no time zone** (`2026-01-10T00:00:00`), where `environmental` returns the same kind of field with a `Z`. The source does not rewrite them — they land as sent. Treat them as UTC, which is what the zoned endpoints use.
 - **`lice_count` omits its five count fields entirely on a zero-sample record**, rather than sending nulls. Those columns are typed by the model and land as `NULL`, so `sampleSize = 0` is the condition to filter on, not `adultFemale IS NULL`.
 
-The API declares `external_site_id` on a site and `external_id` on a pen, but returns neither. Both columns exist in the destination — the models declare them — and are always `NULL` until Aquabyte starts sending them.
+The API declares `external_site_id` on a site and `external_id` on a pen, but returned neither for the account this was checked against. Both columns exist in the destination — the models declare them — and hold `NULL`. These carry a customer's own identifiers for a third-party system, so an empty column most likely means the account has not populated them rather than anything being wrong. Join sites on `governmentSiteNumber` and pens on `penCode` or `id`, which are always present.
 
 ## Nesting
 
