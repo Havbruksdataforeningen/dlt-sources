@@ -8,7 +8,7 @@ All notable changes to `dlt-source-aquabyte`, written for people using the packa
 
 - Initial source for the Aquabyte API: sites, pens, biomass, lice counts, welfare scores, behaviour (swim speed, breathing index), environmental readings and harvest reports.
 - `harvest_report` types the `fishType` field the API returns.
-- The README documents how far back each endpoint served data for one account, and the API quirks that reach you as a consumer — unzoned timestamps on the two behaviour endpoints, and `lice_count` omitting its count fields on a zero-sample record.
+- The README documents the API quirks that reach you as a consumer — unzoned timestamps on the two behaviour endpoints, and `lice_count` omitting its count fields on a zero-sample record.
 
 ### Fixed
 

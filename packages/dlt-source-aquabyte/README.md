@@ -89,24 +89,6 @@ The API returns one record per pen and date with every welfare category nested i
 
 Flattening it into one row per category is a transform on your side — a `LATERAL`/`UNNEST` over the JSON column in your warehouse, or dlt's `add_map` before load.
 
-### How far back the data goes
-
-The first question a backfill raises. Probing one account backwards on **2026-08-17**, a 14-day window at a time, the earliest date each endpoint served was:
-
-| Resource | Earliest date served |
-|---|---|
-| `environmental` | 2020-06-12 |
-| `lice_count` | 2021-01-16 |
-| `biomass` | 2023-01-02 |
-| `harvest_report` | 2023-07-17 |
-| `behaviour_swim_speed` | 2024-02-03 |
-| `welfare_scores` | 2024-05-03 |
-| `behaviour_breathing_index` | 2024-09-04 |
-
-⚠️ **These are one account's dates, not a promise the API makes.** They mark when that account's cameras started reporting each metric — a farm that deployed cameras later, or gained a metric later, starts later. Re-run the probe for your own account rather than assuming these numbers. `sites` and `pens` report what exists today and have no history dimension; `environmental_latest` returns only the most recent reading per pen.
-
-Setting `initial_date`/`initial_time` earlier than your account's true start costs nothing but empty requests — the API returns an empty result set rather than an error.
-
 ### API quirks worth knowing
 
 Comparing live responses against the API's own OpenAPI document turned up differences that reach you as a consumer. They are written up in full, for Aquabyte, in [`specs/api-observations-2026-08-17.md`](specs/api-observations-2026-08-17.md). The two that change how you read the data:
@@ -182,6 +164,8 @@ base_url = "https://api.aquabyte.ai/v3/"
 initial_date = "2020-01-01"             # first-run start for date-based cursors
 initial_time = "2020-01-01T00:00:00Z"   # first-run start for time-based cursors
 ```
+
+How far back your own data goes depends on when your cameras started reporting each metric, so it differs per endpoint and per account. Setting these earlier than your true start costs nothing but empty requests: the API returns an empty result set rather than an error.
 
 `.dlt/secrets.toml`:
 
