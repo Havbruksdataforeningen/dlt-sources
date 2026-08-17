@@ -54,7 +54,7 @@ _Avoid_: lus, parasite count
 _Avoid_: skottelus (in code and English text)
 
 **Welfare score**:
-An assessment of visible damage on fish in a pen, reported per **category** — 18 of them, from `bodyWound` to `mechHeadWound`. Each category carries counts at severity **score 1, 2 and 3**, split into **active** and **healed** findings.
+An assessment of visible damage on fish in a pen, reported per **category** — `bodyWound`, `scaleLoss`, `mechHeadWound` and so on. Which categories exist is the API's call and changes between versions, so the set lives in `specs/openapi.json` and nowhere else; the package never enumerates them. Each category carries counts at severity **score 1, 2 and 3**, split into **active** and **healed** findings.
 _Avoid_: health score, injury score
 
 **Environmental data point**:
