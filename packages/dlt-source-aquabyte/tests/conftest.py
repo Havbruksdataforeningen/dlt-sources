@@ -3,6 +3,8 @@
 import copy
 import inspect
 import json
+import shutil
+import time
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any, cast
@@ -10,6 +12,8 @@ from unittest.mock import MagicMock, patch
 
 import dlt
 import pytest
+from dlt.common.configuration.container import Container
+from dlt.common.configuration.specs.pluggable_run_context import PluggableRunContext
 
 MOCK_DIR = Path(__file__).parent / "mock_responses"
 
@@ -28,6 +32,65 @@ SOURCE_CONFIG: dict[str, Any] = {
 
 DATE_RANGE = {"from_date": "2026-01-01", "to_date": "2026-01-31"}
 TIME_RANGE = {"from_time": "2026-01-01T00:00:00Z", "to_time": "2026-01-31T00:00:00Z"}
+
+
+# --- Optional teardown -------------------------------------------------------
+#
+# A test run leaves two things behind on purpose, so you can open them afterwards:
+# a `<pipeline_name>.duckdb` file per pipeline in the working directory, and dlt's
+# own state under `~/.dlt/pipelines/`, which is what `dlt pipeline <name> show`
+# reads. Both are kept by default — that is the point of having them.
+#
+# `pytest --clean-db` removes them at the end of the session. It removes what this
+# session *touched*, not only what it newly created — pipeline names are fixed per
+# test, so a second run reuses the same file rather than making another one, and
+# "only if it did not exist before" would make the flag do nothing on every run
+# after the first. Artifacts of tests this session did not run keep their older
+# timestamps and survive, so `pytest -k sites --clean-db` leaves the rest alone.
+
+
+def pytest_addoption(parser):
+    parser.addoption(
+        "--clean-db",
+        action="store_true",
+        default=False,
+        help="On finish, delete the DuckDB files and dlt pipeline state this run touched.",
+    )
+
+
+def _duckdb_files() -> list[Path]:
+    return list(Path.cwd().glob("*.duckdb"))
+
+
+def _pipeline_state_dirs() -> list[Path]:
+    pipelines = Path(Container()[PluggableRunContext].context.data_dir) / "pipelines"
+    return list(pipelines.iterdir()) if pipelines.is_dir() else []
+
+
+def _touched_since(path: Path, cutoff: float) -> bool:
+    """True if `path`, or anything beneath it, was written at or after `cutoff`."""
+    candidates = [path, *path.rglob("*")] if path.is_dir() else [path]
+    return any(p.stat().st_mtime >= cutoff for p in candidates if p.exists())
+
+
+def pytest_sessionstart(session):
+    if session.config.getoption("--clean-db"):
+        # A second of slack: filesystem timestamps are coarser than time.time().
+        session.clean_db_cutoff = time.time() - 1  # type: ignore[attr-defined]
+
+
+def pytest_sessionfinish(session, exitstatus):
+    cutoff = getattr(session, "clean_db_cutoff", None)
+    if cutoff is None:
+        return
+
+    for path in _duckdb_files():
+        if _touched_since(path, cutoff):
+            path.unlink(missing_ok=True)
+            path.with_suffix(".duckdb.wal").unlink(missing_ok=True)
+    for path in _pipeline_state_dirs():
+        if _touched_since(path, cutoff):
+            shutil.rmtree(path, ignore_errors=True)
 
 
 def load_mock(filename: str) -> dict:
