@@ -11,7 +11,6 @@ Nothing below names a config section. The prefix comes from the source itself, s
 renaming the source's module moves the test, not the consumer.
 """
 
-import inspect
 import os
 import re
 import shutil
@@ -26,6 +25,7 @@ from dlt.common.configuration.specs.pluggable_run_context import PluggableRunCon
 
 import dlt_source_aquabyte.aquabyte as aquabyte_module
 from dlt_source_aquabyte import aquabyte_source
+from tests.conftest import resource_signature
 
 DLT_DIR = Path(__file__).parent.parent / ".dlt"
 SECRETS_EXAMPLE = DLT_DIR / "secrets.toml.example"
@@ -52,10 +52,12 @@ def source_from_examples(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Any
     shutil.copy(CONFIG_EXAMPLE, settings / "config.toml")
     (settings / "secrets.toml").write_text(SECRETS_EXAMPLE.read_text().replace(PLACEHOLDER_KEY, SENTINEL_KEY))
 
+    # `reload` swaps a process-global, so the restore below has to cover the reload
+    # itself, not just the test body.
     run_context = Container()[PluggableRunContext]
     original_run_dir = run_context.context.run_dir
-    run_context.reload(str(tmp_path))
     try:
+        run_context.reload(str(tmp_path))
         with patch.object(aquabyte_module, "RESTClient") as rest_client:
             try:
                 source = aquabyte_source()
@@ -96,7 +98,7 @@ def test_config_example_documents_only_real_resource_params(source_from_examples
 
     for resource_name, params in documented.items():
         assert resource_name in source.resources, f"Config example documents an unknown resource: {resource_name}"
-        signature = inspect.signature(source.resources[resource_name]._pipe.gen).parameters
+        signature = resource_signature(source, resource_name).parameters
         for param in params:
             assert param in signature, (
                 f"Config example documents {resource_name}.{param}, which the resource does not take"
@@ -111,8 +113,7 @@ def test_neither_example_claims_ci_generates_it():
 
 def _initial_value(source: Any, resource_name: str, argument: str) -> Any:
     """The `initial_value` the named resource's incremental was built with."""
-    signature = inspect.signature(source.resources[resource_name]._pipe.gen)
-    return signature.parameters[argument].default.initial_value
+    return resource_signature(source, resource_name).parameters[argument].default.initial_value
 
 
 def _commented_resource_params(config_example: str, prefix: str) -> dict[str, list[str]]:

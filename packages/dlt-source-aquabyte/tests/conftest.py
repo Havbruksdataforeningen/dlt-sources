@@ -1,9 +1,11 @@
 """Shared fixtures and helpers for Aquabyte pipeline tests."""
 
 import copy
+import inspect
 import json
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 from unittest.mock import MagicMock, patch
 
 import dlt
@@ -70,6 +72,15 @@ def serve(routes: dict[str, list[dict]]):
         return iter([page])
 
     return paginate
+
+
+def resource_signature(source: Any, resource_name: str) -> inspect.Signature:
+    """The signature of the function behind a resource.
+
+    Reaching through `_pipe.gen` is dlt's private shape, so it is spelled out once here
+    rather than in each test that needs a resource's declared arguments.
+    """
+    return inspect.signature(cast(Callable, source.resources[resource_name]._pipe.gen))
 
 
 def calls_to(mock_client: Any, path: str) -> list[dict[str, Any]]:

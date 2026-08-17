@@ -12,4 +12,4 @@ All notable changes to `dlt-source-aquabyte`, written for people using the packa
 
 ### Fixed
 
-- `.dlt/secrets.toml.example` declared the API key under a section dlt does not read for this source, so copying it verbatim failed to resolve credentials. It now matches `.dlt/config.toml.example` and the README. Neither example claims CI generates it any more; CI has no credentials.
+- The packaged secrets example declared the API key under a section dlt does not read for this source, so following the quick start left credentials unresolved. It now uses `[sources.aquabyte]`, the section the README documents.

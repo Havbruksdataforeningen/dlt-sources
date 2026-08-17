@@ -10,8 +10,10 @@ Their *values* were then made up by hand, inside the ranges that run observed. N
 identifier, site or pen name, government site number or measurement was carried across.
 
 Identifiers are the suite's own scheme (`site-00N`, `pen-00N`, with `pen-002` inactive),
-and dates sit in a synthetic January 2026 window. `tests/conftest.py` exports the pen
-constants; keep them in step with `sites.json`.
+and dates sit in the fixtures' existing synthetic early-2026 window — January for the
+windowed endpoints, February for `environmental_latest.json`, which reports one moment
+rather than a range. `tests/conftest.py` exports the pen constants; keep them in step
+with `sites.json`.
 
 ## Shapes worth not "fixing"
 

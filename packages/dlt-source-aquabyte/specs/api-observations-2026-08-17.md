@@ -171,9 +171,11 @@ consumers rely on it. If they are not a guarantee, that is worth saying too.
 **The document says:** result sets are capped at 10,000 records, and a capped response
 carries a `nextToken` to fetch the next batch.
 
-**The API did:** returned no `nextToken` on any request we made. Our largest single
-result set stayed below the documented cap, so this is not a contradiction — we simply
-never triggered pagination and therefore have not verified it.
+**The API did:** returned no `nextToken` on any request we made. The largest single
+result set we received was on the order of a few thousand records — well under the
+documented cap — so this is not a contradiction. We simply never triggered pagination,
+and therefore have not verified it. We deliberately kept our request windows narrow to
+stay inside the hourly rate limit, which is why we did not reach the cap.
 
 We did confirm one detail of the protocol as documented: when there is no next batch,
 `nextToken` is **omitted from the response body** rather than returned as `null`. That

@@ -48,9 +48,9 @@ def _validate(records: list[dict], model: type[BaseModel], where: str) -> None:
             pytest.fail(f"{where} record {index} does not satisfy {model.__name__}:\n{invalid}")
 
 
-@pytest.mark.parametrize(("filename", "spec"), FIXTURES.items())
-def test_fixture_records_satisfy_their_model(filename, spec):
-    envelope_key, model = spec
+@pytest.mark.parametrize(("filename", "envelope_and_model"), FIXTURES.items())
+def test_fixture_records_satisfy_their_model(filename, envelope_and_model):
+    envelope_key, model = envelope_and_model
     records = load_mock(filename)[envelope_key]
     assert records, f"{filename} has no records"
     _validate(records, model, filename)

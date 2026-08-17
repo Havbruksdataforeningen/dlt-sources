@@ -103,7 +103,7 @@ The first question a backfill raises. Probing one account backwards on **2026-08
 | `welfare_scores` | 2024-05-03 |
 | `behaviour_breathing_index` | 2024-09-04 |
 
-⚠️ **These are one account's dates, not a promise the API makes.** They mark when that account's cameras started reporting each metric — a farm that deployed cameras later, or gained a metric later, starts later. Treat them as the shape of the answer, and re-run the probe for your own account rather than assuming these numbers. `sites` and `pens` report what exists today and have no history dimension; `environmental_latest` returns only the most recent reading per pen.
+⚠️ **These are one account's dates, not a promise the API makes.** They mark when that account's cameras started reporting each metric — a farm that deployed cameras later, or gained a metric later, starts later. Re-run the probe for your own account rather than assuming these numbers. `sites` and `pens` report what exists today and have no history dimension; `environmental_latest` returns only the most recent reading per pen.
 
 Setting `initial_date`/`initial_time` earlier than your account's true start costs nothing but empty requests — the API returns an empty result set rather than an error.
 
