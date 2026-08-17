@@ -94,6 +94,7 @@ class BiomassHarvestReport(AquabyteModel):
     temperature: float
     lossFactor: float
     packingMethod: str | None = None
+    fishType: str | None = None
     measurementCount: int
     coefficientOfVariation: float
     avgPackedWeightGrams: float

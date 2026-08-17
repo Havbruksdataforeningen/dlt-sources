@@ -45,9 +45,14 @@ def test_welfare_scores_keeps_the_nested_object_intact(mock_rest_client):
     rows = query(pipeline, "SELECT welfare_scores FROM welfare_scores WHERE date = '2026-01-15'")
     landed = json.loads(rows[0][0])
     assert landed == RECORDS[0]["welfareScores"], "the nested payload must survive untouched"
-    assert landed["bodyWound"]["active"] == {"1": 0.05, "2": 0.02, "3": 0.01}, "score bands keep the API's own keys"
-    assert landed["snoutWound"]["healed"] is None, "a null healed block is data, not something to drop"
-    assert landed["eyeBleeding"] is None, "a category with no data is still reported by the API"
+    assert landed["bodyWound"]["active"].keys() == {"1", "2", "3"}, "score bands keep the API's own keys"
+    assert "healed" not in landed["snoutWound"], "the API sends `healed` for some categories only"
+
+    # A category with no data is absent from the object rather than reported as null,
+    # which is why the second record carries fewer categories than the first.
+    second = json.loads(query(pipeline, "SELECT welfare_scores FROM welfare_scores WHERE date = '2026-01-16'")[0][0])
+    assert "caudalFin" in landed and "caudalFin" not in second
+    assert all(value is not None for value in landed.values()), "the API omits a category, it does not null it"
 
 
 def test_welfare_scores_passes_through_an_unknown_category(mock_rest_client):
@@ -57,7 +62,6 @@ def test_welfare_scores_passes_through_an_unknown_category(mock_rest_client):
         "active": {"1": 0.07, "2": 0.02, "3": 0.0},
         "nothing": 0.91,
         "sampleSize": 200,
-        "healed": None,
     }
 
     mock_rest_client.paginate.side_effect = serve({"/welfareScores": records})

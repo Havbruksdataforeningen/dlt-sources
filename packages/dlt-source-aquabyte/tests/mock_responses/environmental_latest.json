@@ -3,18 +3,10 @@
     {
       "penId": "pen-001",
       "time": "2026-02-10T14:30:00Z",
-      "temperature": 8.5,
-      "cameraDepth": 5.2,
+      "temperature": 8.47,
+      "cameraDepth": 5.18,
       "oxygenPct": 92.1,
-      "salinity": 33.8
-    },
-    {
-      "penId": "pen-003",
-      "time": "2026-02-10T14:30:00Z",
-      "temperature": 8.3,
-      "cameraDepth": 4.8,
-      "oxygenPct": 91.5,
-      "salinity": 34.0
+      "salinity": 33.84
     }
   ]
 }

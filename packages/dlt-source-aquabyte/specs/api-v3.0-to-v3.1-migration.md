@@ -206,20 +206,35 @@ These endpoints are identical between v3.0 and v3.1:
 
 ## Migration Checklist
 
-1. [ ] Add `nextToken` paginator class (or use dlt built-in if available)
-2. [ ] Update `environmental` URL: `/pens/{penId}/environmental` → `/environmental?penId={penId}`
-3. [ ] Update `biomass` URL: `/pens/{penId}/biomass` → `/biomass?penId={penId}`
-4. [ ] Update `harvest_report` URL: `/pens/{penId}/biomass/harvestReport` → `/biomass/harvestReport?penId={penId}`
-5. [ ] Update `lice_count` URL: `/pens/{penId}/liceCount` → `/liceCount?penId={penId}`
-6. [ ] Update `swim_speed` URL: `/pens/{penId}/behavior/swimSpeed` → `/behaviour/swimSpeed?penId={penId}`
-7. [ ] Update `breathing_index` URL: `/pens/{penId}/behavior/breathingIndex` → `/behaviour/breathingIndex?penId={penId}`
-8. [ ] Update `welfare_scores` URL: `/pens/{penId}/welfareScores` → `/welfareScores?penId={penId}`
-9. [ ] Remove `period` param from `breathing_index`
-10. [ ] Fix `environmental_latest` to always pass `penId` (convert to transformer or use `penId=all`)
-11. [ ] Remove manual `penId` injection from `environmental` transformer (API now returns it)
-12. [ ] Add `penId: str` to `EnvironmentalDataPoint` in `schemas.py`
-13. [ ] Use `nextToken` paginator for the 6 paginated endpoints
-14. [ ] Keep `SinglePagePaginator` for `/sites`, `/environmental/latest`, `/biomass/harvestReport`
-15. [ ] Update unit tests (mock URLs, response shapes)
-16. [ ] Run quality gates: ruff, pyright, unit tests
-17. [ ] Run integration tests to verify against live API
+**A ticked box means the live API confirmed it on 2026-08-17**, not merely that the code
+was written. An unticked box carries the reason the live run could not settle it. The
+full live comparison is in `api-observations-2026-08-17.md`.
+
+1. [ ] Add `nextToken` paginator class (or use dlt built-in if available) — *the paginator is in place (`JSONResponseCursorPaginator`), but no live response has ever carried a `nextToken`, so it has never actually run.*
+2. [x] Update `environmental` URL: `/pens/{penId}/environmental` → `/environmental?penId={penId}`
+3. [x] Update `biomass` URL: `/pens/{penId}/biomass` → `/biomass?penId={penId}`
+4. [x] Update `harvest_report` URL: `/pens/{penId}/biomass/harvestReport` → `/biomass/harvestReport?penId={penId}`
+5. [x] Update `lice_count` URL: `/pens/{penId}/liceCount` → `/liceCount?penId={penId}`
+6. [x] Update `swim_speed` URL: `/pens/{penId}/behavior/swimSpeed` → `/behaviour/swimSpeed?penId={penId}`
+7. [x] Update `breathing_index` URL: `/pens/{penId}/behavior/breathingIndex` → `/behaviour/breathingIndex?penId={penId}`
+8. [x] Update `welfare_scores` URL: `/pens/{penId}/welfareScores` → `/welfareScores?penId={penId}`
+9. [x] Remove `period` param from `breathing_index`
+10. [x] Fix `environmental_latest` to always pass `penId` (convert to transformer or use `penId=all`) — omitting `penId` returns 422, confirmed live
+11. [x] Remove manual `penId` injection from `environmental` transformer (API now returns it) — every live record carries its own `penId`
+12. [x] Add `penId: str` to `EnvironmentalDataPoint` in `schemas.py`
+13. [ ] Use `nextToken` paginator for the 6 paginated endpoints — *wired up, but unverified for the same reason as item 1: no result set reached the 10,000-record cap.*
+14. [x] Keep `SinglePagePaginator` for `/sites`, `/environmental/latest`, `/biomass/harvestReport` — none of the three returned a `nextToken`
+15. [x] Update unit tests (mock URLs, response shapes) — fixtures re-recorded from live shapes on 2026-08-17
+16. [x] Run quality gates: ruff, pyright, unit tests
+17. [x] Run integration tests to verify against live API
+
+### What the live run corrected in this document
+
+- **`/biomass` does *not* require `fromDate`.** The "Known breaking changes" note above says
+  v3.1 made it required. The v3.1 spec marks it optional, and the live API returns 200 with
+  it omitted. The source sends it anyway, deliberately — see `_window_start` — so a run
+  never inherits the API's own default window.
+- **`/behaviour/breathingIndex` accepting `period` proves nothing.** The endpoint declares no
+  `period`, and sending one returns 200 — but so does sending a parameter name that does not
+  exist at all. The API ignores unknown query parameters rather than rejecting them, so the
+  200 is not evidence of support. Removing the parameter, as item 9 did, was right.

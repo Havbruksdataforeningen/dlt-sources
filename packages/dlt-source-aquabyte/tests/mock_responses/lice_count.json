@@ -3,32 +3,27 @@
     {
       "penId": "pen-001",
       "date": "2026-01-10",
-      "sampleSize": 20,
-      "adultFemale": 0.35,
-      "adultFemaleConverted": 0.32,
-      "mobile": 1.2,
-      "mobileConverted": 1.1,
-      "caligus": 0.05
+      "sampleSize": 120,
+      "adultFemale": 0.42,
+      "adultFemaleConverted": 0.31,
+      "mobile": 0.88,
+      "mobileConverted": 0.64,
+      "caligus": 0.15
     },
     {
       "penId": "pen-001",
       "date": "2026-01-11",
-      "sampleSize": 18,
-      "adultFemale": 0.40,
-      "adultFemaleConverted": 0.37,
-      "mobile": 1.5,
-      "mobileConverted": 1.4,
-      "caligus": null
+      "sampleSize": 145,
+      "adultFemale": 0.37,
+      "adultFemaleConverted": 0.28,
+      "mobile": 0.91,
+      "mobileConverted": 0.7,
+      "caligus": 0.19
     },
     {
       "penId": "pen-001",
       "date": "2026-01-12",
-      "sampleSize": 22,
-      "adultFemale": null,
-      "adultFemaleConverted": null,
-      "mobile": null,
-      "mobileConverted": null,
-      "caligus": 0.10
+      "sampleSize": 0
     }
   ]
 }

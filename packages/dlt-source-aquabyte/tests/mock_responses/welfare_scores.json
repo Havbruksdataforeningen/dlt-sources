@@ -5,53 +5,163 @@
       "date": "2026-01-15",
       "welfareScores": {
         "bodyWound": {
-          "active": {"1": 0.05, "2": 0.02, "3": 0.01},
-          "nothing": 0.92,
-          "sampleSize": 200,
-          "healed": {"1": 0.03, "2": 0.01, "3": 0.0}
+          "active": {
+            "1": 0.04,
+            "2": 0.02,
+            "3": 0.005
+          },
+          "nothing": 0.875,
+          "sampleSize": 180,
+          "healed": {
+            "1": 0.03,
+            "2": 0.02,
+            "3": 0.01
+          }
         },
         "scaleLoss": {
-          "active": {"1": 0.1, "2": 0.03, "3": 0.0},
-          "nothing": 0.87,
-          "sampleSize": 200,
-          "healed": {"1": 0.04, "2": 0.01, "3": 0.0}
+          "active": {
+            "1": 0.05,
+            "2": 0.024,
+            "3": 0.007
+          },
+          "nothing": 0.919,
+          "sampleSize": 217
         },
         "snoutWound": {
-          "active": {"1": 0.02, "2": 0.01, "3": 0.0},
-          "nothing": 0.97,
-          "sampleSize": 200,
-          "healed": null
+          "active": {
+            "1": 0.06,
+            "2": 0.028,
+            "3": 0.005
+          },
+          "nothing": 0.907,
+          "sampleSize": 254
         },
         "maturation": {
-          "active": {"1": 0.01, "2": 0.0, "3": 0.0},
-          "nothing": 0.99,
-          "sampleSize": 200,
-          "healed": null
+          "active": {
+            "1": 0.07,
+            "2": 0.02,
+            "3": 0.007
+          },
+          "nothing": 0.903,
+          "sampleSize": 291
         },
-        "eyeBleeding": null,
-        "eyeClouding": null,
-        "exophthalmos": null,
+        "eyeBleeding": {
+          "active": {
+            "1": 0.08,
+            "2": 0.024,
+            "3": 0.005
+          },
+          "nothing": 0.891,
+          "sampleSize": 328
+        },
+        "eyeClouding": {
+          "active": {
+            "1": 0.04,
+            "2": 0.028,
+            "3": 0.007
+          },
+          "nothing": 0.925,
+          "sampleSize": 365
+        },
+        "exophthalmos": {
+          "active": {
+            "1": 0.05,
+            "2": 0.02,
+            "3": 0.005
+          },
+          "nothing": 0.925,
+          "sampleSize": 402
+        },
         "opercularDamage": {
-          "active": {"1": 0.03, "2": 0.01, "3": 0.0},
-          "nothing": 0.96,
-          "sampleSize": 200,
-          "healed": {"1": 0.02, "2": 0.0, "3": 0.0}
+          "active": {
+            "1": 0.06,
+            "2": 0.024,
+            "3": 0.007
+          },
+          "nothing": 0.909,
+          "sampleSize": 439
         },
-        "backDeformity": null,
-        "pelvicFin": null,
-        "pectoralFin": null,
-        "caudalFin": null,
-        "analFin": null,
+        "backDeformity": {
+          "active": {
+            "1": 0.07,
+            "2": 0.028,
+            "3": 0.005
+          },
+          "nothing": 0.897,
+          "sampleSize": 476
+        },
+        "pelvicFin": {
+          "active": {
+            "1": 0.08,
+            "2": 0.02,
+            "3": 0.007
+          },
+          "nothing": 0.893,
+          "sampleSize": 513
+        },
+        "pectoralFin": {
+          "active": {
+            "1": 0.04,
+            "2": 0.024,
+            "3": 0.005
+          },
+          "nothing": 0.931,
+          "sampleSize": 550
+        },
+        "caudalFin": {
+          "active": {
+            "1": 0.05,
+            "2": 0.028,
+            "3": 0.007
+          },
+          "nothing": 0.915,
+          "sampleSize": 587
+        },
+        "analFin": {
+          "active": {
+            "1": 0.06,
+            "2": 0.02,
+            "3": 0.005
+          },
+          "nothing": 0.915,
+          "sampleSize": 624
+        },
         "dorsalFin": {
-          "active": {"1": 0.08, "2": 0.02, "3": 0.01},
-          "nothing": 0.89,
-          "sampleSize": 200,
-          "healed": {"1": 0.05, "2": 0.01, "3": 0.0}
+          "active": {
+            "1": 0.07,
+            "2": 0.024,
+            "3": 0.007
+          },
+          "nothing": 0.899,
+          "sampleSize": 661
         },
-        "upperJawDeformity": null,
-        "lowerJawDeformity": null,
-        "breathingMouth": null,
-        "mechHeadWound": null
+        "upperJawDeformity": {
+          "active": {
+            "1": 0.08,
+            "2": 0.028,
+            "3": 0.005
+          },
+          "nothing": 0.887,
+          "sampleSize": 698
+        },
+        "lowerJawDeformity": {
+          "active": {
+            "1": 0.04,
+            "2": 0.02,
+            "3": 0.007
+          },
+          "nothing": 0.933,
+          "sampleSize": 735
+        },
+        "mechHeadWound": {
+          "active": {
+            "1": 0.05,
+            "2": 0.024,
+            "3": 0.005
+          },
+          "nothing": 0.921,
+          "sampleSize": 772
+        }
       }
     },
     {
@@ -59,33 +169,118 @@
       "date": "2026-01-16",
       "welfareScores": {
         "bodyWound": {
-          "active": {"1": 0.04, "2": 0.01, "3": 0.01},
-          "nothing": 0.94,
+          "active": {
+            "1": 0.05,
+            "2": 0.02,
+            "3": 0.005
+          },
+          "nothing": 0.865,
           "sampleSize": 180,
-          "healed": {"1": 0.02, "2": 0.01, "3": 0.0}
+          "healed": {
+            "1": 0.03,
+            "2": 0.02,
+            "3": 0.01
+          }
         },
         "scaleLoss": {
-          "active": {"1": 0.09, "2": 0.02, "3": 0.0},
-          "nothing": 0.89,
-          "sampleSize": 180,
-          "healed": null
+          "active": {
+            "1": 0.06,
+            "2": 0.024,
+            "3": 0.007
+          },
+          "nothing": 0.909,
+          "sampleSize": 217
         },
-        "snoutWound": null,
-        "maturation": null,
-        "eyeBleeding": null,
-        "eyeClouding": null,
-        "exophthalmos": null,
-        "opercularDamage": null,
-        "backDeformity": null,
-        "pelvicFin": null,
-        "pectoralFin": null,
-        "caudalFin": null,
-        "analFin": null,
-        "dorsalFin": null,
-        "upperJawDeformity": null,
-        "lowerJawDeformity": null,
-        "breathingMouth": null,
-        "mechHeadWound": null
+        "snoutWound": {
+          "active": {
+            "1": 0.07,
+            "2": 0.028,
+            "3": 0.005
+          },
+          "nothing": 0.897,
+          "sampleSize": 254
+        },
+        "maturation": {
+          "active": {
+            "1": 0.08,
+            "2": 0.02,
+            "3": 0.007
+          },
+          "nothing": 0.893,
+          "sampleSize": 291
+        },
+        "eyeBleeding": {
+          "active": {
+            "1": 0.09,
+            "2": 0.024,
+            "3": 0.005
+          },
+          "nothing": 0.881,
+          "sampleSize": 328
+        },
+        "eyeClouding": {
+          "active": {
+            "1": 0.05,
+            "2": 0.028,
+            "3": 0.007
+          },
+          "nothing": 0.915,
+          "sampleSize": 365
+        },
+        "exophthalmos": {
+          "active": {
+            "1": 0.06,
+            "2": 0.02,
+            "3": 0.005
+          },
+          "nothing": 0.915,
+          "sampleSize": 402
+        },
+        "opercularDamage": {
+          "active": {
+            "1": 0.07,
+            "2": 0.024,
+            "3": 0.007
+          },
+          "nothing": 0.899,
+          "sampleSize": 439
+        },
+        "backDeformity": {
+          "active": {
+            "1": 0.08,
+            "2": 0.028,
+            "3": 0.005
+          },
+          "nothing": 0.887,
+          "sampleSize": 476
+        },
+        "upperJawDeformity": {
+          "active": {
+            "1": 0.09,
+            "2": 0.02,
+            "3": 0.007
+          },
+          "nothing": 0.883,
+          "sampleSize": 513
+        },
+        "lowerJawDeformity": {
+          "active": {
+            "1": 0.05,
+            "2": 0.024,
+            "3": 0.005
+          },
+          "nothing": 0.921,
+          "sampleSize": 550
+        },
+        "mechHeadWound": {
+          "active": {
+            "1": 0.06,
+            "2": 0.028,
+            "3": 0.007
+          },
+          "nothing": 0.905,
+          "sampleSize": 587
+        }
       }
     }
   ]

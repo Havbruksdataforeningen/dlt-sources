@@ -89,6 +89,33 @@ The API returns one record per pen and date with every welfare category nested i
 
 Flattening it into one row per category is a transform on your side — a `LATERAL`/`UNNEST` over the JSON column in your warehouse, or dlt's `add_map` before load.
 
+### How far back the data goes
+
+The first question a backfill raises. Probing one account backwards on **2026-08-17**, a 14-day window at a time, the earliest date each endpoint served was:
+
+| Resource | Earliest date served |
+|---|---|
+| `environmental` | 2020-06-12 |
+| `lice_count` | 2021-01-16 |
+| `biomass` | 2023-01-02 |
+| `harvest_report` | 2023-07-17 |
+| `behaviour_swim_speed` | 2024-02-03 |
+| `welfare_scores` | 2024-05-03 |
+| `behaviour_breathing_index` | 2024-09-04 |
+
+⚠️ **These are one account's dates, not a promise the API makes.** They mark when that account's cameras started reporting each metric — a farm that deployed cameras later, or gained a metric later, starts later. Treat them as the shape of the answer, and re-run the probe for your own account rather than assuming these numbers. `sites` and `pens` report what exists today and have no history dimension; `environmental_latest` returns only the most recent reading per pen.
+
+Setting `initial_date`/`initial_time` earlier than your account's true start costs nothing but empty requests — the API returns an empty result set rather than an error.
+
+### API quirks worth knowing
+
+Comparing live responses against the API's own OpenAPI document turned up differences that reach you as a consumer. They are written up in full, for Aquabyte, in [`specs/api-observations-2026-08-17.md`](specs/api-observations-2026-08-17.md). The two that change how you read the data:
+
+- **`behaviour_swim_speed` and `behaviour_breathing_index` return timestamps with no time zone** (`2026-01-10T00:00:00`), where `environmental` returns the same kind of field with a `Z`. The source does not rewrite them — they land as sent. Treat them as UTC, which is what the zoned endpoints use.
+- **`lice_count` omits its five count fields entirely on a zero-sample record**, rather than sending nulls. Those columns are typed by the model and land as `NULL`, so `sampleSize = 0` is the condition to filter on, not `adultFemale IS NULL`.
+
+The API declares `external_site_id` on a site and `external_id` on a pen, but returns neither. Both columns exist in the destination — the models declare them — and are always `NULL` until Aquabyte starts sending them.
+
 ## Nesting
 
 The source sets `max_table_nesting=0`, so a nested object or list lands as one JSON column instead of dlt's automatic child tables. That is the neutral position, not an extra opinion: unnesting invents tables, column names and keys (`_dlt_parent_id`, `_dlt_list_idx`) that exist nowhere in the API, and this source leaves reshaping to you. It also keeps the destination shape a function of the API response alone, rather than of which fields happened to be nested in the first page loaded.

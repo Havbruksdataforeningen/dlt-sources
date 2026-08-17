@@ -7,3 +7,9 @@ All notable changes to `dlt-source-aquabyte`, written for people using the packa
 ### Added
 
 - Initial source for the Aquabyte API: sites, pens, biomass, lice counts, welfare scores, behaviour (swim speed, breathing index), environmental readings and harvest reports.
+- `harvest_report` types the `fishType` field the API returns.
+- The README documents how far back each endpoint served data for one account, and the API quirks that reach you as a consumer — unzoned timestamps on the two behaviour endpoints, and `lice_count` omitting its count fields on a zero-sample record.
+
+### Fixed
+
+- `.dlt/secrets.toml.example` declared the API key under a section dlt does not read for this source, so copying it verbatim failed to resolve credentials. It now matches `.dlt/config.toml.example` and the README. Neither example claims CI generates it any more; CI has no credentials.

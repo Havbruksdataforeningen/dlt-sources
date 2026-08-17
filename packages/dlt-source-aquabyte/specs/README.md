@@ -18,3 +18,9 @@ own changes.
 
 `api-v3.0-to-v3.1-migration.md` records a migration that is done; the specs it
 references were deleted and live in git history.
+
+`api-observations-2026-08-17.md` is what a live run found when every response was
+compared against `openapi.json` field by field. It is written **for Aquabyte's
+developers**, not for this repo — send it to them as it stands. It deliberately contains
+no data: field names, types and HTTP status codes only, because it leaves the building.
+A later comparison gets its own dated file rather than overwriting this one.

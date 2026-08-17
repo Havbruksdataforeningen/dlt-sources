@@ -2,9 +2,8 @@
 # Copy this file to config.toml and adjust as needed:
 #   cp .dlt/config.toml.example .dlt/config.toml
 #
-# CI/CD: The GitHub Actions workflow (.github/workflows/ci.yml)
-# generates config.toml and secrets.toml automatically. Add your API key as a
-# GitHub repository secret named AQUABYTE_API_KEY.
+# CI never reads this file: the default test run is offline and needs no
+# credentials. Both files are yours to create locally.
 
 [sources.aquabyte]
 # Base URL for the Aquabyte API v3

@@ -26,7 +26,7 @@ def test_environmental_latest_loads_into_duckdb(mock_rest_client):
     assert_row_count(pipeline, "environmental_latest", len(DATA))
 
     rows = query(pipeline, "SELECT DISTINCT pen_id FROM environmental_latest ORDER BY pen_id")
-    assert [row[0] for row in rows] == ["pen-001", "pen-003"]
+    assert [row[0] for row in rows] == ["pen-001"]
 
     (call,) = calls_to(mock_rest_client, "/environmental/latest")
     assert call["params"] == {"penId": "all"}
