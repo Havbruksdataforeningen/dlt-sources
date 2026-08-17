@@ -190,8 +190,8 @@ As above, the key is absent rather than null.
 **Presumed wrong:** probably neither — the same open question as finding 8, and the same
 two requests: confirmation of how the field is meant to be populated, and a note in the
 document if an absent key rather than a null value is the expected shape when it is
-unset. `penCode`, which is the pen identifier we can already rely on, was present and
-non-null on every pen.
+unset. This is not blocking us either: `id` is the pen key we join on, and it was present
+and non-null on every pen.
 
 ---
 
