@@ -180,7 +180,6 @@ One concept each, in a dozen lines or so — run any of them with `uv run python
 uv sync --group dev                                      # Install dependencies
 uv run ruff check --fix src/ tests/ examples/ && uv run ruff format src/ tests/ examples/  # Lint and format
 uv run pyright                                            # Type check
-uv run bandit -r src/ -c pyproject.toml                   # Security scan
 uv run python -m pytest -m "not integration"              # Unit tests (mocked API)
 uv run python -m pytest -m integration                    # Integration tests (needs credentials)
 uv run python -m pytest --clean-db                        # ...and delete the DuckDB files afterwards
