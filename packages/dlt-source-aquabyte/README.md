@@ -98,6 +98,10 @@ The API does a few things its own OpenAPI document does not describe. The source
 - **`behaviour_swim_speed` and `behaviour_breathing_index` return timestamps with no time zone** (`2026-01-10T00:00:00`), where `environmental` returns the same kind of field with a `Z`. The source does not rewrite them — they land as sent. Treat them as UTC, which is what the zoned endpoints use.
 - **`lice_count` omits its five count fields entirely on a zero-sample record**, rather than sending nulls. Those columns are typed by the model and land as `NULL`, so `sampleSize = 0` is the condition to filter on, not `adultFemale IS NULL`.
 
+And one that bites when you are debugging rather than reading:
+
+- **The API ignores a query parameter it does not recognise instead of rejecting it.** Verified by sending an invented parameter name, which returned `200` and a normal result set. So a mistyped parameter is indistinguishable from a correct request — send `fromDat` instead of `fromDate` and you get the endpoint's own default window with nothing to tell you the window you asked for was dropped. Invalid *values* are rejected properly (`period=15min` on an endpoint allowing only `h` and `D` returns `422`); it is only unknown *names* that pass silently. This is also why `/behaviour/breathingIndex` accepting a `period` it does not document is no evidence that it supports one.
+
 The API declares `external_site_id` on a site and `external_id` on a pen, but returned neither for the account this was checked against. Both columns exist in the destination — the models declare them — and hold `NULL`. These carry a customer's own identifiers for a third-party system, so an empty column most likely means the account has not populated them rather than anything being wrong. Join sites on `governmentSiteNumber` and pens on `id`, both of which were always present.
 
 Do not join on `penCode`. It is a human-readable label whose format the operator chooses, not something the API defines — one account may derive it from the site name and pen number while another uses something else entirely, and a label built that way moves when a site is renamed. `id` is the pen's key.
@@ -143,6 +147,8 @@ period = "15min"
 ### What the source does not expose
 
 **`nextToken`**, on the six endpoints that document it. It is pagination mechanics, owned by dlt's `JSONResponseCursorPaginator`, which reads `nextToken` from each response and sends it on the next request until it is absent. Exposing it would let a caller break their own pagination. The other four read endpoints — `/sites`, `/sites/{siteId}`, `/environmental/latest` and `/biomass/harvestReport` — return no `nextToken` at all, so their resources read a single page (`SinglePagePaginator`) rather than hoping a cursor paginator terminates.
+
+⚠️ **The paginator has never actually run.** As of 2026-08-17 no live response had carried a `nextToken`: the API caps a result set at 10,000 records, and nothing we asked for came close. The wiring is right by inspection and the offline suite covers it, but the first backfill wide enough to hit the cap will be the first real test of it.
 
 **The eight `/pens/{penId}/…` path variants.** The spec marks every one of them `deprecated: true`. They are the v3.0 shape of the same data; v3.1 replaced them with `?penId=` on the flat endpoints. None of them accepts a `nextToken` query param either, so a result set past the API's record cap cannot be paged through — and `penId=all` fetches every pen in one request where the path variants need one per pen. To read one pen, bind `pen_id="pen-abc"`; to read several, bind a list.
 

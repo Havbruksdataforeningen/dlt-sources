@@ -16,9 +16,10 @@ Refresh it by overwriting the file from that URL and running the tests —
 filename stays put, so `git log -p specs/openapi.json` reads as a history of the API's
 own changes.
 
-`api-v3.0-to-v3.1-migration.md` records a migration that is done; the specs it
-references were deleted and live in git history. Its last section notes where the live
-API turned out not to match this document.
+This package targets v3.1 only. The v3.0 endpoints are the `/pens/{penId}/…` path
+variants, which the spec marks `deprecated: true` and which nothing here reads — the
+README says why under "What the source does not expose". The notes from that migration
+were deleted once it was done; `git log` has them if the history is ever wanted.
 
 **Where the API and this spec disagree, the API wins.** The package is built against what
 the API actually returns, not against what `openapi.json` says it should. Where the two
