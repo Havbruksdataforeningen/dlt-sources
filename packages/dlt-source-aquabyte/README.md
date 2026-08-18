@@ -91,6 +91,8 @@ Flattening it into one row per category is a transform on your side — a `LATER
 
 ### API quirks worth knowing
 
+> **Observed against the live API on 2026-08-17.** Aquabyte have been told about these, so any of them may have been fixed since. Re-check before building on one, and update this section — and the fixtures that model it — when you do.
+
 The API does a few things its own OpenAPI document does not describe. The source does not paper over them — records land as sent — so they reach you, and this section is where they are kept current. The two that change how you read the data:
 
 - **`behaviour_swim_speed` and `behaviour_breathing_index` return timestamps with no time zone** (`2026-01-10T00:00:00`), where `environmental` returns the same kind of field with a `Z`. The source does not rewrite them — they land as sent. Treat them as UTC, which is what the zoned endpoints use.
