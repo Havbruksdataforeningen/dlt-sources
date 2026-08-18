@@ -89,6 +89,12 @@ The API returns one record per pen and date with every welfare category nested i
 
 Flattening it into one row per category is a transform on your side — a `LATERAL`/`UNNEST` over the JSON column in your warehouse, or dlt's `add_map` before load.
 
+### API quirks worth knowing
+
+Records land as the API sends them, so where the API departs from its own OpenAPI document, that reaches you rather than being smoothed over here. Those departures are written down next to the spec, in [`specs/README.md`](specs/README.md#api-quirks-worth-knowing) — including which identifiers to join on, which differs depending on whether you are joining within this dataset or out to your own systems.
+
+**Read it before you write your first query against these tables.** Some of them change what a correct query looks like.
+
 ## Nesting
 
 The source sets `max_table_nesting=0`, so a nested object or list lands as one JSON column instead of dlt's automatic child tables. That is the neutral position, not an extra opinion: unnesting invents tables, column names and keys (`_dlt_parent_id`, `_dlt_list_idx`) that exist nowhere in the API, and this source leaves reshaping to you. It also keeps the destination shape a function of the API response alone, rather than of which fields happened to be nested in the first page loaded.
@@ -131,6 +137,8 @@ period = "15min"
 
 **`nextToken`**, on the six endpoints that document it. It is pagination mechanics, owned by dlt's `JSONResponseCursorPaginator`, which reads `nextToken` from each response and sends it on the next request until it is absent. Exposing it would let a caller break their own pagination. The other four read endpoints — `/sites`, `/sites/{siteId}`, `/environmental/latest` and `/biomass/harvestReport` — return no `nextToken` at all, so their resources read a single page (`SinglePagePaginator`) rather than hoping a cursor paginator terminates.
 
+⚠️ **The paginator has never actually run.** As of 2026-08-17 no live response had carried a `nextToken`: the API caps a result set at 10,000 records, and nothing we asked for came close. The wiring is right by inspection and the offline suite covers it, but the first backfill wide enough to hit the cap will be the first real test of it.
+
 **The eight `/pens/{penId}/…` path variants.** The spec marks every one of them `deprecated: true`. They are the v3.0 shape of the same data; v3.1 replaced them with `?penId=` on the flat endpoints. None of them accepts a `nextToken` query param either, so a result set past the API's record cap cannot be paged through — and `penId=all` fetches every pen in one request where the path variants need one per pen. To read one pen, bind `pen_id="pen-abc"`; to read several, bind a list.
 
 **`POST /superiorRate`.** The spec marks it "(Experimental API) … subject to change", and it is a POST computation rather than a read endpoint. Worth revisiting once it leaves preview.
@@ -155,6 +163,8 @@ base_url = "https://api.aquabyte.ai/v3/"
 initial_date = "2020-01-01"             # first-run start for date-based cursors
 initial_time = "2020-01-01T00:00:00Z"   # first-run start for time-based cursors
 ```
+
+How far back your own data goes depends on when your cameras started reporting each metric, so it differs per endpoint and per account. Setting these earlier than your true start costs nothing but empty requests: the API returns an empty result set rather than an error.
 
 `.dlt/secrets.toml`:
 

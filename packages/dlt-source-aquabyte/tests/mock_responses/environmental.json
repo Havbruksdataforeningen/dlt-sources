@@ -1,28 +1,42 @@
 {
   "penId": "pen-001",
   "fromTime": "2026-01-01T00:00:00Z",
-  "toTime": "2026-01-03T00:00:00Z",
+  "toTime": "2026-01-04T00:00:00Z",
   "data": [
     {
+      "penId": "pen-001",
       "fromTime": "2026-01-01T00:00:00Z",
       "toTime": "2026-01-02T00:00:00Z",
-      "temperatureAvg": 8.5,
-      "cameraDepthAvg": 5.2,
-      "cameraDepthMin": 4.8,
-      "cameraDepthMax": 5.9,
+      "temperatureAvg": 8.51,
+      "cameraDepthAvg": 5.24,
+      "cameraDepthMin": 4.81,
+      "cameraDepthMax": 5.93,
       "oxygenPct": 92.3,
-      "salinity": 33.1,
-      "fishDensity": 0.72
+      "salinity": 33.12,
+      "fishDensity": 0.0721
     },
     {
+      "penId": "pen-001",
       "fromTime": "2026-01-02T00:00:00Z",
       "toTime": "2026-01-03T00:00:00Z",
-      "temperatureAvg": 8.8,
-      "cameraDepthAvg": 5.0,
-      "cameraDepthMin": 4.5,
-      "cameraDepthMax": 5.6,
-      "oxygenPct": null,
-      "salinity": 33.5,
+      "temperatureAvg": 8.84,
+      "cameraDepthAvg": 5.02,
+      "cameraDepthMin": 4.55,
+      "cameraDepthMax": 5.61,
+      "oxygenPct": 91.7,
+      "salinity": 33.48,
+      "fishDensity": 0.0688
+    },
+    {
+      "penId": "pen-001",
+      "fromTime": "2026-01-03T00:00:00Z",
+      "toTime": "2026-01-04T00:00:00Z",
+      "temperatureAvg": 9.02,
+      "cameraDepthAvg": 4.87,
+      "cameraDepthMin": 4.39,
+      "cameraDepthMax": 5.44,
+      "oxygenPct": 93.1,
+      "salinity": 33.6,
       "fishDensity": null
     }
   ]

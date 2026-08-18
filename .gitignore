@@ -4,10 +4,12 @@ nul
 # Temp scripts
 _find_uv.py
 
-# dlt secrets and config (but NOT .example files)
-.dlt/secrets.toml
-.dlt/config.toml
-.dlt/pipelines/
+# dlt secrets and config (but NOT .example files). Every package has its own
+# .dlt/, so these are unanchored — `.dlt/secrets.toml` alone would only match
+# the repo root's.
+**/.dlt/secrets.toml
+**/.dlt/config.toml
+**/.dlt/pipelines/
 
 # DuckDB
 *.duckdb

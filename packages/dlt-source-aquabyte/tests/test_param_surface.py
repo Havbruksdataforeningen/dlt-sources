@@ -7,9 +7,7 @@ which endpoints and params the source deliberately does not expose.
 import inspect
 import json
 import re
-from collections.abc import Callable
 from pathlib import Path
-from typing import cast
 
 import pytest
 
@@ -18,6 +16,7 @@ from tests.conftest import (
     SOURCE_CONFIG,
     load_mock,
     params_sent,
+    resource_signature,
     run_source,
     serve,
 )
@@ -60,8 +59,7 @@ def _spec_params(paths: tuple[str, ...]) -> set[str]:
 
 
 def _signature(resource_name: str) -> inspect.Signature:
-    resource = aquabyte_source(**SOURCE_CONFIG).resources[resource_name]
-    return inspect.signature(cast(Callable, resource._pipe.gen))
+    return resource_signature(aquabyte_source(**SOURCE_CONFIG), resource_name)
 
 
 def _resource_params(resource_name: str) -> set[str]:
