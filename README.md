@@ -2,7 +2,7 @@
 
 Shared [dlt](https://dlthub.com/) source packages for Havbruksdataforeningen members — one repo, one folder per source, each published as its own package.
 
-> **Status: pre-1.0.** `dlt-source-aquabyte` is verified against the live Aquabyte API and heading for its first release. The repository layout is still being confirmed, so folders here may move; a package's published interface is what it promises, and that is covered by its own version.
+> **Status: pre-1.0.** `dlt-source-aquabyte` is verified against the live Aquabyte API and heading for its first release. Folders here may still move; what a package promises its users is covered by its own version.
 
 ## Source packages
 
@@ -46,10 +46,10 @@ The step-by-step guide, written for your first release, is [`docs/release.md`](d
 
 ## Contributing
 
-Read [`CONTRIBUTING.md`](CONTRIBUTING.md) — how to set up, what to run before a pull request, and how to add a new source package. Open an issue before writing anything substantial.
+[`CONTRIBUTING.md`](CONTRIBUTING.md) — setup, what to run before a pull request, how to add a package. Open an issue first.
 
-Found a security problem? Do not open an issue: [`SECURITY.md`](SECURITY.md).
+Security problems go to [`SECURITY.md`](SECURITY.md), not the issue tracker.
 
 ## License
 
-[Apache-2.0](LICENSE). Each package ships its own copy of the licence, and each vendor's OpenAPI document stays that vendor's material — see the package's own README.
+[Apache-2.0](LICENSE), with a copy shipped in each package. A vendor's OpenAPI document stays that vendor's material — see the package's own README.
