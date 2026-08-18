@@ -4,7 +4,21 @@ An installable [dlt](https://dlthub.com/) source package that ingests aquacultur
 
 The source's only opinions are mechanics: auth, pagination, envelope unwrapping, incremental cursors, and overridable key/write-disposition defaults. **Records land exactly as the API returns them** — nothing renamed, flattened, filtered or dropped. Reshaping belongs in your transform layer, where you can change it without waiting for a release.
 
-It depends on dlt and pydantic, and on nothing else: no destination, orchestrator, secrets manager or logging backend is chosen for you. Those are your stack's decisions, shown as runnable code in [`examples/`](examples/).
+It depends on dlt and pydantic, and on nothing else: no destination, orchestrator, secrets manager or logging backend is chosen for you. Those are your stack's decisions, shown as runnable code in [`examples/`](https://github.com/Havbruksdataforeningen/dlt-sources/tree/main/packages/dlt-source-aquabyte/examples).
+
+## Compatibility
+
+| `dlt-source-aquabyte` | Aquabyte API |
+|---|---|
+| 0.1.x | v3.1 |
+
+This table is the single place that mapping is written down. The two version numbers are unrelated otherwise: the package version is ordinary [SemVer](https://semver.org/) describing what changed *for you*, and it never mirrors the API's.
+
+**Tested** means the version in the right-hand column is the one the package is built and verified against — [`specs/openapi.json`](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/specs/README.md) is that version's own document, `tests/test_param_surface.py` asserts every resource's parameters against it, and the package has been run against the live API at that version (last on 2026-08-17).
+
+**Expected to work** covers the rest: any later API version that stays backwards compatible. The source deliberately holds no opinions the API can invalidate — records land as sent, unknown fields land as new columns, and unknown query params pass through — so a compatible API change usually needs no release here. Nothing verifies that for you, though. If you are on a version not in the table, run the suite before trusting it.
+
+The [`CHANGELOG`](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/CHANGELOG.md) records a line only when this table changes, not on every release.
 
 ## Installation
 
@@ -91,7 +105,7 @@ Flattening it into one row per category is a transform on your side — a `LATER
 
 ### API quirks worth knowing
 
-Records land as the API sends them, so where the API departs from its own OpenAPI document, that reaches you rather than being smoothed over here. Those departures are written down next to the spec, in [`specs/README.md`](specs/README.md#api-quirks-worth-knowing) — including which identifiers to join on, which differs depending on whether you are joining within this dataset or out to your own systems.
+Records land as the API sends them, so where the API departs from its own OpenAPI document, that reaches you rather than being smoothed over here. Those departures are written down next to the spec, in [`specs/README.md`](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/specs/README.md#api-quirks-worth-knowing) — including which identifiers to join on, which differs depending on whether you are joining within this dataset or out to your own systems.
 
 **Read it before you write your first query against these tables.** Some of them change what a correct query looks like.
 
@@ -151,7 +165,7 @@ The Pydantic models in `schemas.py` give the destination proper column types eve
 
 ## Logging
 
-The package logs on the named logger `dlt_source_aquabyte` and installs no handlers — routing is yours, via standard `logging`. It logs only what dlt cannot: an explicit window overriding the incremental cursor (INFO), a pen-id fan-out (INFO), a window start falling back to config because there was no cursor value (WARNING), and the cursor value a run resumed from (DEBUG). dlt itself logs the requests. On failure it raises. See [`examples/logging_setup.py`](examples/logging_setup.py).
+The package logs on the named logger `dlt_source_aquabyte` and installs no handlers — routing is yours, via standard `logging`. It logs only what dlt cannot: an explicit window overriding the incremental cursor (INFO), a pen-id fan-out (INFO), a window start falling back to config because there was no cursor value (WARNING), and the cursor value a run resumed from (DEBUG). dlt itself logs the requests. On failure it raises. See [`examples/logging_setup.py`](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/examples/logging_setup.py).
 
 ## Configuration
 
@@ -179,10 +193,10 @@ One concept each, in a dozen lines or so — run any of them with `uv run python
 
 | Example | The one concept |
 |---|---|
-| [`quickstart.py`](examples/quickstart.py) | Load every resource into DuckDB |
-| [`daily_load.py`](examples/daily_load.py) | Re-running resumes from the stored cursor |
-| [`backfill.py`](examples/backfill.py) | Bind an explicit window, ignoring the cursor |
-| [`logging_setup.py`](examples/logging_setup.py) | Route the package's logger consumer-side |
+| [`quickstart.py`](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/examples/quickstart.py) | Load every resource into DuckDB |
+| [`daily_load.py`](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/examples/daily_load.py) | Re-running resumes from the stored cursor |
+| [`backfill.py`](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/examples/backfill.py) | Bind an explicit window, ignoring the cursor |
+| [`logging_setup.py`](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/examples/logging_setup.py) | Route the package's logger consumer-side |
 
 ## Development
 
@@ -202,10 +216,18 @@ dlt-source-aquabyte/
 ├── src/dlt_source_aquabyte/
 │   ├── __init__.py      # Re-exports aquabyte_source, __version__
 │   ├── aquabyte.py      # Source, resources and transformer
-│   └── schemas.py       # Pydantic models from the OpenAPI schemas
+│   ├── schemas.py       # Pydantic models from the OpenAPI schemas
+│   └── py.typed         # PEP 561 marker: these annotations are usable
 ├── examples/            # Runnable consumer-side setups
 ├── specs/               # OpenAPI spec (source of truth)
 ├── tests/               # pytest tests + mock_responses/ + conftest.py
 ├── .dlt/                # Config and secrets (not committed)
-└── .github/workflows/   # CI workflow (quality + integration)
+├── CHANGELOG.md         # What changed in each release
+└── LICENSE              # Apache-2.0, shipped inside the built package
 ```
+
+CI, the release workflow and the contribution guide are the repository's, not this package's — see [`CONTRIBUTING.md`](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/CONTRIBUTING.md).
+
+## License
+
+[Apache-2.0](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/LICENSE). `specs/openapi.json` is Aquabyte's own OpenAPI document, included here as the spec this package is built against; it is their material, not ours, and the licence above does not extend to it.

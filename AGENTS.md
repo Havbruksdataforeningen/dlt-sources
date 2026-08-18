@@ -4,6 +4,10 @@
 
 Before building or modifying source-package code, read `docs/source-guidelines.md` — the neutrality and logging rules every source follows.
 
+## Contributing
+
+`CONTRIBUTING.md` is the human-facing entry point: setup, the checks to run before a pull request, and what a new source package must contain. Keep it true when you change any of those, and do not duplicate it into `docs/`.
+
 ## Writing documentation
 
 When writing or editing any documentation — files in `docs/`, the README, a glossary, a changelog — follow the style rules in `docs/AGENTS.md`.

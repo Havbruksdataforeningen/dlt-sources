@@ -9,6 +9,9 @@ All notable changes to `dlt-source-aquabyte`, written for people using the packa
 - Initial source for the Aquabyte API: sites, pens, biomass, lice counts, welfare scores, behaviour (swim speed, breathing index), environmental readings and harvest reports.
 - `harvest_report` types the `fishType` field the API returns.
 - [API quirks worth knowing](specs/README.md#api-quirks-worth-knowing) records where the live API departs from its own OpenAPI document, in ways that reach you as a consumer.
+- [Compatibility](README.md#compatibility) records which Aquabyte API version the package is built and verified against. This release targets v3.1.
+- The package ships a PEP 561 `py.typed` marker, so your type checker reads its annotations instead of treating it as untyped.
+- Released under [Apache-2.0](LICENSE).
 
 ### Fixed
 

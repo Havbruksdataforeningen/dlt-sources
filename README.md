@@ -2,8 +2,7 @@
 
 Shared [dlt](https://dlthub.com/) source packages for Havbruksdataforeningen members — one repo, one folder per source, each published as its own package.
 
-> **Status: proposal.** This repo is the concrete example for the layout discussion in
-> [Ingest-Barentswatch#12](https://github.com/Havbruksdataforeningen/Ingest-Barentswatch/issues/12). Nothing is decided yet.
+> **Status: pre-1.0.** `dlt-source-aquabyte` is verified against the live Aquabyte API and heading for its first release. The repository layout is still being confirmed, so folders here may move; a package's published interface is what it promises, and that is covered by its own version.
 
 ## Source packages
 
@@ -44,3 +43,13 @@ Build one package: `uv build --package dlt-source-aquabyte` (from the root). CI 
 Versions are independent per package, and a tag names what it releases — `dlt-source-aquabyte/v0.2.0` → PyPI, a release candidate `…/v0.2.0rc1` → a test release on TestPyPI. Trusted Publishing, no stored tokens.
 
 The step-by-step guide, written for your first release, is [`docs/release.md`](docs/release.md).
+
+## Contributing
+
+Read [`CONTRIBUTING.md`](CONTRIBUTING.md) — how to set up, what to run before a pull request, and how to add a new source package. Open an issue before writing anything substantial.
+
+Found a security problem? Do not open an issue: [`SECURITY.md`](SECURITY.md).
+
+## License
+
+[Apache-2.0](LICENSE). Each package ships its own copy of the licence, and each vendor's OpenAPI document stays that vendor's material — see the package's own README.
