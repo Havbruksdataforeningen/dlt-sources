@@ -91,7 +91,7 @@ Flattening it into one row per category is a transform on your side — a `LATER
 
 ### API quirks worth knowing
 
-Records land as the API sends them, so where the API departs from its own OpenAPI document, that reaches you rather than being smoothed over here. Those departures are written down next to the spec, in [`specs/README.md`](specs/README.md#api-quirks-worth-knowing) — including which identifiers are safe to join on.
+Records land as the API sends them, so where the API departs from its own OpenAPI document, that reaches you rather than being smoothed over here. Those departures are written down next to the spec, in [`specs/README.md`](specs/README.md#api-quirks-worth-knowing) — including which identifiers to join on, which differs depending on whether you are joining within this dataset or out to your own systems.
 
 **Read it before you write your first query against these tables.** Some of them change what a correct query looks like.
 

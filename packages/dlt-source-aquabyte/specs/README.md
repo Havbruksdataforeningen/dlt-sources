@@ -57,14 +57,28 @@ And one that bites when you are debugging rather than reading:
 
 ### Identifiers
 
-The API declares `external_site_id` on a site and `external_id` on a pen, but returned
-neither for the account this was checked against. Both columns exist in the destination —
-the models declare them — and hold `NULL`. These carry a customer's own identifiers for a
-third-party system, so an empty column most likely means the account has not populated them
-rather than anything being wrong. Join sites on `governmentSiteNumber` and pens on `id`,
-both of which were always present.
+Which key to use depends on what you are joining to, and the answer is different inside
+and outside this dataset.
 
-Do not join on `penCode`. It is a human-readable label whose format the operator chooses,
-not something the API defines — one account may derive it from the site name and pen number
-while another uses something else entirely, and a label built that way moves when a site is
-renamed. `id` is the pen's key.
+**Joining Aquabyte data to Aquabyte data: use `id`.** Every data endpoint stamps its
+records with `penId`, and that value is the `id` on the pen — verified live, and asserted
+by `test_full_pipeline_with_live_pens`. So `pens.id = biomass.pen_id` and so on, and there
+is no alternative: `penCode` does not appear on the data endpoints at all.
+
+**Joining Aquabyte data to your own systems: `penCode` is the best available today.**
+`pen.id` is Aquabyte's internal auto-increment key. It is stable within their system, which
+is what makes it right for the join above, but it means nothing in anyone else's — no
+system of yours knows it. `penCode` is the operator-set label, so it is the only field that
+carries across. Know what you are relying on: the format is the operator's choice rather
+than anything the API defines, so it is a business key by convention, not by guarantee, and
+a label derived from a site name can move if that site is renamed.
+
+For sites, `governmentSiteNumber` is the equivalent and a stronger one, being externally
+assigned rather than chosen locally. It was present and non-null on every site.
+
+**The fields meant for exactly this — `external_site_id` on a site and `external_id` on a
+pen — came back empty.** Both are declared by the API, both are absent from every response,
+and both land as `NULL`. They carry a customer's own identifiers for a third-party system,
+so an empty column most likely means the account has not populated them rather than
+anything being wrong. If they get filled in, they become the right answer to the second
+question above and `penCode` stops having to serve.
