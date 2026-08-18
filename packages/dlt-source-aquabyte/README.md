@@ -91,7 +91,7 @@ Flattening it into one row per category is a transform on your side — a `LATER
 
 ### API quirks worth knowing
 
-Comparing live responses against the API's own OpenAPI document turned up differences that reach you as a consumer. This section is where they are kept up to date; the full comparison is written up for Aquabyte in [`specs/api-observations-2026-08-17.md`](specs/api-observations-2026-08-17.md), a dated snapshot that is not edited afterwards. The two that change how you read the data:
+The API does a few things its own OpenAPI document does not describe. The source does not paper over them — records land as sent — so they reach you, and this section is where they are kept current. The two that change how you read the data:
 
 - **`behaviour_swim_speed` and `behaviour_breathing_index` return timestamps with no time zone** (`2026-01-10T00:00:00`), where `environmental` returns the same kind of field with a `Z`. The source does not rewrite them — they land as sent. Treat them as UTC, which is what the zoned endpoints use.
 - **`lice_count` omits its five count fields entirely on a zero-sample record**, rather than sending nulls. Those columns are typed by the model and land as `NULL`, so `sampleSize = 0` is the condition to filter on, not `adultFemale IS NULL`.

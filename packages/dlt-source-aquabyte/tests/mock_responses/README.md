@@ -4,9 +4,9 @@
 
 These files are templates, not recorded payloads. Their *shape* — which fields appear,
 which are omitted, which arrive null, how timestamps are formatted, how deeply things
-nest — was taken from a live comparison against the Aquabyte API on 2026-08-17. Their
-*values* were then made up by hand, inside the ranges that run observed. No real
-identifier, site or pen name, government site number or measurement was carried across.
+nest — was taken from live responses on 2026-08-17. Their *values* were then made up by
+hand, inside the ranges that run observed. No real identifier, site or pen name,
+government site number or measurement was carried across.
 
 ## Before you "fix" an odd-looking shape
 
@@ -16,12 +16,9 @@ rather than null. They are what the API does, and a fixture that smooths one ove
 the whole offline suite blind to it.
 
 Which shapes those are is deliberately **not** listed here, so that the API's behaviour
-has one place to be updated rather than four:
-
-| What you want | Where it lives |
-|---|---|
-| What the API does today, and what it means for reading the data | ["API quirks worth knowing"](../../README.md#api-quirks-worth-knowing) in the package README |
-| What we observed and reported to Aquabyte, and on what date | [`specs/api-observations-2026-08-17.md`](../../specs/api-observations-2026-08-17.md) — a dated snapshot, never edited in place; a later comparison gets its own file |
+has one place to be updated rather than two: they are in
+["API quirks worth knowing"](../../README.md#api-quirks-worth-knowing) in the package
+README.
 
 `test_mock_fidelity.py` validates every fixture against its record model, so a shape the
 API could not have produced fails the suite rather than sitting here unnoticed.

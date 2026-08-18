@@ -207,8 +207,7 @@ These endpoints are identical between v3.0 and v3.1:
 ## Migration Checklist
 
 **A ticked box means the live API confirmed it on 2026-08-17**, not merely that the code
-was written. An unticked box carries the reason the live run could not settle it. The
-full live comparison is in `api-observations-2026-08-17.md`.
+was written. An unticked box carries the reason the live run could not settle it.
 
 1. [ ] Add `nextToken` paginator class (or use dlt built-in if available) — *the paginator is in place (`JSONResponseCursorPaginator`), but no live response has ever carried a `nextToken`, so it has never actually run.*
 2. [x] Update `environmental` URL: `/pens/{penId}/environmental` → `/environmental?penId={penId}`
@@ -236,5 +235,5 @@ full live comparison is in `api-observations-2026-08-17.md`.
   never inherits the API's own default window.
 - **`/behaviour/breathingIndex` accepting `period` proves nothing.** The endpoint declares no
   `period`, and sending one returns 200 — but the API ignores *any* unknown query parameter
-  rather than rejecting it (finding 3 of `api-observations-2026-08-17.md`), so the 200 is not
+  rather than rejecting it, verified with an invented parameter name, so the 200 is not
   evidence of support. Removing the parameter, as item 9 did, was right.
