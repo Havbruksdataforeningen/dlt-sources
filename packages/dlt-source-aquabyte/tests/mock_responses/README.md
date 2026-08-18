@@ -17,8 +17,8 @@ the whole offline suite blind to it.
 
 Which shapes those are is deliberately **not** listed here, so that the API's behaviour
 has one place to be updated rather than two: they are in
-["API quirks worth knowing"](../../README.md#api-quirks-worth-knowing) in the package
-README.
+["API quirks worth knowing"](../../specs/README.md#api-quirks-worth-knowing), next to the
+spec they depart from.
 
 `test_mock_fidelity.py` validates every fixture against its record model, so a shape the
 API could not have produced fails the suite rather than sitting here unnoticed.

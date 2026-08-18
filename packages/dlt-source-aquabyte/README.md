@@ -91,20 +91,9 @@ Flattening it into one row per category is a transform on your side — a `LATER
 
 ### API quirks worth knowing
 
-> **Observed against the live API on 2026-08-17.** Aquabyte have been told about these, so any of them may have been fixed since. Re-check before building on one, and update this section — and the fixtures that model it — when you do.
+Records land as the API sends them, so where the API departs from its own OpenAPI document, that reaches you rather than being smoothed over here. Those departures are written down next to the spec, in [`specs/README.md`](specs/README.md#api-quirks-worth-knowing) — including which identifiers are safe to join on.
 
-The API does a few things its own OpenAPI document does not describe. The source does not paper over them — records land as sent — so they reach you, and this section is where they are kept current. The two that change how you read the data:
-
-- **`behaviour_swim_speed` and `behaviour_breathing_index` return timestamps with no time zone** (`2026-01-10T00:00:00`), where `environmental` returns the same kind of field with a `Z`. The source does not rewrite them — they land as sent. Treat them as UTC, which is what the zoned endpoints use.
-- **`lice_count` omits its five count fields entirely on a zero-sample record**, rather than sending nulls. Those columns are typed by the model and land as `NULL`, so `sampleSize = 0` is the condition to filter on, not `adultFemale IS NULL`.
-
-And one that bites when you are debugging rather than reading:
-
-- **The API ignores a query parameter it does not recognise instead of rejecting it.** Verified by sending an invented parameter name, which returned `200` and a normal result set. So a mistyped parameter is indistinguishable from a correct request — send `fromDat` instead of `fromDate` and you get the endpoint's own default window with nothing to tell you the window you asked for was dropped. Invalid *values* are rejected properly (`period=15min` on an endpoint allowing only `h` and `D` returns `422`); it is only unknown *names* that pass silently. This is also why `/behaviour/breathingIndex` accepting a `period` it does not document is no evidence that it supports one.
-
-The API declares `external_site_id` on a site and `external_id` on a pen, but returned neither for the account this was checked against. Both columns exist in the destination — the models declare them — and hold `NULL`. These carry a customer's own identifiers for a third-party system, so an empty column most likely means the account has not populated them rather than anything being wrong. Join sites on `governmentSiteNumber` and pens on `id`, both of which were always present.
-
-Do not join on `penCode`. It is a human-readable label whose format the operator chooses, not something the API defines — one account may derive it from the site name and pen number while another uses something else entirely, and a label built that way moves when a site is renamed. `id` is the pen's key.
+**Read it before you write your first query against these tables.** Some of them change what a correct query looks like.
 
 ## Nesting
 

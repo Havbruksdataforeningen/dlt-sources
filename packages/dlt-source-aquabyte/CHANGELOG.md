@@ -8,7 +8,7 @@ All notable changes to `dlt-source-aquabyte`, written for people using the packa
 
 - Initial source for the Aquabyte API: sites, pens, biomass, lice counts, welfare scores, behaviour (swim speed, breathing index), environmental readings and harvest reports.
 - `harvest_report` types the `fishType` field the API returns.
-- The README lists the [API quirks worth knowing](README.md#api-quirks-worth-knowing) that reach you as a consumer.
+- [API quirks worth knowing](specs/README.md#api-quirks-worth-knowing) records where the live API departs from its own OpenAPI document, in ways that reach you as a consumer.
 
 ### Fixed
 
