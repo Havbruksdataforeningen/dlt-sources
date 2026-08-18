@@ -11,6 +11,7 @@ from typing import Any
 
 import dlt
 import pytest
+import requests
 
 from dlt_source_aquabyte import aquabyte_source
 
@@ -68,6 +69,21 @@ def _source_with(resource_name: str, **bound: Any):
     source = aquabyte_source()
     source.resources[resource_name].bind(**bound)
     return source
+
+
+def _raw_get(path: str, params: dict[str, Any]):
+    """One unmediated request, for asserting on status codes the source never surfaces.
+
+    The source drops unset params and always sends a window, so a malformed or empty
+    value cannot be produced through it — but the API's handling of one is still a claim
+    the report makes, and claims about the API get checked against the API.
+
+    Plain `requests`, deliberately, rather than `dlt.sources.helpers.requests`: that
+    wrapper raises on a 4xx and retries first, and here the 4xx *is* the observation.
+    """
+    base_url = dlt.config["sources.aquabyte.base_url"].rstrip("/")
+    api_key = dlt.secrets["sources.aquabyte.api_key"]
+    return requests.get(f"{base_url}{path}", params=params, headers={"apikey": api_key}, timeout=120)
 
 
 def _count(pipeline: dlt.Pipeline, sql: str) -> int:
@@ -172,6 +188,37 @@ class TestEnvironmental:
             assert rows is not None
             loaded_pens = {row[0] for row in rows}
         assert loaded_pens <= set(live_pen_ids), f"Got data for pens we did not ask for: {loaded_pens}"
+
+
+class TestParameterNullability:
+    """Does the API tell a nullable window parameter from a non-nullable one?
+
+    `/biomass/harvestReport` declares `fromDate` as a bare string and `toDate` as
+    `anyOf: [string, null]`, while every comparable parameter elsewhere is nullable.
+    Both sit on one handler, which makes them the cleanest control available: if the
+    declaration meant anything, it would show up here.
+
+    Omitting a parameter cannot tell them apart — both are `required: false` — so this
+    probes the cases that could: an empty value and a literal `null`.
+    """
+
+    @pytest.mark.parametrize("param", ["fromDate", "toDate"])
+    @pytest.mark.parametrize("value", ["", "null"])
+    def test_neither_declaration_accepts_an_empty_or_null_window(self, param, value):
+        """Report finding 5: the nullable declaration does not describe the behaviour."""
+        response = _raw_get("/biomass/harvestReport", {"penId": "all", param: value})
+        assert response.status_code == 422, (
+            f"{param}={value!r} returned {response.status_code}; the report says every "
+            "window parameter rejects an empty or null value regardless of its declaration"
+        )
+
+    @pytest.mark.parametrize("param", ["fromDate", "toDate"])
+    def test_both_declarations_accept_the_parameter_being_omitted(self, param):
+        """The half that does work: omit it and the documented default window applies."""
+        other = "toDate" if param == "fromDate" else "fromDate"
+        fixed = _TO_DATE if other == "toDate" else _DISCOVERY_FROM_DATE
+        response = _raw_get("/biomass/harvestReport", {"penId": "all", other: fixed})
+        assert response.status_code == 200, f"omitting {param} returned {response.status_code}"
 
 
 class TestEnvironmentalLatest:

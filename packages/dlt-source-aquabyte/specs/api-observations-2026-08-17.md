@@ -34,7 +34,7 @@ says nothing on a point, we say so rather than infer a rule from its silence.
 | 2 | `/behaviour/swimSpeed`, `/behaviour/breathingIndex` | `date-time` fields returned with no UTC offset | The API |
 | 3 | All | Unknown query parameters are accepted rather than rejected | Neither — undocumented, and we would like a decision |
 | 4 | All | Result ordering is not documented | The document |
-| 5 | `/biomass/harvestReport` | `fromDate` typed differently from every comparable parameter | The document |
+| 5 | `/biomass/harvestReport` | `fromDate` typed differently from every comparable parameter, though all behave alike | The document |
 | 6 | `/biomass/harvestReport` | `createdAt` precision differs from other timestamps | Neither — consistency note |
 | 7 | All | `nextToken` pagination could not be exercised | — |
 | 8 | `/sites`, `/sites/{siteId}` | `Site.external_site_id` declared, never returned | Probably neither — see below |
@@ -124,19 +124,38 @@ high-water mark mid-pagination. If the grouping and ordering above are a guarant
 than an accident of the current implementation, saying so in the documentation would let
 consumers rely on it. If they are not a guarantee, that is worth saying too.
 
-## 5. `/biomass/harvestReport` — `fromDate` is typed unlike every comparable parameter
+## 5. `/biomass/harvestReport` — `fromDate` is typed unlike every comparable parameter, with no behavioural difference
 
 **The document says:** `fromDate` on this endpoint is `"required": false` with schema
 `{"type": "string", "format": "date"}`. Every other optional date or time parameter in
 the API — `toDate` on this same endpoint, and `fromDate`/`toDate`/`fromTime`/`toTime`
 elsewhere — is declared as `anyOf: [string, null]`.
 
-**The API did:** accepted the request with `fromDate` omitted and returned 200, which is
-what `"required": false` promises.
+**The API did:** behave identically under both declarations. We compared this `fromDate`
+against `toDate` on the same endpoint — the cleanest control available, since the two sit
+on one handler but are declared differently — and against the equivalent parameters on
+`/biomass`, `/liceCount`, `/welfareScores`, `/environmental`, `/behaviour/swimSpeed` and
+`/behaviour/breathingIndex`. Every one of them behaved the same way:
 
-**Presumed wrong:** the document. The behaviour is right; only the type declaration is
-inconsistent with its neighbours. Code generators that read the document will produce a
-non-nullable parameter here and a nullable one everywhere else.
+| Request | Result, identical in all cases |
+|---|---|
+| Parameter omitted | 200, with the documented default window |
+| Parameter sent empty | 422, `Input should be a valid date or datetime, input is too short` |
+| Parameter sent as the literal `null` | 422, same message |
+| Parameter sent malformed | 422, `invalid character in year` |
+
+**Presumed wrong:** the document — but in the opposite direction to the one we first
+assumed. Since no parameter anywhere accepts an empty or a null value, it is the
+`anyOf: [string, null]` declaration on all the *others* that fails to describe the
+behaviour: it suggests a null may be sent, and it may not. The bare-string declaration on
+this endpoint's `fromDate` is the one that matches what the API actually does. The only
+way to not supply any of these parameters is to omit it entirely.
+
+Nothing here breaks for us, and we are not asking for a behaviour change — omitting a
+parameter to get the default window works everywhere, which is the useful part. But the
+declarations should agree with each other and with the behaviour, since a code generator
+reading the document today produces a nullable parameter almost everywhere and a
+non-nullable one here, and neither shape can actually carry a null.
 
 ## 6. `/biomass/harvestReport` — `createdAt` precision differs from other timestamps
 
@@ -216,7 +235,9 @@ So that this is not only a list of problems:
 - `period` enum values are validated against exactly the values the document declares,
   including the difference between `/environmental` (which accepts `15min`) and
   `/behaviour/swimSpeed` (which does not).
-- Omitting the optional date and time parameters returns the documented default window.
+- Omitting the optional date and time parameters returns the documented default window,
+  on every endpoint that has them, and a malformed value is rejected with a clear
+  validation message naming the parameter.
 - On `/welfareScores`, every welfare category the `WelfareScoresDetail` schema declares
   appeared in the data at least once, and the proportions within a category always summed
   to exactly 1. Categories with no data are omitted from the object rather than returned
