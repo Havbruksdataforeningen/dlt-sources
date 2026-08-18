@@ -21,14 +21,18 @@ that differ from what the document states.
 
 ## Summary
 
-Findings 1–3 look like defects in the API. Findings 4–6 are places the document does not
-match the API's own behaviour or its own conventions. Findings 7–9 are open questions.
+Findings 1 and 2 look like defects in the API. Findings 3 to 6 are points the document
+leaves unstated or states inconsistently, where we think saying more would help. Findings
+7 to 9 are open questions rather than problems.
+
+Each **"the document says"** below refers to the OpenAPI document named above. Where it
+says nothing on a point, we say so rather than infer a rule from its silence.
 
 | # | Endpoint | Observation | We presume wrong |
 |---|---|---|---|
 | 1 | `/liceCount` | Five fields marked required are omitted from some records | The API |
 | 2 | `/behaviour/swimSpeed`, `/behaviour/breathingIndex` | `date-time` fields returned with no UTC offset | The API |
-| 3 | All | Unknown query parameters are accepted rather than rejected | The API |
+| 3 | All | Unknown query parameters are accepted rather than rejected | Neither — undocumented, and we would like a decision |
 | 4 | All | Result ordering is not documented | The document |
 | 5 | `/biomass/harvestReport` | `fromDate` typed differently from every comparable parameter | The document |
 | 6 | `/biomass/harvestReport` | `createdAt` precision differs from other timestamps | Neither — consistency note |
@@ -73,7 +77,10 @@ endpoints that say so. Please confirm whether that assumption is right.
 
 ## 3. All endpoints — unknown query parameters are accepted, not rejected
 
-**The document says:** each endpoint declares a closed set of query parameters.
+**The document says:** nothing on this point. It lists the query parameters each endpoint
+accepts, but does not state what happens to a parameter that is not on that list, and
+OpenAPI itself does not define that either. So this is undefined behaviour rather than
+anything the API contradicts — we raise it because the behaviour has a consequence.
 
 **The API did:** returned 200 and a normal result set when we sent a deliberately
 invented parameter name alongside valid parameters. We tried this on `/sites` and on
@@ -81,18 +88,19 @@ invented parameter name alongside valid parameters. We tried this on `/sites` an
 
 For contrast, the API does validate parameters it knows: sending `period=15min` to
 `/behaviour/swimSpeed`, whose `PeriodEnum` allows only `h` and `D`, correctly returns 422
-with a clear message. And `penId`, which the document marks required on all seven
-endpoints that declare it, is genuinely enforced — omitting it returns 422 everywhere we
-tried.
+with a clear message. And `penId`, which the document marks required wherever it appears,
+is genuinely enforced — omitting it returned 422 on every endpoint we tried it on.
 
-**Presumed wrong:** the API, mildly. The consequence for a consumer is that a mistyped
-parameter name is indistinguishable from a correct request: send `fromDat` instead of
-`fromDate` and you get 200 with the endpoint's default window, and nothing tells you the
-window you asked for was ignored. Rejecting unknown parameters with 422, the way you
-already reject unknown *values*, would turn a silent wrong answer into an obvious error.
+**Presumed wrong:** neither, strictly — but this is the finding we would most like a
+decision on. The consequence for a consumer is that a mistyped parameter name is
+indistinguishable from a correct request: send `fromDat` instead of `fromDate` and you
+get 200 with the endpoint's default window, and nothing tells you the window you asked
+for was ignored. Rejecting unknown parameters with 422, the way you already reject
+unknown *values*, would turn a silent wrong answer into an obvious error.
 
-We appreciate this may be deliberate, to leave room for adding parameters without
-breaking older clients. If so, it is worth stating in the documentation.
+We appreciate the leniency may be deliberate, to leave room for adding parameters without
+breaking older clients. Either way the documentation could say which it is, so that
+consumers know whether to rely on it.
 
 **Related:** `/behaviour/breathingIndex` declares no `period` parameter, while
 `/environmental` and `/behaviour/swimSpeed` both do. Sending `period` to
