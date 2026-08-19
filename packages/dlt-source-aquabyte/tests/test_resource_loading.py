@@ -23,6 +23,7 @@ from tests.conftest import (
     calls_to,
     load_mock,
     params_sent,
+    resource_signature,
     run_source,
     serve,
 )
@@ -161,6 +162,23 @@ def test_resource_falls_back_to_the_configured_start_without_a_cursor_value(mock
     source = aquabyte_source(**SOURCE_CONFIG)
     source.resources[endpoint.resource].apply_hints(incremental=dlt.sources.incremental(endpoint.cursor_path))
     _, load_info = run_source(f"test_no_cursor_{endpoint.resource}", source, [endpoint.resource])
+
+    assert load_info is not None
+    assert params_sent(mock_rest_client, endpoint.path)[0][endpoint.window_param] == endpoint.configured_start
+
+
+@pytest.mark.parametrize("endpoint", ENDPOINTS, ids=lambda endpoint: endpoint.resource)
+def test_resource_accepts_a_disabled_incremental(mock_rest_client, endpoint):
+    """`incremental_*=None` — dlt's own way to switch a cursor off — loads with the configured start."""
+    mock_rest_client.paginate.reset_mock()
+    mock_rest_client.paginate.side_effect = serve({endpoint.path: endpoint.records})
+
+    source = aquabyte_source(**SOURCE_CONFIG)
+    argument = next(
+        name for name in resource_signature(source, endpoint.resource).parameters if name.startswith("incremental_")
+    )
+    source.resources[endpoint.resource].bind(**{argument: None})
+    _, load_info = run_source(f"test_disabled_cursor_{endpoint.resource}", source, [endpoint.resource])
 
     assert load_info is not None
     assert params_sent(mock_rest_client, endpoint.path)[0][endpoint.window_param] == endpoint.configured_start
