@@ -7,6 +7,9 @@ dlt project, point dlt at it, and build the source with **no arguments and no
 environment variables**: whatever the examples fail to supply, the source fails to
 resolve.
 
+The README inlines the same two files, for a reader on PyPI who has no checkout to copy
+from, so it is held to the examples here as well.
+
 Nothing below names a config section. The prefix comes from the source itself, so
 renaming the source's module moves the test, not the consumer.
 """
@@ -14,6 +17,7 @@ renaming the source's module moves the test, not the consumer.
 import os
 import re
 import shutil
+import tomllib
 from pathlib import Path
 from typing import Any
 from unittest.mock import patch
@@ -27,6 +31,7 @@ import dlt_source_aquabyte.aquabyte as aquabyte_module
 from dlt_source_aquabyte import aquabyte_source
 from tests.conftest import resource_signature
 
+README = Path(__file__).parent.parent / "README.md"
 DLT_DIR = Path(__file__).parent.parent / ".dlt"
 SECRETS_EXAMPLE = DLT_DIR / "secrets.toml.example"
 CONFIG_EXAMPLE = DLT_DIR / "config.toml.example"
@@ -105,6 +110,17 @@ def test_config_example_documents_only_real_resource_params(source_from_examples
             )
 
 
+def test_readme_quick_start_matches_the_packaged_examples():
+    """A reader on PyPI copies the README, a reader with a checkout copies the examples.
+
+    They configure the same source, so they have to say the same thing. The example files
+    carry comments and commented-out blocks; only the settings they actually set count.
+    """
+    config, secrets = _readme_toml_blocks()[:2]
+    assert config == {"sources": {"aquabyte": tomllib.loads(CONFIG_EXAMPLE.read_text())["sources"]["aquabyte"]}}
+    assert secrets == tomllib.loads(SECRETS_EXAMPLE.read_text())
+
+
 def test_neither_example_claims_ci_generates_it():
     """CI runs the offline suite with no credentials, so it generates neither file."""
     for example in (SECRETS_EXAMPLE, CONFIG_EXAMPLE):
@@ -131,3 +147,10 @@ def _commented_resource_params(config_example: str, prefix: str) -> dict[str, li
         if param and current:
             documented[current].append(param.group(1))
     return documented
+
+
+def _readme_toml_blocks() -> list[dict[str, Any]]:
+    """Every ```toml fenced block in the README, parsed."""
+    blocks = re.findall(r"```toml\n(.*?)```", README.read_text(), re.DOTALL)
+    assert len(blocks) >= 2, "Expected the README quick start to show config.toml and secrets.toml"
+    return [tomllib.loads(block) for block in blocks]

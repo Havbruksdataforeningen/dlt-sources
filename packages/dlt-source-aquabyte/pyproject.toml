@@ -24,7 +24,6 @@ classifiers = [
 dependencies = [
     # >=1.2 for TScd2StrategyDict, which aquabyte.py imports.
     "dlt>=1.2",
-    "pydantic>=2.0",
 ]
 
 [project.urls]
@@ -94,7 +93,6 @@ markers = [
     "integration: marks tests that hit the real Aquabyte API (run with -m integration)",
 ]
 filterwarnings = [
-    "ignore::DeprecationWarning:dlt.common.libs.pydantic",
     "ignore::DeprecationWarning:dlt.extract.validation",
 ]
 

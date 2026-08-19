@@ -1,4 +1,4 @@
-"""The Pydantic models type the known columns without rejecting what they don't know."""
+"""The column hints type the known columns without the source rejecting what it does not know."""
 
 import copy
 
@@ -33,7 +33,7 @@ def test_unknown_field_lands_in_the_destination(mock_rest_client):
 
 
 def test_known_fields_keep_their_types(mock_rest_client):
-    """The models still do their job: a column of nulls is typed, not guessed at."""
+    """A column of nulls is typed by its hint, not guessed at from the data."""
     records = copy.deepcopy(load_mock("biomass.json")["biomass"])
     for record in records:
         record["kFactor"] = None
