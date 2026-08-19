@@ -13,6 +13,7 @@ import pytest
 from dlt.sources.helpers.rest_client.paginators import SinglePagePaginator
 
 from dlt_source_aquabyte import aquabyte_source
+from dlt_source_aquabyte.aquabyte import _window_start
 from tests.conftest import (
     ACTIVE_PEN_IDS,
     DATE_RANGE,
@@ -23,6 +24,7 @@ from tests.conftest import (
     calls_to,
     load_mock,
     params_sent,
+    resource_signature,
     run_source,
     serve,
 )
@@ -164,6 +166,79 @@ def test_resource_falls_back_to_the_configured_start_without_a_cursor_value(mock
 
     assert load_info is not None
     assert params_sent(mock_rest_client, endpoint.path)[0][endpoint.window_param] == endpoint.configured_start
+
+
+@pytest.mark.parametrize("endpoint", ENDPOINTS, ids=lambda endpoint: endpoint.resource)
+def test_resource_accepts_a_disabled_incremental(mock_rest_client, endpoint):
+    """`incremental_*=None` — dlt's own way to switch a cursor off — loads with the configured start."""
+    mock_rest_client.paginate.reset_mock()
+    mock_rest_client.paginate.side_effect = serve({endpoint.path: endpoint.records})
+
+    source = aquabyte_source(**SOURCE_CONFIG)
+    argument = next(
+        name for name in resource_signature(source, endpoint.resource).parameters if name.startswith("incremental_")
+    )
+    source.resources[endpoint.resource].bind(**{argument: None})
+    _, load_info = run_source(f"test_disabled_cursor_{endpoint.resource}", source, [endpoint.resource])
+
+    assert load_info is not None
+    assert params_sent(mock_rest_client, endpoint.path)[0][endpoint.window_param] == endpoint.configured_start
+
+
+@pytest.mark.parametrize("endpoint", ENDPOINTS, ids=lambda endpoint: endpoint.resource)
+def test_resource_requests_the_window_a_backfill_incremental_carries(mock_rest_client, endpoint):
+    """A bound backfill incremental drives both window params — start from its
+    `initial_value`, end from its `end_value` — so the API is asked for exactly the
+    rows dlt will keep."""
+    mock_rest_client.paginate.reset_mock()
+    mock_rest_client.paginate.side_effect = serve({endpoint.path: endpoint.records})
+
+    start, end = endpoint.window.values()
+    source = aquabyte_source(**SOURCE_CONFIG)
+    argument = next(
+        name for name in resource_signature(source, endpoint.resource).parameters if name.startswith("incremental_")
+    )
+    window = dlt.sources.incremental(initial_value=start, end_value=end)
+    source.resources[endpoint.resource].bind(**{argument: window})
+    _, load_info = run_source(f"test_backfill_{endpoint.resource}", source, [endpoint.resource])
+
+    assert load_info is not None
+    sent = params_sent(mock_rest_client, endpoint.path)[0]
+    assert sent[endpoint.window_param] == start
+    assert sent[endpoint.window_param.replace("from", "to")] == end
+
+
+@pytest.mark.parametrize("endpoint", ENDPOINTS, ids=lambda endpoint: endpoint.resource)
+def test_resource_refuses_a_window_start_behind_an_active_cursor(mock_rest_client, endpoint):
+    """A window reaching back before the cursor is an error, never a silent empty load."""
+    mock_rest_client.paginate.side_effect = serve({endpoint.path: endpoint.records})
+
+    source = aquabyte_source(**SOURCE_CONFIG)
+    argument = "from_date" if endpoint.window_param == "fromDate" else "from_time"
+    behind_the_cursor = "2019-01-01" if argument == "from_date" else "2019-01-01T00:00:00Z"
+    source.resources[endpoint.resource].bind(**{argument: behind_the_cursor})
+
+    with pytest.raises(Exception, match="reaches back before the incremental cursor"):
+        run_source(f"test_window_behind_{endpoint.resource}", source, [endpoint.resource])
+
+
+def test_cursor_starts_are_not_required_by_resources_that_take_no_cursor(mock_rest_client):
+    """`sites` loads with only base_url and api_key — the cursor starts are not its business."""
+    mock_rest_client.paginate.side_effect = serve({"/sites": load_mock("sites.json")["sites"]})
+
+    source = aquabyte_source(base_url=SOURCE_CONFIG["base_url"], api_key=SOURCE_CONFIG["api_key"])
+    _, load_info = run_source("test_sites_without_cursor_starts", source, ["sites"])
+
+    assert load_info is not None
+
+
+def test_window_start_refuses_to_run_with_nothing_to_send():
+    """No bound window, no cursor value, no configured start: a clear error, never an
+    open window the API fills in silently."""
+    with pytest.raises(ValueError, match="initial_time"):
+        _window_start("environmental", "fromTime", None, None, None)
+    with pytest.raises(ValueError, match="initial_date"):
+        _window_start("biomass", "fromDate", None, None, None)
 
 
 @pytest.mark.parametrize("endpoint", WITH_OPTIONAL, ids=lambda endpoint: endpoint.resource)

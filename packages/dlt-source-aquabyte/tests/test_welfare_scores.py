@@ -8,6 +8,8 @@ and that is exactly what must land. Unpivoting is the consumer's transform.
 import copy
 import json
 
+import dlt
+
 from dlt_source_aquabyte import aquabyte_source
 from tests.conftest import (
     DATE_RANGE,
@@ -83,9 +85,12 @@ def test_welfare_scores_merges_on_pen_and_date(mock_rest_client):
     source.welfare_scores.bind(pen_id="pen-001", **DATE_RANGE)
     pipeline, _ = run_source("test_welfare_merge", source, ["welfare_scores"])
 
+    # Re-reading a window the cursor has moved past means backfilling: the window is
+    # bound on the incremental, so the rows are genuinely fetched and merged again.
     mock_rest_client.paginate.side_effect = serve({"/welfareScores": RECORDS})
     rerun = aquabyte_source(**SOURCE_CONFIG)
-    rerun.welfare_scores.bind(pen_id="pen-001", **DATE_RANGE)
+    window = dlt.sources.incremental(initial_value="2026-01-01", end_value="2026-02-01")
+    rerun.welfare_scores.bind(pen_id="pen-001", incremental_date=window)
     pipeline.run(rerun.with_resources("welfare_scores"))
 
     assert_row_count(pipeline, "welfare_scores", len(RECORDS))
