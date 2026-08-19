@@ -196,7 +196,9 @@ def aquabyte_source(
         for site in sites_page:
             yield from site.get("pens") or []
 
-    @dlt.resource(write_disposition="merge", primary_key=["penId", "fromTime"], columns=EnvironmentalDataPoint)
+    @dlt.resource(
+        write_disposition="merge", primary_key=["penId", "fromTime", "toTime"], columns=EnvironmentalDataPoint
+    )
     def environmental(
         pen_id: PenId = "all",
         from_time: str | None = None,
@@ -297,7 +299,7 @@ def aquabyte_source(
             data_selector="liceCount",
         )
 
-    @dlt.resource(write_disposition="merge", primary_key=["penId", "fromTime"], columns=BehaviorSwimSpeed)
+    @dlt.resource(write_disposition="merge", primary_key=["penId", "fromTime", "toTime"], columns=BehaviorSwimSpeed)
     def behaviour_swim_speed(
         pen_id: PenId = "all",
         from_time: str | None = None,
