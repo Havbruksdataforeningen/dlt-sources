@@ -156,9 +156,7 @@ def aquabyte_source(
     def sites(site_id: str | None = None, params: dict[str, Any] | None = None):
         """Every site from `GET /sites`, or one from `GET /sites/{siteId}` when `site_id` is bound.
 
-        Both endpoints write the same table. Pens stay nested as the API nests them, and
-        version the site along with its own fields: dlt's default row hash covers the
-        whole record, so the nested snapshot cannot drift from what the API reported.
+        Both endpoints write the same table.
         """
         pages = client.paginate(
             f"/sites/{site_id}" if site_id is not None else "/sites",
