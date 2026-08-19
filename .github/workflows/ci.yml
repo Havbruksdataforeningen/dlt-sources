@@ -136,13 +136,15 @@ jobs:
       # Every package must build on every PR. A packaging error found at release
       # time is found at the worst possible moment; this makes a green PR mean
       # "publishable", which is the whole point of the gate.
+      # --no-sources matches the release build exactly: workspace redirects
+      # disabled, so the package builds as a PyPI consumer would get it.
       - name: uv build
         run: |
           set -euo pipefail
           for d in packages/*/; do
             pkg="$(basename "${d}")"
             echo "::group::${pkg}"
-            uv build --package "${pkg}"
+            uv build --package "${pkg}" --no-sources
             echo "::endgroup::"
           done
 
