@@ -1,0 +1,26 @@
+# Keeps the SHA-pinned actions in .github/workflows current.
+#
+# ci.yml and release.yml pin every action to a commit SHA, because a tag is a
+# mutable pointer its owner can move — the failure mode `tj-actions/changed-files`
+# demonstrated in 2025, when every tag was repointed at a commit that dumped CI
+# secrets into build logs. A SHA cannot be moved, which is the point, and also the
+# problem: left alone it never picks up the action's own security fixes either.
+#
+# Dependabot rewrites the SHA and the `# vX.Y.Z` comment beside it together. That
+# comment is load-bearing, not decoration: it is how Dependabot knows which
+# version a pin currently is, and how a human reads a pin at all.
+
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    # "/" means the repository, covering every file in .github/workflows —
+    # not only actions referenced from the root directory.
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    # One pull request for all of them. Each update is a two-line diff and the
+    # decision is the same for every action, so separate PRs would multiply the
+    # review without adding anything to review.
+    groups:
+      actions:
+        patterns: ["*"]
