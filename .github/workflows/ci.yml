@@ -42,8 +42,10 @@ jobs:
           set -euo pipefail
           for d in packages/*/; do
             echo "::group::${d}"
-            paths="src tests"
-            if [ -d "${d}examples" ]; then paths="${paths} examples"; fi
+            paths=""
+            for p in src tests examples; do
+              if [ -d "${d}${p}" ]; then paths="${paths} ${p}"; fi
+            done
             (cd "${d}" && uv run ruff format --check ${paths})
             echo "::endgroup::"
           done
@@ -63,8 +65,10 @@ jobs:
           set -euo pipefail
           for d in packages/*/; do
             echo "::group::${d}"
-            paths="src tests"
-            if [ -d "${d}examples" ]; then paths="${paths} examples"; fi
+            paths=""
+            for p in src tests examples; do
+              if [ -d "${d}${p}" ]; then paths="${paths} ${p}"; fi
+            done
             (cd "${d}" && uv run ruff check --output-format=github ${paths})
             echo "::endgroup::"
           done
