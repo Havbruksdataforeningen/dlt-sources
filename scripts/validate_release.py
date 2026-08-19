@@ -6,10 +6,12 @@
 
 from __future__ import annotations
 
+import re
 import sys
 import tomllib
 import urllib.error
 import urllib.request
+from datetime import date, timedelta
 from pathlib import Path
 
 from packaging.version import InvalidVersion, Version
@@ -63,13 +65,45 @@ def check_changelog_has_entry(package: str, version: Version, version_str: str) 
             f"packages/{package}/CHANGELOG.md does not exist. "
             "Create it and write the changelog entry before tagging (docs/release.md, step 3)."
         ]
-    if f"## [{version_str}]" in changelog.read_text(encoding="utf-8"):
-        print(f"OK: CHANGELOG.md has a section for {version_str}")
-        return []
-    return [
-        f"packages/{package}/CHANGELOG.md has no '## [{version_str}]' section. "
-        "Write the changelog entry before tagging (docs/release.md, step 3)."
-    ]
+    text = changelog.read_text(encoding="utf-8")
+    if f"## [{version_str}]" not in text:
+        return [
+            f"packages/{package}/CHANGELOG.md has no '## [{version_str}]' section. "
+            "Write the changelog entry before tagging (docs/release.md, step 3)."
+        ]
+    print(f"OK: CHANGELOG.md has a section for {version_str}")
+    return check_changelog_date(package, version_str, text)
+
+
+# The date is written by hand on the release day, and a release can sit on a branch for
+# weeks before it is tagged. Nothing else notices a stale one — it just ships wrong.
+STALE_AFTER_DAYS = 7
+
+
+def check_changelog_date(package: str, version_str: str, text: str) -> list[str]:
+    """The section's date must be present, well-formed, and about today."""
+    heading = re.search(rf"^## \[{re.escape(version_str)}\](.*)$", text, re.MULTILINE)
+    stamped = re.match(r"\s*-\s*(\d{4}-\d{2}-\d{2})\s*$", heading.group(1) if heading else "")
+    if not stamped:
+        return [
+            f"packages/{package}/CHANGELOG.md heading for {version_str} carries no 'YYYY-MM-DD' date. "
+            "Date-stamp it with the release day (docs/release.md, step 3)."
+        ]
+    try:
+        stamp = date.fromisoformat(stamped.group(1))
+    except ValueError:
+        return [f"packages/{package}/CHANGELOG.md dates {version_str} as {stamped.group(1)!r}, not a real date."]
+
+    today = date.today()
+    if stamp > today:
+        return [f"packages/{package}/CHANGELOG.md dates {version_str} as {stamp}, which is in the future."]
+    if today - stamp > timedelta(days=STALE_AFTER_DAYS):
+        return [
+            f"packages/{package}/CHANGELOG.md dates {version_str} as {stamp}, over {STALE_AFTER_DAYS} days ago. "
+            "Restamp it with the release day (docs/release.md, step 3)."
+        ]
+    print(f"OK: CHANGELOG.md dates {version_str} {stamp}")
+    return []
 
 
 def check_not_already_published(version: Version, version_str: str, project: dict) -> list[str]:
