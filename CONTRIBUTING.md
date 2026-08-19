@@ -51,7 +51,7 @@ The one manual step is PyPI registration before the first publish: [`docs/releas
 
 ## Pull requests
 
-Branch off `main`. Pull requests are squash-merged, so the title becomes the commit message — write it as a plain sentence, prefixed with the package name when it concerns one:
+Branch off `main`. Prefix PR titles with the package name when it concerns one:
 
 ```
 dlt-source-aquabyte: type the fishType field on harvest_report
