@@ -2,11 +2,35 @@
 name = "dlt-source-aquabyte"
 version = "0.1.0"
 description = "dlt source package for the Aquabyte API v3"
+readme = "README.md"
 requires-python = ">=3.11"
+# PEP 639: an SPDX expression plus the file, not a classifier. The two forms
+# cannot be combined, so there is deliberately no "License ::" classifier below.
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+authors = [{ name = "Havbruksdataforeningen" }]
+keywords = ["dlt", "aquabyte", "aquaculture", "salmon", "etl", "elt", "data-ingestion"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Database",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Typing :: Typed",
+]
 dependencies = [
     "dlt>=1.0",
     "pydantic>=2.0",
 ]
+
+[project.urls]
+Homepage = "https://github.com/Havbruksdataforeningen/dlt-sources/tree/main/packages/dlt-source-aquabyte"
+Repository = "https://github.com/Havbruksdataforeningen/dlt-sources"
+Changelog = "https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/CHANGELOG.md"
+Issues = "https://github.com/Havbruksdataforeningen/dlt-sources/issues"
 
 [dependency-groups]
 dev = [
@@ -21,6 +45,11 @@ dev = [
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+# Ships the PEP 561 marker, so a consumer's type checker reads this package's
+# annotations instead of treating it as untyped.
+[tool.setuptools.package-data]
+dlt_source_aquabyte = ["py.typed"]
 
 [tool.ruff]
 line-length = 120
@@ -71,5 +100,5 @@ filterwarnings = [
 ]
 
 [build-system]
-requires = ["setuptools>=75.0"]
+requires = ["setuptools>=77.0.3"]  # >=77 for PEP 639 license / license-files
 build-backend = "setuptools.build_meta"

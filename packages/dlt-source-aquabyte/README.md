@@ -2,29 +2,28 @@
 
 An installable [dlt](https://dlthub.com/) source package that ingests aquaculture data from the [Aquabyte API v3](https://api.aquabyte.ai/v3/docs) into any dlt destination.
 
-The source's only opinions are mechanics: auth, pagination, envelope unwrapping, incremental cursors, and overridable key/write-disposition defaults. **Records land exactly as the API returns them** — nothing renamed, flattened, filtered or dropped. Reshaping belongs in your transform layer, where you can change it without waiting for a release.
+**Records land exactly as the API returns them** — nothing renamed, flattened, filtered or dropped. The source's only opinions are mechanics: auth, pagination, envelope unwrapping, incremental cursors, and overridable key/write-disposition defaults. Reshaping belongs in your transform layer, where you can change it without waiting for a release.
 
-It depends on dlt and pydantic, and on nothing else: no destination, orchestrator, secrets manager or logging backend is chosen for you. Those are your stack's decisions, shown as runnable code in [`examples/`](examples/).
+It depends on dlt and pydantic and nothing else — destination, orchestrator, secrets manager and log routing stay your choices, shown as runnable code in [`examples/`](https://github.com/Havbruksdataforeningen/dlt-sources/tree/main/packages/dlt-source-aquabyte/examples).
 
-## Installation
+## Compatibility
 
-```bash
-uv sync              # Library only
-uv sync --group dev  # With dev/test dependencies (includes DuckDB)
-```
+| `dlt-source-aquabyte` | Aquabyte API |
+|---|---|
+| 0.1.x | v3.1 |
+
+The two numbers are unrelated: the package version is ordinary [SemVer](https://semver.org/) describing what changed *for you*, and never mirrors the API's.
+
+**Tested** — built against that version's [`specs/openapi.json`](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/specs/README.md), asserted by `tests/test_param_surface.py`, and run against the live API (last on 2026-08-17). **Expected to work** — any later backwards-compatible version: the source holds no opinions the API can invalidate, so a compatible change usually needs no release here. Nothing verifies that for you; on a version not in the table, run the suite first.
+
+The [`CHANGELOG`](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/CHANGELOG.md) gets a line only when this table changes.
 
 ## Quick start
 
 ```bash
-# 1. Install with dev dependencies
-uv sync --group dev
-
-# 2. Configure credentials
+uv sync --group dev                              # --group dev adds DuckDB and the test deps
 cp .dlt/config.toml.example .dlt/config.toml
-cp .dlt/secrets.toml.example .dlt/secrets.toml
-# Edit .dlt/secrets.toml and add your API key
-
-# 3. Run
+cp .dlt/secrets.toml.example .dlt/secrets.toml   # then put your API key in it
 uv run python examples/quickstart.py
 ```
 
@@ -55,51 +54,49 @@ print(pipeline.run(aquabyte_source()))
 | `behaviour_breathing_index` | `GET /behaviour/breathingIndex` | merge | `penId`, `fromTime` |
 | `welfare_scores` | `GET /welfareScores` | merge | `penId`, `date` |
 
-`sites` reads every site by default. Binding `site_id` switches it to `GET /sites/{siteId}`, the API's only way to ask for one:
+`sites` reads every site. Binding `site_id` switches it to `GET /sites/{siteId}`, the API's only way to ask for one:
 
 ```python
 source = aquabyte_source()
 source.sites.bind(site_id="site-001")
 ```
 
-Both endpoints write the same `sites` table. Backfilling one site does not disturb the others — see [The registry tables are versioned](#the-registry-tables-are-versioned).
+Both endpoints write the same `sites` table, and backfilling one site does not disturb the others — see below.
 
-`pens` unwraps the pens the `/sites` response nests inside each site — every pen, active or not. The data resources do not depend on it: they use the API's own `penId=all`, one request instead of one per pen.
+`pens` unwraps the pens nested inside each `/sites` record — every pen, active or not. The data resources do not need it: they use the API's own `penId=all`, one request instead of one per pen.
 
 ### The registry tables are versioned
 
-`/sites` reports what exists *today*, so replacing `sites` and `pens` each run would drop a row the moment it left the response — and a pen leaves as soon as it is emptied, after possibly years of production. Both tables therefore load with dlt's [`scd2` strategy](https://dlthub.com/docs/general-usage/merge-loading#scd2-strategy): **a row is never deleted**, only retired by stamping `_dlt_valid_to`.
+`/sites` reports what exists *today*, and a pen leaves it as soon as it is emptied, possibly after years of production. Replacing these tables each run would drop the row with it, so both load with dlt's [`scd2` strategy](https://dlthub.com/docs/general-usage/merge-loading#scd2-strategy): **a row is never deleted**, only retired by stamping `_dlt_valid_to`.
 
 ```sql
 SELECT * FROM pens WHERE _dlt_valid_to IS NULL;                    -- current
 SELECT * FROM pens WHERE id = 'pen-002' ORDER BY _dlt_valid_from;  -- one pen's history
 ```
 
-**What counts as a new version.** For `pens`, any field changing — including `isActive`. For `sites`, the site's own fields only: dlt hashes the whole record by default, so a renamed pen would otherwise version its site too. `sites` carries a `_site_version` column (everything the API returns for the site except `pens`) and uses it as dlt's [`row_version_column_name`](https://dlthub.com/blog/scd2-nested-json-data-cost-optimization). A consequence worth knowing: when only pens change, the `sites` row is untouched, so its nested `pens` snapshot stays at the older value — `pens` is the table to read for pen state.
+**What counts as a new version.** Any `pens` field changing, `isActive` included. For `sites`, its own fields only — dlt hashes the whole record by default, so a renamed pen would otherwise version its site too; `sites` carries a `_site_version` column (everything except `pens`) used as dlt's [`row_version_column_name`](https://dlthub.com/blog/scd2-nested-json-data-cost-optimization). So when only pens change, the `sites` row is untouched and its nested `pens` snapshot goes stale: read `pens` for pen state.
 
-**`merge_key="id"`** scopes retirement to the ids a load actually carried, which is what makes `source.sites.bind(site_id=...)` safe: reading one site retires nothing belonging to the others. The deliberate trade-off is that a site or pen absent from a *full* response is not retired either, and stays current indefinitely. Retire-on-absence and safe partial loads are the same switch; this source picks the one that cannot lose data.
+**`merge_key="id"`** scopes retirement to the ids a load actually carried, which is what makes `bind(site_id=...)` safe. The trade-off: a site or pen absent from a *full* response is not retired either, and stays current indefinitely. Retire-on-absence and safe partial loads are the same switch, and this source picks the one that cannot lose data.
 
-⚠️ To choose the other side, drop the merge key — but only on a pipeline's **first** load. dlt stores `merge_key` on the column and does not remove it when a later run stops setting the hint, so `apply_hints(merge_key=())` against an existing table is silently ignored (verified against dlt 1.30). Changing your mind later means editing the stored schema or loading into a fresh dataset.
+⚠️ To choose the other side, drop the merge key on a pipeline's **first** load only. dlt stores `merge_key` on the column and never removes it, so `apply_hints(merge_key=())` against an existing table is silently ignored (verified against dlt 1.30).
 
 Background: [SCD2 and incremental loading](https://dlthub.com/blog/scd2-and-incremental-loading).
 
 ### `welfare_scores` is not unpivoted
 
-The API returns one record per pen and date with every welfare category nested inside it, and that is what lands: `penId`, `date`, and the whole nested object as a single JSON column. A category the API adds after this release arrives untouched, because nothing here enumerates categories.
-
-Flattening it into one row per category is a transform on your side — a `LATERAL`/`UNNEST` over the JSON column in your warehouse, or dlt's `add_map` before load.
+The API returns one record per pen and date with every welfare category nested inside, and that is what lands: `penId`, `date`, and the nested object as one JSON column. A category the API adds later arrives untouched, because nothing here enumerates categories. Flattening it is a transform on your side — `LATERAL`/`UNNEST` in your warehouse, or dlt's `add_map` before load.
 
 ### API quirks worth knowing
 
-Records land as the API sends them, so where the API departs from its own OpenAPI document, that reaches you rather than being smoothed over here. Those departures are written down next to the spec, in [`specs/README.md`](specs/README.md#api-quirks-worth-knowing) — including which identifiers to join on, which differs depending on whether you are joining within this dataset or out to your own systems.
+Where the live API departs from its own OpenAPI document, that reaches you rather than being smoothed over here. The departures are written down in [`specs/README.md`](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/specs/README.md#api-quirks-worth-knowing), including which identifiers to join on — which differs depending on whether you join within this dataset or out to your own systems.
 
-**Read it before you write your first query against these tables.** Some of them change what a correct query looks like.
+**Read it before your first query.** Some of them change what a correct query looks like.
 
 ## Nesting
 
-The source sets `max_table_nesting=0`, so a nested object or list lands as one JSON column instead of dlt's automatic child tables. That is the neutral position, not an extra opinion: unnesting invents tables, column names and keys (`_dlt_parent_id`, `_dlt_list_idx`) that exist nowhere in the API, and this source leaves reshaping to you. It also keeps the destination shape a function of the API response alone, rather than of which fields happened to be nested in the first page loaded.
+`max_table_nesting=0`, so a nested object or list lands as one JSON column instead of dlt's automatic child tables. That is the neutral position, not an extra opinion: unnesting invents tables, columns and keys (`_dlt_parent_id`, `_dlt_list_idx`) that exist nowhere in the API, and it would make the destination shape depend on which fields happened to be nested in the first page loaded.
 
-**It is a default, not a lock.** Raise it for the whole source or one resource and dlt unnests as usual:
+**A default, not a lock:**
 
 ```python
 source = aquabyte_source()
@@ -107,7 +104,7 @@ source.max_table_nesting = 2          # every resource
 source.sites.max_table_nesting = 1    # or just one — gives you a sites__pens table
 ```
 
-This is also why the Pydantic models in `schemas.py` declare scalar fields only. A declared nested field becomes a column hint that dlt honours *over* this setting, which would silently ignore a consumer who raised it. Nested fields still land — the models allow extra fields — but their shape stays your call. The one exception is `pens`, which is unwrapped by an explicit transformer you can see in the resource list, rather than by dlt behind your back.
+This is also why the models in `schemas.py` declare scalar fields only: a declared nested field becomes a column hint dlt honours *over* this setting, silently ignoring a consumer who raised it. Nested fields still land — the models allow extras — but their shape stays your call. The one exception is `pens`, unwrapped by an explicit transformer rather than by dlt behind your back.
 
 ## Parameters
 
@@ -120,8 +117,8 @@ source.environmental.bind(period="15min")
 pipeline.run(source)
 ```
 
-- **`pen_id`** defaults to `"all"` — the API's own value for "every pen", in one request. Pass a single pen id, or a list to issue one request per pen. It is the one param `params` cannot override: `penId` is re-stamped per request after the merge, because it drives the fan-out.
-- **Window params** (`from_date`/`from_time`) default to the incremental cursor, and are always sent — falling back to the configured `initial_date`/`initial_time` if there is no cursor value, so a run never silently inherits the API's own default window. Passing one explicitly overrides the cursor for that run.
+- **`pen_id`** defaults to `"all"` — the API's own value for "every pen", in one request. Pass one id, or a list to issue one request per pen. The one param `params` cannot override: it drives the fan-out, so `penId` is re-stamped per request after the merge.
+- **Window params** (`from_date`/`from_time`) default to the incremental cursor and are always sent, falling back to `initial_date`/`initial_time` when there is no cursor value — so a run never silently inherits the API's own default window. Passing one explicitly overrides the cursor for that run.
 - **`params`** is on every resource and merged into the query string last — the escape hatch for a query param the API grows later, no release needed.
 
 Params can also be set in config, per resource:
@@ -131,27 +128,27 @@ Params can also be set in config, per resource:
 period = "15min"
 ```
 
-`tests/test_param_surface.py` asserts each resource's signature against `specs/openapi.json`, so the published parameter surface cannot drift from the spec.
+`tests/test_param_surface.py` asserts each resource's signature against `specs/openapi.json`, so the parameter surface cannot drift from the spec.
 
 ### What the source does not expose
 
-**`nextToken`**, on the six endpoints that document it. It is pagination mechanics, owned by dlt's `JSONResponseCursorPaginator`, which reads `nextToken` from each response and sends it on the next request until it is absent. Exposing it would let a caller break their own pagination. The other four read endpoints — `/sites`, `/sites/{siteId}`, `/environmental/latest` and `/biomass/harvestReport` — return no `nextToken` at all, so their resources read a single page (`SinglePagePaginator`) rather than hoping a cursor paginator terminates.
+**`nextToken`**, on the six endpoints documenting it — pagination mechanics owned by dlt's `JSONResponseCursorPaginator`, and exposing it would let a caller break their own pagination. The other four read endpoints (`/sites`, `/sites/{siteId}`, `/environmental/latest`, `/biomass/harvestReport`) return none, so their resources read a single page rather than hoping a cursor paginator terminates.
 
-⚠️ **The paginator has never actually run.** As of 2026-08-17 no live response had carried a `nextToken`: the API caps a result set at 10,000 records, and nothing we asked for came close. The wiring is right by inspection and the offline suite covers it, but the first backfill wide enough to hit the cap will be the first real test of it.
+⚠️ **The paginator has never actually run.** As of 2026-08-17 no live response had carried a `nextToken`: the API caps a result set at 10,000 records and nothing we asked for came close. The wiring is right by inspection and the offline suite covers it, but the first backfill wide enough to hit the cap will be its first real test.
 
-**The eight `/pens/{penId}/…` path variants.** The spec marks every one of them `deprecated: true`. They are the v3.0 shape of the same data; v3.1 replaced them with `?penId=` on the flat endpoints. None of them accepts a `nextToken` query param either, so a result set past the API's record cap cannot be paged through — and `penId=all` fetches every pen in one request where the path variants need one per pen. To read one pen, bind `pen_id="pen-abc"`; to read several, bind a list.
+**The eight `/pens/{penId}/…` path variants**, marked `deprecated: true` — the v3.0 shape of the same data, replaced in v3.1 by `?penId=`. None accepts `nextToken`, so a result set past the record cap cannot be paged through, and `penId=all` fetches every pen in one request. Bind `pen_id` to read one pen or several.
 
-**`POST /superiorRate`.** The spec marks it "(Experimental API) … subject to change", and it is a POST computation rather than a read endpoint. Worth revisiting once it leaves preview.
+**`POST /superiorRate`** — marked "(Experimental API) … subject to change", and a POST computation rather than a read endpoint. Worth revisiting once it leaves preview.
 
-The API's rate limit and result cap are documented in `specs/openapi.json`. The package does not throttle; a consumer close to the limit should prefer `pen_id="all"` over per-pen fan-out, which is one request instead of one per pen.
+Rate limit and result cap are in `specs/openapi.json`. The package does not throttle; close to the limit, prefer `pen_id="all"` over per-pen fan-out.
 
 ## Schemas
 
-The Pydantic models in `schemas.py` give the destination proper column types even when the first page is all nulls, and double as documentation of the API's record shapes. They allow extra fields, which dlt reads as the `evolve` column contract: **a field the API adds lands as a new column instead of failing the load.** They type scalar fields only — see [Nesting](#nesting) for why.
+The Pydantic models in `schemas.py` give the destination proper column types even when the first page is all nulls. They allow extra fields, which dlt reads as the `evolve` column contract: **a field the API adds lands as a new column instead of failing the load.** Scalar fields only — see [Nesting](#nesting).
 
 ## Logging
 
-The package logs on the named logger `dlt_source_aquabyte` and installs no handlers — routing is yours, via standard `logging`. It logs only what dlt cannot: an explicit window overriding the incremental cursor (INFO), a pen-id fan-out (INFO), a window start falling back to config because there was no cursor value (WARNING), and the cursor value a run resumed from (DEBUG). dlt itself logs the requests. On failure it raises. See [`examples/logging_setup.py`](examples/logging_setup.py).
+The package logs on the named logger `dlt_source_aquabyte` and installs no handlers; routing is yours, via standard `logging`. It logs only what dlt cannot: an explicit window overriding the cursor (INFO), a pen-id fan-out (INFO), a window start falling back to config (WARNING), and the cursor value a run resumed from (DEBUG). dlt logs the requests. On failure it raises. See [`examples/logging_setup.py`](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/examples/logging_setup.py).
 
 ## Configuration
 
@@ -164,7 +161,7 @@ initial_date = "2020-01-01"             # first-run start for date-based cursors
 initial_time = "2020-01-01T00:00:00Z"   # first-run start for time-based cursors
 ```
 
-How far back your own data goes depends on when your cameras started reporting each metric, so it differs per endpoint and per account. Setting these earlier than your true start costs nothing but empty requests: the API returns an empty result set rather than an error.
+How far back your data goes depends on when your cameras started reporting each metric, so it differs per endpoint and per account. Setting these earlier than your true start costs only empty requests — the API returns an empty result set, not an error.
 
 `.dlt/secrets.toml`:
 
@@ -175,37 +172,27 @@ api_key = "your-api-key-here"
 
 ## Examples
 
-One concept each, in a dozen lines or so — run any of them with `uv run python examples/<name>.py`.
+One concept each — run any of them with `uv run python examples/<name>.py`.
 
 | Example | The one concept |
 |---|---|
-| [`quickstart.py`](examples/quickstart.py) | Load every resource into DuckDB |
-| [`daily_load.py`](examples/daily_load.py) | Re-running resumes from the stored cursor |
-| [`backfill.py`](examples/backfill.py) | Bind an explicit window, ignoring the cursor |
-| [`logging_setup.py`](examples/logging_setup.py) | Route the package's logger consumer-side |
+| [`quickstart.py`](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/examples/quickstart.py) | Load every resource into DuckDB |
+| [`daily_load.py`](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/examples/daily_load.py) | Re-running resumes from the stored cursor |
+| [`backfill.py`](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/examples/backfill.py) | Bind an explicit window, ignoring the cursor |
+| [`logging_setup.py`](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/examples/logging_setup.py) | Route the package's logger consumer-side |
 
 ## Development
 
 ```bash
-uv sync --group dev                                      # Install dependencies
-uv run ruff check --fix src/ tests/ examples/ && uv run ruff format src/ tests/ examples/  # Lint and format
-uv run pyright                                            # Type check
-uv run python -m pytest -m "not integration"              # Unit tests (mocked API)
-uv run python -m pytest -m integration                    # Integration tests (needs credentials)
-uv run python -m pytest --clean-db                        # ...and delete the DuckDB files afterwards
+uv sync --group dev
+uv run ruff format src tests examples && uv run ruff check --fix src tests examples
+uv run pyright
+uv run pytest                    # offline; -m integration hits the live API
+uv run pytest --clean-db         # ...and delete the DuckDB files afterwards
 ```
 
-## Project structure
+`src/` holds the source (`aquabyte.py`) and its Pydantic models (`schemas.py`); `specs/` holds the OpenAPI document both are built against. CI, releasing and how to contribute are the repository's, not this package's — see [`CONTRIBUTING.md`](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/CONTRIBUTING.md).
 
-```
-dlt-source-aquabyte/
-├── src/dlt_source_aquabyte/
-│   ├── __init__.py      # Re-exports aquabyte_source, __version__
-│   ├── aquabyte.py      # Source, resources and transformer
-│   └── schemas.py       # Pydantic models from the OpenAPI schemas
-├── examples/            # Runnable consumer-side setups
-├── specs/               # OpenAPI spec (source of truth)
-├── tests/               # pytest tests + mock_responses/ + conftest.py
-├── .dlt/                # Config and secrets (not committed)
-└── .github/workflows/   # CI workflow (quality + integration)
-```
+## License
+
+[Apache-2.0](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/LICENSE). `specs/openapi.json` is Aquabyte's own OpenAPI document, included as the spec this package is built against; it is their material, and the licence does not extend to it.
