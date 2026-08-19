@@ -74,7 +74,7 @@ SELECT * FROM pens WHERE _dlt_valid_to IS NULL;                    -- current
 SELECT * FROM pens WHERE id = 'pen-002' ORDER BY _dlt_valid_from;  -- one pen's history
 ```
 
-**What counts as a new version.** Any `pens` field changing, `isActive` included. For `sites`, its own fields only — dlt hashes the whole record by default, so a renamed pen would otherwise version its site too; `sites` carries a `_site_version` column (everything except `pens`) used as dlt's [`row_version_column_name`](https://dlthub.com/blog/scd2-nested-json-data-cost-optimization). So when only pens change, the `sites` row is untouched and its nested `pens` snapshot goes stale: read `pens` for pen state.
+**What counts as a new version.** Any field of the record changing. For `pens` that includes `isActive`; for `sites` it includes the nested `pens` list, so a pen being renamed, going inactive or leaving the response versions its site too. The nested snapshot on the current site row therefore always shows the pens the API last reported — and so a site accumulates a version per pen change, which at a member company's site count is a handful of rows.
 
 **`merge_key="id"`** scopes retirement to the ids a load actually carried, which is what makes `bind(site_id=...)` safe. The trade-off: a site or pen absent from a *full* response is not retired either, and stays current indefinitely. Retire-on-absence and safe partial loads are the same switch, and this source picks the one that cannot lose data.
 

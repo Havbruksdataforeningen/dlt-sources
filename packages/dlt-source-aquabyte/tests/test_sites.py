@@ -1,5 +1,8 @@
 """Tests for the sites resource."""
 
+import json
+
+import pytest
 from dlt.sources.helpers.rest_client.paginators import SinglePagePaginator
 
 from dlt_source_aquabyte import aquabyte_source
@@ -13,6 +16,12 @@ from tests.conftest import (
     query,
     run_source,
 )
+
+
+def _pens_by_version(pipeline):
+    """The pens nested on every site-001 row, oldest version first."""
+    rows = query(pipeline, "SELECT pens FROM sites WHERE id = 'site-001' ORDER BY _dlt_valid_from")
+    return [json.loads(row[0]) for row in rows]
 
 
 def _load(pipeline, mock_rest_client, sites_list, site_id=None):
@@ -113,21 +122,62 @@ def test_a_changed_site_is_versioned_rather_than_overwritten(mock_rest_client):
     assert versions == [("Nordfjord Farm", False), ("Nordfjord Farm AS", True)]
 
 
-def test_pen_churn_does_not_version_its_site(mock_rest_client):
-    """A site versions on its own fields only — a renamed pen is the `pens` table's business.
+@pytest.mark.parametrize(("kind", "change"), [("renamed", {"name": "Renamed"}), ("deactivated", {"isActive": False})])
+def test_a_changed_pen_versions_its_site(mock_rest_client, kind, change):
+    """A site versions on its whole record, the nested pens included.
 
-    dlt's default row hash covers nested data, so this is what `SITE_VERSION` buys.
+    dlt's default row hash covers nested data, so any pen change lands a new site
+    version rather than leaving the site row — and its `pens` snapshot — behind. The
+    site's own fields version it too, as they always did.
     """
     site = load_mock("sites.json")["sites"][0]
-    pens = [{**pen, "name": "Renamed"} if pen["id"] == "pen-001" else pen for pen in site["pens"]]
-    pipeline = make_pipeline("test_sites_scd2_pen_churn")
+    pens = [{**pen, **change} if pen["id"] == "pen-001" else pen for pen in site["pens"]]
+    pipeline = make_pipeline(f"test_sites_scd2_pen_{kind}")
 
     _load(pipeline, mock_rest_client, [site])
     _load(pipeline, mock_rest_client, [{**site, "pens": pens}])
-    assert_row_count(pipeline, "sites", 1)
+    assert_row_count(pipeline, "sites", 2)
 
     _load(pipeline, mock_rest_client, [{**site, "pens": pens, "name": "Nordfjord Farm AS"}])
+    assert_row_count(pipeline, "sites", 3)
+
+
+def test_each_site_version_lists_the_pens_it_was_loaded_with(mock_rest_client):
+    """The nested `pens` snapshot cannot go stale, on the current row or a retired one.
+
+    A JSON column of pens invites unnesting, so it must not disagree with the `pens`
+    table next to it. It used to: while a site versioned on its own fields only, the
+    snapshot froze at whenever those fields last changed, which for a site is rarely.
+    Reading a version's pens is only meaningful if they are the pens of that version.
+    """
+    site = load_mock("sites.json")["sites"][0]
+    renamed = [{**pen, "name": "Renamed"} if pen["id"] == "pen-001" else pen for pen in site["pens"]]
+    pipeline = make_pipeline("test_sites_scd2_nested_pens")
+
+    _load(pipeline, mock_rest_client, [site])
+    _load(pipeline, mock_rest_client, [{**site, "pens": renamed}])
+
+    retired, current = _pens_by_version(pipeline)
+    assert [pen["name"] for pen in current] == ["Renamed", "Pen B", "Pen C"]
+    assert [pen["name"] for pen in retired] == ["Pen A", "Pen B", "Pen C"]
+
+
+def test_a_pen_dropped_from_the_response_versions_its_site(mock_rest_client):
+    """A pen emptied and gone from `/sites` retires the site version that still listed it.
+
+    Only the site side is asserted here; that the pen itself survives in `pens` is
+    `test_an_emptied_pen_survives_dropping_out_of_the_response`.
+    """
+    site = load_mock("sites.json")["sites"][0]
+    remaining = [pen for pen in site["pens"] if pen["id"] != "pen-002"]
+    pipeline = make_pipeline("test_sites_scd2_pen_dropped")
+
+    _load(pipeline, mock_rest_client, [site])
+    _load(pipeline, mock_rest_client, [{**site, "pens": remaining}])
+
     assert_row_count(pipeline, "sites", 2)
+    _, current = _pens_by_version(pipeline)
+    assert [pen["id"] for pen in current] == ["pen-001", "pen-003"]
 
 
 def test_an_unchanged_site_does_not_grow_a_version(mock_rest_client):
