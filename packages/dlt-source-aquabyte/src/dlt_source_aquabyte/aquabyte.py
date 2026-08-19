@@ -256,7 +256,11 @@ def aquabyte_source(
             data_selector="biomass",
         )
 
-    @dlt.resource(write_disposition="merge", primary_key=["penId", "slaughterStartDate"], columns=BiomassHarvestReport)
+    @dlt.resource(
+        write_disposition="merge",
+        primary_key=["penId", "slaughterStartDate", "mainReport", "asOfDate"],
+        columns=BiomassHarvestReport,
+    )
     def harvest_report(
         pen_id: PenId = "all",
         from_date: str | None = None,
