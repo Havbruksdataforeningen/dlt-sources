@@ -4,7 +4,7 @@ An installable [dlt](https://dlthub.com/) source package that loads aquaculture 
 
 **Records land as the API returns them** — nothing renamed, nothing dropped, no invented child tables. What *is* added is named up front rather than discovered later: `_dlt_valid_from` and `_dlt_valid_to` on the two versioned tables, and the pens nested inside each site, unwrapped into a `pens` table. Column names are the API's own field names, in dlt's usual snake_case.
 
-Everything else is mechanics: auth, pagination, envelope unwrapping, incremental cursors, and overridable key and write-disposition defaults. Reshaping belongs in your transform layer, where you can change it without waiting for a release. The package depends on dlt and nothing else — destination, orchestrator, secrets manager and log routing stay your choices.
+Everything else is mechanics: auth, pagination, envelope unwrapping, incremental cursors, and overridable key and write-disposition defaults. Reshaping belongs in your transform layer, where you can change it without waiting for a release. Its only dependency is dlt itself — destination, orchestrator, secrets manager and log routing stay your choices.
 
 ## Install
 

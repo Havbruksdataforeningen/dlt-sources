@@ -13,7 +13,7 @@ from collections.abc import Iterator
 from typing import Any
 
 import dlt
-from dlt.common.schema.typing import TColumnSchema, TScd2StrategyDict
+from dlt.common.schema.typing import TScd2StrategyDict, TTableSchemaColumns
 from dlt.sources.helpers.rest_client.auth import APIKeyAuth
 from dlt.sources.helpers.rest_client.client import RESTClient
 from dlt.sources.helpers.rest_client.paginators import (
@@ -36,23 +36,22 @@ side, are in `REFERENCE.md`. https://dlthub.com/docs/general-usage/merge-loading
 """
 
 
-ColumnHints = dict[str, TColumnSchema]
-"""Column hints for one resource: the API's own field names, typed per `specs/openapi.json`.
+# Column hints, one mapping per resource: the API's own field names, typed per
+# `specs/openapi.json` and checked against it by `tests/test_mock_fidelity.py`.
+#
+# They buy one thing — a column keeps its type when the first page is all nulls, or the
+# field is missing entirely. A field with no entry still lands, typed from the data, and
+# nested fields have none, so `max_table_nesting` alone decides their shape.
+# `nullable: False` marks the fields the spec requires and forbids to be null.
 
-They buy one thing — a column keeps its type when the first page is all nulls, or the
-field is missing entirely. A field with no entry still lands, typed from the data.
-Nested fields have no entry, so `max_table_nesting` alone decides their shape.
-`nullable: False` marks the fields the spec requires and forbids to be null.
-"""
-
-SITE_COLUMNS: ColumnHints = {
+SITE_COLUMNS: TTableSchemaColumns = {
     "id": {"data_type": "text", "nullable": False},
     "name": {"data_type": "text", "nullable": False},
     "governmentSiteNumber": {"data_type": "bigint"},
     "external_site_id": {"data_type": "text"},
 }
 
-PEN_COLUMNS: ColumnHints = {
+PEN_COLUMNS: TTableSchemaColumns = {
     "id": {"data_type": "text", "nullable": False},
     "name": {"data_type": "text", "nullable": False},
     "penCode": {"data_type": "text"},
@@ -60,7 +59,7 @@ PEN_COLUMNS: ColumnHints = {
     "external_id": {"data_type": "text"},
 }
 
-ENVIRONMENTAL_COLUMNS: ColumnHints = {
+ENVIRONMENTAL_COLUMNS: TTableSchemaColumns = {
     "penId": {"data_type": "text", "nullable": False},
     "fromTime": {"data_type": "text", "nullable": False},
     "toTime": {"data_type": "text", "nullable": False},
@@ -73,7 +72,7 @@ ENVIRONMENTAL_COLUMNS: ColumnHints = {
     "fishDensity": {"data_type": "double"},
 }
 
-ENVIRONMENTAL_LATEST_COLUMNS: ColumnHints = {
+ENVIRONMENTAL_LATEST_COLUMNS: TTableSchemaColumns = {
     "penId": {"data_type": "text"},
     "time": {"data_type": "text", "nullable": False},
     "temperature": {"data_type": "double"},
@@ -82,7 +81,7 @@ ENVIRONMENTAL_LATEST_COLUMNS: ColumnHints = {
     "salinity": {"data_type": "double"},
 }
 
-BIOMASS_COLUMNS: ColumnHints = {
+BIOMASS_COLUMNS: TTableSchemaColumns = {
     "penId": {"data_type": "text", "nullable": False},
     "date": {"data_type": "text", "nullable": False},
     "sampleSize": {"data_type": "double"},
@@ -91,7 +90,7 @@ BIOMASS_COLUMNS: ColumnHints = {
     "cv": {"data_type": "double"},
 }
 
-HARVEST_REPORT_COLUMNS: ColumnHints = {
+HARVEST_REPORT_COLUMNS: TTableSchemaColumns = {
     "penId": {"data_type": "text", "nullable": False},
     "mainReport": {"data_type": "bool", "nullable": False},
     "asOfDate": {"data_type": "text", "nullable": False},
@@ -110,7 +109,7 @@ HARVEST_REPORT_COLUMNS: ColumnHints = {
     "createdAt": {"data_type": "text", "nullable": False},
 }
 
-LICE_COUNT_COLUMNS: ColumnHints = {
+LICE_COUNT_COLUMNS: TTableSchemaColumns = {
     "penId": {"data_type": "text", "nullable": False},
     "date": {"data_type": "text", "nullable": False},
     "sampleSize": {"data_type": "double", "nullable": False},
@@ -121,7 +120,7 @@ LICE_COUNT_COLUMNS: ColumnHints = {
     "caligus": {"data_type": "double"},
 }
 
-SWIM_SPEED_COLUMNS: ColumnHints = {
+SWIM_SPEED_COLUMNS: TTableSchemaColumns = {
     "penId": {"data_type": "text", "nullable": False},
     "fromTime": {"data_type": "text", "nullable": False},
     "toTime": {"data_type": "text", "nullable": False},
@@ -131,7 +130,7 @@ SWIM_SPEED_COLUMNS: ColumnHints = {
     "swimTilt": {"data_type": "double"},
 }
 
-BREATHING_INDEX_COLUMNS: ColumnHints = {
+BREATHING_INDEX_COLUMNS: TTableSchemaColumns = {
     "penId": {"data_type": "text", "nullable": False},
     "fromTime": {"data_type": "text", "nullable": False},
     "toTime": {"data_type": "text", "nullable": False},
@@ -139,7 +138,7 @@ BREATHING_INDEX_COLUMNS: ColumnHints = {
     "breathingIndex": {"data_type": "double"},
 }
 
-WELFARE_SCORES_COLUMNS: ColumnHints = {
+WELFARE_SCORES_COLUMNS: TTableSchemaColumns = {
     "penId": {"data_type": "text", "nullable": False},
     "date": {"data_type": "text", "nullable": False},
 }
