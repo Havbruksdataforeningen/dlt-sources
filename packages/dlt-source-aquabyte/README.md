@@ -48,7 +48,7 @@ print(pipeline.run(aquabyte_source()))
 | `environmental` | `GET /environmental` | merge | `penId`, `fromTime`, `toTime` |
 | `environmental_latest` | `GET /environmental/latest` | replace | — |
 | `biomass` | `GET /biomass` | merge | `penId`, `date` |
-| `harvest_report` | `GET /biomass/harvestReport` | merge | `penId`, `slaughterStartDate` |
+| `harvest_report` | `GET /biomass/harvestReport` | merge | `penId`, `slaughterStartDate`, `mainReport`, `asOfDate` |
 | `lice_count` | `GET /liceCount` | merge | `penId`, `date` |
 | `behaviour_swim_speed` | `GET /behaviour/swimSpeed` | merge | `penId`, `fromTime`, `toTime` |
 | `behaviour_breathing_index` | `GET /behaviour/breathingIndex` | merge | `penId`, `fromTime` |
