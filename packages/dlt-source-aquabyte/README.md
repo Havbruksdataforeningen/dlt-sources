@@ -45,12 +45,12 @@ print(pipeline.run(aquabyte_source()))
 |---|---|---|---|
 | `sites` | `GET /sites`, `GET /sites/{siteId}` | merge, `scd2` | `id` (merge key) |
 | `pens` | _(transformer over `sites`)_ | merge, `scd2` | `id` (merge key) |
-| `environmental` | `GET /environmental` | merge | `penId`, `fromTime` |
+| `environmental` | `GET /environmental` | merge | `penId`, `fromTime`, `toTime` |
 | `environmental_latest` | `GET /environmental/latest` | replace | — |
 | `biomass` | `GET /biomass` | merge | `penId`, `date` |
 | `harvest_report` | `GET /biomass/harvestReport` | merge | `penId`, `slaughterStartDate` |
 | `lice_count` | `GET /liceCount` | merge | `penId`, `date` |
-| `behaviour_swim_speed` | `GET /behaviour/swimSpeed` | merge | `penId`, `fromTime` |
+| `behaviour_swim_speed` | `GET /behaviour/swimSpeed` | merge | `penId`, `fromTime`, `toTime` |
 | `behaviour_breathing_index` | `GET /behaviour/breathingIndex` | merge | `penId`, `fromTime` |
 | `welfare_scores` | `GET /welfareScores` | merge | `penId`, `date` |
 
