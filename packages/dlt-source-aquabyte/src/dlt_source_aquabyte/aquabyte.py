@@ -78,7 +78,7 @@ def _window_start(
     param: str,
     explicit: str | None,
     incremental: dlt.sources.incremental[str] | None,
-    fallback: str,
+    fallback: str | None,
 ) -> str:
     """An explicit override, else the incremental cursor, else config — never nothing.
 
@@ -98,6 +98,12 @@ def _window_start(
         logger.info("%s: %s=%s passed explicitly; the incremental cursor is ignored.", resource, param, explicit)
         return explicit
     if cursor_value is None:
+        if fallback is None:
+            config_key = "initial_time" if param == "fromTime" else "initial_date"
+            raise ValueError(
+                f"{resource}: no {param} bound, no incremental cursor value, and no configured "
+                f"start. Set {config_key} under [sources.aquabyte], or bind a window — see the README."
+            )
         logger.warning(
             "%s: no %s and no incremental cursor value, so the configured start applies, %s=%s.",
             resource,
@@ -144,16 +150,17 @@ def _paginate_per_pen(
 def aquabyte_source(
     base_url: str = dlt.config.value,
     api_key: str = dlt.secrets.value,
-    initial_date: str = dlt.config.value,
-    initial_time: str = dlt.config.value,
+    initial_date: str | None = None,
+    initial_time: str | None = None,
 ):
     """Aquabyte API v3 dlt source. All resources share one RESTClient.
 
     Args:
         base_url: API base URL, from config.
         api_key: API key, from secrets.
-        initial_date: Cursor start for the date-based resources (YYYY-MM-DD).
-        initial_time: Cursor start for the time-based resources (ISO 8601).
+        initial_date: Cursor start for the date-based resources (YYYY-MM-DD). Needed only
+            when such a resource runs without a bound window; erroring then, not before.
+        initial_time: As `initial_date`, for the time-based resources (ISO 8601).
     """
     client = RESTClient(
         base_url=base_url,

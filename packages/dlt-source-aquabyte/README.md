@@ -161,6 +161,8 @@ initial_date = "2020-01-01"             # first-run start for date-based cursors
 initial_time = "2020-01-01T00:00:00Z"   # first-run start for time-based cursors
 ```
 
+The two `initial_*` starts are needed only by the resources that keep an incremental cursor — a run selecting just `sites`, `pens` or `environmental_latest` resolves without them, and a cursor resource missing one fails with an error naming it.
+
 How far back your data goes depends on when your cameras started reporting each metric, so it differs per endpoint and per account. Setting these earlier than your true start costs only empty requests — the API returns an empty result set, not an error.
 
 `.dlt/secrets.toml`:

@@ -13,6 +13,7 @@ import pytest
 from dlt.sources.helpers.rest_client.paginators import SinglePagePaginator
 
 from dlt_source_aquabyte import aquabyte_source
+from dlt_source_aquabyte.aquabyte import _window_start
 from tests.conftest import (
     ACTIVE_PEN_IDS,
     DATE_RANGE,
@@ -219,6 +220,25 @@ def test_resource_refuses_a_window_start_behind_an_active_cursor(mock_rest_clien
 
     with pytest.raises(Exception, match="reaches back before the incremental cursor"):
         run_source(f"test_window_behind_{endpoint.resource}", source, [endpoint.resource])
+
+
+def test_cursor_starts_are_not_required_by_resources_that_take_no_cursor(mock_rest_client):
+    """`sites` loads with only base_url and api_key — the cursor starts are not its business."""
+    mock_rest_client.paginate.side_effect = serve({"/sites": load_mock("sites.json")["sites"]})
+
+    source = aquabyte_source(base_url=SOURCE_CONFIG["base_url"], api_key=SOURCE_CONFIG["api_key"])
+    _, load_info = run_source("test_sites_without_cursor_starts", source, ["sites"])
+
+    assert load_info is not None
+
+
+def test_window_start_refuses_to_run_with_nothing_to_send():
+    """No bound window, no cursor value, no configured start: a clear error, never an
+    open window the API fills in silently."""
+    with pytest.raises(ValueError, match="initial_time"):
+        _window_start("environmental", "fromTime", None, None, None)
+    with pytest.raises(ValueError, match="initial_date"):
+        _window_start("biomass", "fromDate", None, None, None)
 
 
 @pytest.mark.parametrize("endpoint", WITH_OPTIONAL, ids=lambda endpoint: endpoint.resource)
