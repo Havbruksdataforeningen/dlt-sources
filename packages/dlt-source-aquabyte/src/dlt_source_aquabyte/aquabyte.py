@@ -87,6 +87,14 @@ def _window_start(
     """
     cursor_value = incremental.last_value if incremental is not None else None
     if explicit is not None:
+        if cursor_value is not None and explicit < cursor_value:
+            # With the cursor active, dlt's incremental filter drops every fetched row
+            # below it — the backfill would request the window and then load nothing.
+            raise ValueError(
+                f"{resource}: {param}={explicit} reaches back before the incremental cursor "
+                f"({cursor_value}), whose filter would drop every row below it. Backfill by "
+                f"binding the window on the resource's incremental_* argument instead — see the README."
+            )
         logger.info("%s: %s=%s passed explicitly; the incremental cursor is ignored.", resource, param, explicit)
         return explicit
     if cursor_value is None:
@@ -100,6 +108,17 @@ def _window_start(
         return fallback
     logger.debug("%s: resuming from the incremental cursor, %s=%s.", resource, param, cursor_value)
     return cursor_value
+
+
+def _window_end(explicit: str | None, incremental: dlt.sources.incremental[str] | None) -> str | None:
+    """An explicit override, else the incremental's `end_value`, else nothing.
+
+    `end_value` is set when a backfill window is bound (see the README), and sending it
+    as the request's window end keeps the API asked for exactly the rows dlt will keep.
+    """
+    if explicit is not None:
+        return explicit
+    return incremental.end_value if incremental is not None else None
 
 
 def _paginate_per_pen(
@@ -187,7 +206,9 @@ def aquabyte_source(
             client,
             "/environmental",
             pen_id=pen_id,
-            params=_query(params, fromTime=window_start, toTime=to_time, period=period),
+            params=_query(
+                params, fromTime=window_start, toTime=_window_end(to_time, incremental_from_time), period=period
+            ),
             data_selector="data",
         )
 
@@ -220,7 +241,9 @@ def aquabyte_source(
             client,
             "/biomass",
             pen_id=pen_id,
-            params=_query(params, fromDate=window_start, toDate=to_date, bucketSize=bucket_size),
+            params=_query(
+                params, fromDate=window_start, toDate=_window_end(to_date, incremental_date), bucketSize=bucket_size
+            ),
             data_selector="biomass",
         )
 
@@ -242,7 +265,7 @@ def aquabyte_source(
             client,
             "/biomass/harvestReport",
             pen_id=pen_id,
-            params=_query(params, fromDate=window_start, toDate=to_date),
+            params=_query(params, fromDate=window_start, toDate=_window_end(to_date, incremental_slaughter_start_date)),
             data_selector="reports",
             paginator=SinglePagePaginator(),
         )
@@ -263,7 +286,7 @@ def aquabyte_source(
             client,
             "/liceCount",
             pen_id=pen_id,
-            params=_query(params, fromDate=window_start, toDate=to_date),
+            params=_query(params, fromDate=window_start, toDate=_window_end(to_date, incremental_date)),
             data_selector="liceCount",
         )
 
@@ -284,7 +307,9 @@ def aquabyte_source(
             client,
             "/behaviour/swimSpeed",
             pen_id=pen_id,
-            params=_query(params, fromTime=window_start, toTime=to_time, period=period),
+            params=_query(
+                params, fromTime=window_start, toTime=_window_end(to_time, incremental_from_time), period=period
+            ),
             data_selector="swimSpeed",
         )
 
@@ -306,7 +331,7 @@ def aquabyte_source(
             client,
             "/behaviour/breathingIndex",
             pen_id=pen_id,
-            params=_query(params, fromTime=window_start, toTime=to_time),
+            params=_query(params, fromTime=window_start, toTime=_window_end(to_time, incremental_from_time)),
             data_selector="breathingIndex",
         )
 
@@ -326,7 +351,7 @@ def aquabyte_source(
             client,
             "/welfareScores",
             pen_id=pen_id,
-            params=_query(params, fromDate=window_start, toDate=to_date),
+            params=_query(params, fromDate=window_start, toDate=_window_end(to_date, incremental_date)),
             data_selector="welfareScores",
         )
 
