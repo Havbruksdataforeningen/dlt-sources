@@ -45,12 +45,12 @@ print(pipeline.run(aquabyte_source()))
 |---|---|---|---|
 | `sites` | `GET /sites`, `GET /sites/{siteId}` | merge, `scd2` | `id` (merge key) |
 | `pens` | _(transformer over `sites`)_ | merge, `scd2` | `id` (merge key) |
-| `environmental` | `GET /environmental` | merge | `penId`, `fromTime` |
+| `environmental` | `GET /environmental` | merge | `penId`, `fromTime`, `toTime` |
 | `environmental_latest` | `GET /environmental/latest` | replace | — |
 | `biomass` | `GET /biomass` | merge | `penId`, `date` |
-| `harvest_report` | `GET /biomass/harvestReport` | merge | `penId`, `slaughterStartDate` |
+| `harvest_report` | `GET /biomass/harvestReport` | merge | `penId`, `slaughterStartDate`, `mainReport`, `asOfDate` |
 | `lice_count` | `GET /liceCount` | merge | `penId`, `date` |
-| `behaviour_swim_speed` | `GET /behaviour/swimSpeed` | merge | `penId`, `fromTime` |
+| `behaviour_swim_speed` | `GET /behaviour/swimSpeed` | merge | `penId`, `fromTime`, `toTime` |
 | `behaviour_breathing_index` | `GET /behaviour/breathingIndex` | merge | `penId`, `fromTime` |
 | `welfare_scores` | `GET /welfareScores` | merge | `penId`, `date` |
 
@@ -118,8 +118,10 @@ pipeline.run(source)
 ```
 
 - **`pen_id`** defaults to `"all"` — the API's own value for "every pen", in one request. Pass one id, or a list to issue one request per pen. The one param `params` cannot override: it drives the fan-out, so `penId` is re-stamped per request after the merge.
-- **Window params** (`from_date`/`from_time`) default to the incremental cursor and are always sent, falling back to `initial_date`/`initial_time` when there is no cursor value — so a run never silently inherits the API's own default window. Passing one explicitly overrides the cursor for that run.
+- **Window params** (`from_date`/`from_time`) default to the incremental cursor and are always sent, falling back to `initial_date`/`initial_time` when there is no cursor value — so a run never silently inherits the API's own default window. Passing one explicitly overrides the cursor for that run, forward only: a window reaching back *before* the stored cursor is refused, because dlt's incremental filter would silently drop every fetched row below the cursor. To backfill, bind the window on the `incremental_*` argument instead — `dlt.sources.incremental(initial_value=..., end_value=...)` runs with transient state, so dlt fetches and keeps exactly that window and the stored cursor is neither consulted nor advanced. See [`examples/backfill.py`](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/examples/backfill.py).
 - **`params`** is on every resource and merged into the query string last — the escape hatch for a query param the API grows later, no release needed.
+
+⚠️ **The cursor is per resource, not per pen.** One incremental cursor spans the whole pen fan-out (`penId=all` included), advancing to the newest row *any* pen reported. Data arriving late — a pen whose camera was offline, a re-issued `harvest_report` revision for an old slaughter — falls behind the cursor and is not requested again. When that matters, periodically re-load a recent window the backfill way; merge dispositions make re-loading idempotent.
 
 Params can also be set in config, per resource:
 
@@ -161,6 +163,8 @@ initial_date = "2020-01-01"             # first-run start for date-based cursors
 initial_time = "2020-01-01T00:00:00Z"   # first-run start for time-based cursors
 ```
 
+The two `initial_*` starts are needed only by the resources that keep an incremental cursor — a run selecting just `sites`, `pens` or `environmental_latest` resolves without them, and a cursor resource missing one fails with an error naming it.
+
 How far back your data goes depends on when your cameras started reporting each metric, so it differs per endpoint and per account. Setting these earlier than your true start costs only empty requests — the API returns an empty result set, not an error.
 
 `.dlt/secrets.toml`:
@@ -178,7 +182,7 @@ One concept each — run any of them with `uv run python examples/<name>.py`.
 |---|---|
 | [`quickstart.py`](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/examples/quickstart.py) | Load every resource into DuckDB |
 | [`daily_load.py`](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/examples/daily_load.py) | Re-running resumes from the stored cursor |
-| [`backfill.py`](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/examples/backfill.py) | Bind an explicit window, ignoring the cursor |
+| [`backfill.py`](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/examples/backfill.py) | Re-load a window, stored cursor untouched |
 | [`logging_setup.py`](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/examples/logging_setup.py) | Route the package's logger consumer-side |
 
 ## Development

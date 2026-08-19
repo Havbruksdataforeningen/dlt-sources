@@ -73,16 +73,37 @@ def _query(extra: dict[str, Any] | None = None, **named: Any) -> dict[str, Any]:
     return params
 
 
-def _window_start(resource: str, param: str, explicit: str | None, cursor_value: str | None, fallback: str) -> str:
+def _window_start(
+    resource: str,
+    param: str,
+    explicit: str | None,
+    incremental: dlt.sources.incremental[str] | None,
+    fallback: str | None,
+) -> str:
     """An explicit override, else the incremental cursor, else config — never nothing.
 
     A window start is always sent, so a run cannot silently inherit the API's own default
     window. dlt logs the requests; what it cannot know is *why* a window was asked for.
     """
+    cursor_value = incremental.last_value if incremental is not None else None
     if explicit is not None:
+        if cursor_value is not None and explicit < cursor_value:
+            # With the cursor active, dlt's incremental filter drops every fetched row
+            # below it — the backfill would request the window and then load nothing.
+            raise ValueError(
+                f"{resource}: {param}={explicit} reaches back before the incremental cursor "
+                f"({cursor_value}), whose filter would drop every row below it. Backfill by "
+                f"binding the window on the resource's incremental_* argument instead — see the README."
+            )
         logger.info("%s: %s=%s passed explicitly; the incremental cursor is ignored.", resource, param, explicit)
         return explicit
     if cursor_value is None:
+        if fallback is None:
+            config_key = "initial_time" if param == "fromTime" else "initial_date"
+            raise ValueError(
+                f"{resource}: no {param} bound, no incremental cursor value, and no configured "
+                f"start. Set {config_key} under [sources.aquabyte], or bind a window — see the README."
+            )
         logger.warning(
             "%s: no %s and no incremental cursor value, so the configured start applies, %s=%s.",
             resource,
@@ -93,6 +114,17 @@ def _window_start(resource: str, param: str, explicit: str | None, cursor_value:
         return fallback
     logger.debug("%s: resuming from the incremental cursor, %s=%s.", resource, param, cursor_value)
     return cursor_value
+
+
+def _window_end(explicit: str | None, incremental: dlt.sources.incremental[str] | None) -> str | None:
+    """An explicit override, else the incremental's `end_value`, else nothing.
+
+    `end_value` is set when a backfill window is bound (see the README), and sending it
+    as the request's window end keeps the API asked for exactly the rows dlt will keep.
+    """
+    if explicit is not None:
+        return explicit
+    return incremental.end_value if incremental is not None else None
 
 
 def _paginate_per_pen(
@@ -118,16 +150,17 @@ def _paginate_per_pen(
 def aquabyte_source(
     base_url: str = dlt.config.value,
     api_key: str = dlt.secrets.value,
-    initial_date: str = dlt.config.value,
-    initial_time: str = dlt.config.value,
+    initial_date: str | None = None,
+    initial_time: str | None = None,
 ):
     """Aquabyte API v3 dlt source. All resources share one RESTClient.
 
     Args:
         base_url: API base URL, from config.
         api_key: API key, from secrets.
-        initial_date: Cursor start for the date-based resources (YYYY-MM-DD).
-        initial_time: Cursor start for the time-based resources (ISO 8601).
+        initial_date: Cursor start for the date-based resources (YYYY-MM-DD). Needed only
+            when such a resource runs without a bound window; erroring then, not before.
+        initial_time: As `initial_date`, for the time-based resources (ISO 8601).
     """
     client = RESTClient(
         base_url=base_url,
@@ -163,26 +196,28 @@ def aquabyte_source(
         for site in sites_page:
             yield from site.get("pens") or []
 
-    @dlt.resource(write_disposition="merge", primary_key=["penId", "fromTime"], columns=EnvironmentalDataPoint)
+    @dlt.resource(
+        write_disposition="merge", primary_key=["penId", "fromTime", "toTime"], columns=EnvironmentalDataPoint
+    )
     def environmental(
         pen_id: PenId = "all",
         from_time: str | None = None,
         to_time: str | None = None,
         period: str | None = None,
         params: dict[str, Any] | None = None,
-        incremental_from_time: dlt.sources.incremental[str] = dlt.sources.incremental(
+        incremental_from_time: dlt.sources.incremental[str] | None = dlt.sources.incremental(
             "fromTime", initial_value=initial_time
         ),
     ):
         """Environmental readings from `GET /environmental`."""
-        window_start = _window_start(
-            "environmental", "fromTime", from_time, incremental_from_time.last_value, initial_time
-        )
+        window_start = _window_start("environmental", "fromTime", from_time, incremental_from_time, initial_time)
         yield from _paginate_per_pen(
             client,
             "/environmental",
             pen_id=pen_id,
-            params=_query(params, fromTime=window_start, toTime=to_time, period=period),
+            params=_query(
+                params, fromTime=window_start, toTime=_window_end(to_time, incremental_from_time), period=period
+            ),
             data_selector="data",
         )
 
@@ -205,37 +240,45 @@ def aquabyte_source(
         to_date: str | None = None,
         bucket_size: int | None = None,
         params: dict[str, Any] | None = None,
-        incremental_date: dlt.sources.incremental[str] = dlt.sources.incremental("date", initial_value=initial_date),
+        incremental_date: dlt.sources.incremental[str] | None = dlt.sources.incremental(
+            "date", initial_value=initial_date
+        ),
     ):
         """Daily biomass from `GET /biomass`."""
-        window_start = _window_start("biomass", "fromDate", from_date, incremental_date.last_value, initial_date)
+        window_start = _window_start("biomass", "fromDate", from_date, incremental_date, initial_date)
         yield from _paginate_per_pen(
             client,
             "/biomass",
             pen_id=pen_id,
-            params=_query(params, fromDate=window_start, toDate=to_date, bucketSize=bucket_size),
+            params=_query(
+                params, fromDate=window_start, toDate=_window_end(to_date, incremental_date), bucketSize=bucket_size
+            ),
             data_selector="biomass",
         )
 
-    @dlt.resource(write_disposition="merge", primary_key=["penId", "slaughterStartDate"], columns=BiomassHarvestReport)
+    @dlt.resource(
+        write_disposition="merge",
+        primary_key=["penId", "slaughterStartDate", "mainReport", "asOfDate"],
+        columns=BiomassHarvestReport,
+    )
     def harvest_report(
         pen_id: PenId = "all",
         from_date: str | None = None,
         to_date: str | None = None,
         params: dict[str, Any] | None = None,
-        incremental_slaughter_start_date: dlt.sources.incremental[str] = dlt.sources.incremental(
+        incremental_slaughter_start_date: dlt.sources.incremental[str] | None = dlt.sources.incremental(
             "slaughterStartDate", initial_value=initial_date
         ),
     ):
         """Harvest reports from `GET /biomass/harvestReport`."""
         window_start = _window_start(
-            "harvest_report", "fromDate", from_date, incremental_slaughter_start_date.last_value, initial_date
+            "harvest_report", "fromDate", from_date, incremental_slaughter_start_date, initial_date
         )
         yield from _paginate_per_pen(
             client,
             "/biomass/harvestReport",
             pen_id=pen_id,
-            params=_query(params, fromDate=window_start, toDate=to_date),
+            params=_query(params, fromDate=window_start, toDate=_window_end(to_date, incremental_slaughter_start_date)),
             data_selector="reports",
             paginator=SinglePagePaginator(),
         )
@@ -246,38 +289,40 @@ def aquabyte_source(
         from_date: str | None = None,
         to_date: str | None = None,
         params: dict[str, Any] | None = None,
-        incremental_date: dlt.sources.incremental[str] = dlt.sources.incremental("date", initial_value=initial_date),
+        incremental_date: dlt.sources.incremental[str] | None = dlt.sources.incremental(
+            "date", initial_value=initial_date
+        ),
     ):
         """Lice counts from `GET /liceCount`."""
-        window_start = _window_start("lice_count", "fromDate", from_date, incremental_date.last_value, initial_date)
+        window_start = _window_start("lice_count", "fromDate", from_date, incremental_date, initial_date)
         yield from _paginate_per_pen(
             client,
             "/liceCount",
             pen_id=pen_id,
-            params=_query(params, fromDate=window_start, toDate=to_date),
+            params=_query(params, fromDate=window_start, toDate=_window_end(to_date, incremental_date)),
             data_selector="liceCount",
         )
 
-    @dlt.resource(write_disposition="merge", primary_key=["penId", "fromTime"], columns=BehaviorSwimSpeed)
+    @dlt.resource(write_disposition="merge", primary_key=["penId", "fromTime", "toTime"], columns=BehaviorSwimSpeed)
     def behaviour_swim_speed(
         pen_id: PenId = "all",
         from_time: str | None = None,
         to_time: str | None = None,
         period: str | None = None,
         params: dict[str, Any] | None = None,
-        incremental_from_time: dlt.sources.incremental[str] = dlt.sources.incremental(
+        incremental_from_time: dlt.sources.incremental[str] | None = dlt.sources.incremental(
             "fromTime", initial_value=initial_time
         ),
     ):
         """Swim speed and tilt from `GET /behaviour/swimSpeed`."""
-        window_start = _window_start(
-            "behaviour_swim_speed", "fromTime", from_time, incremental_from_time.last_value, initial_time
-        )
+        window_start = _window_start("behaviour_swim_speed", "fromTime", from_time, incremental_from_time, initial_time)
         yield from _paginate_per_pen(
             client,
             "/behaviour/swimSpeed",
             pen_id=pen_id,
-            params=_query(params, fromTime=window_start, toTime=to_time, period=period),
+            params=_query(
+                params, fromTime=window_start, toTime=_window_end(to_time, incremental_from_time), period=period
+            ),
             data_selector="swimSpeed",
         )
 
@@ -287,19 +332,19 @@ def aquabyte_source(
         from_time: str | None = None,
         to_time: str | None = None,
         params: dict[str, Any] | None = None,
-        incremental_from_time: dlt.sources.incremental[str] = dlt.sources.incremental(
+        incremental_from_time: dlt.sources.incremental[str] | None = dlt.sources.incremental(
             "fromTime", initial_value=initial_time
         ),
     ):
         """Breathing index from `GET /behaviour/breathingIndex`, which documents no `period`."""
         window_start = _window_start(
-            "behaviour_breathing_index", "fromTime", from_time, incremental_from_time.last_value, initial_time
+            "behaviour_breathing_index", "fromTime", from_time, incremental_from_time, initial_time
         )
         yield from _paginate_per_pen(
             client,
             "/behaviour/breathingIndex",
             pen_id=pen_id,
-            params=_query(params, fromTime=window_start, toTime=to_time),
+            params=_query(params, fromTime=window_start, toTime=_window_end(to_time, incremental_from_time)),
             data_selector="breathingIndex",
         )
 
@@ -309,15 +354,17 @@ def aquabyte_source(
         from_date: str | None = None,
         to_date: str | None = None,
         params: dict[str, Any] | None = None,
-        incremental_date: dlt.sources.incremental[str] = dlt.sources.incremental("date", initial_value=initial_date),
+        incremental_date: dlt.sources.incremental[str] | None = dlt.sources.incremental(
+            "date", initial_value=initial_date
+        ),
     ):
         """Welfare scores from `GET /welfareScores` — one row per pen and date, categories nested."""
-        window_start = _window_start("welfare_scores", "fromDate", from_date, incremental_date.last_value, initial_date)
+        window_start = _window_start("welfare_scores", "fromDate", from_date, incremental_date, initial_date)
         yield from _paginate_per_pen(
             client,
             "/welfareScores",
             pen_id=pen_id,
-            params=_query(params, fromDate=window_start, toDate=to_date),
+            params=_query(params, fromDate=window_start, toDate=_window_end(to_date, incremental_date)),
             data_selector="welfareScores",
         )
 

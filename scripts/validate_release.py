@@ -58,6 +58,11 @@ def check_changelog_has_entry(package: str, version: Version, version_str: str) 
         print("OK: pre-release — changelog entry not required yet")
         return []
     changelog = REPO_ROOT / "packages" / package / "CHANGELOG.md"
+    if not changelog.is_file():
+        return [
+            f"packages/{package}/CHANGELOG.md does not exist. "
+            "Create it and write the changelog entry before tagging (docs/release.md, step 3)."
+        ]
     if f"## [{version_str}]" in changelog.read_text(encoding="utf-8"):
         print(f"OK: CHANGELOG.md has a section for {version_str}")
         return []

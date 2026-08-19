@@ -30,8 +30,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v10.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
         with:
           enable-cache: true
       # --locked fails if uv.lock is stale rather than silently resolving
@@ -42,8 +42,10 @@ jobs:
           set -euo pipefail
           for d in packages/*/; do
             echo "::group::${d}"
-            paths="src tests"
-            if [ -d "${d}examples" ]; then paths="${paths} examples"; fi
+            paths=""
+            for p in src tests examples; do
+              if [ -d "${d}${p}" ]; then paths="${paths} ${p}"; fi
+            done
             (cd "${d}" && uv run ruff format --check ${paths})
             echo "::endgroup::"
           done
@@ -53,8 +55,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v10.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
         with:
           enable-cache: true
       - run: uv sync --all-packages --all-groups --locked
@@ -63,8 +65,10 @@ jobs:
           set -euo pipefail
           for d in packages/*/; do
             echo "::group::${d}"
-            paths="src tests"
-            if [ -d "${d}examples" ]; then paths="${paths} examples"; fi
+            paths=""
+            for p in src tests examples; do
+              if [ -d "${d}${p}" ]; then paths="${paths} ${p}"; fi
+            done
             (cd "${d}" && uv run ruff check --output-format=github ${paths})
             echo "::endgroup::"
           done
@@ -74,8 +78,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v10.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
         with:
           enable-cache: true
       - run: uv sync --all-packages --all-groups --locked
@@ -105,8 +109,8 @@ jobs:
       matrix:
         python-version: ["3.11", "3.14"]
     steps:
-      - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v10.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
         with:
           enable-cache: true
           python-version: ${{ matrix.python-version }}
@@ -129,20 +133,22 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v10.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
         with:
           enable-cache: true
       # Every package must build on every PR. A packaging error found at release
       # time is found at the worst possible moment; this makes a green PR mean
       # "publishable", which is the whole point of the gate.
+      # --no-sources matches the release build exactly: workspace redirects
+      # disabled, so the package builds as a PyPI consumer would get it.
       - name: uv build
         run: |
           set -euo pipefail
           for d in packages/*/; do
             pkg="$(basename "${d}")"
             echo "::group::${pkg}"
-            uv build --package "${pkg}"
+            uv build --package "${pkg}" --no-sources
             echo "::endgroup::"
           done
 
