@@ -121,6 +121,8 @@ pipeline.run(source)
 - **Window params** (`from_date`/`from_time`) default to the incremental cursor and are always sent, falling back to `initial_date`/`initial_time` when there is no cursor value — so a run never silently inherits the API's own default window. Passing one explicitly overrides the cursor for that run, forward only: a window reaching back *before* the stored cursor is refused, because dlt's incremental filter would silently drop every fetched row below the cursor. To backfill, bind the window on the `incremental_*` argument instead — `dlt.sources.incremental(initial_value=..., end_value=...)` runs with transient state, so dlt fetches and keeps exactly that window and the stored cursor is neither consulted nor advanced. See [`examples/backfill.py`](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/examples/backfill.py).
 - **`params`** is on every resource and merged into the query string last — the escape hatch for a query param the API grows later, no release needed.
 
+⚠️ **The cursor is per resource, not per pen.** One incremental cursor spans the whole pen fan-out (`penId=all` included), advancing to the newest row *any* pen reported. Data arriving late — a pen whose camera was offline, a re-issued `harvest_report` revision for an old slaughter — falls behind the cursor and is not requested again. When that matters, periodically re-load a recent window the backfill way; merge dispositions make re-loading idempotent.
+
 Params can also be set in config, per resource:
 
 ```toml
