@@ -17,8 +17,8 @@ filename stays put, so `git log -p specs/openapi.json` reads as a history of the
 own changes.
 
 This package targets v3.1 only. The v3.0 endpoints are the `/pens/{penId}/…` path
-variants, which the spec marks `deprecated: true` and which nothing here reads — the
-README says why under "What the source does not expose". The notes from that migration
+variants, which the spec marks `deprecated: true` and which nothing here reads — `REFERENCE.md`
+says why under "What the source does not expose". The notes from that migration
 were deleted once it was done; `git log` has them if the history is ever wanted.
 
 **Where the API and this spec disagree, the API wins.** The package is built against what
@@ -41,7 +41,7 @@ you read it:
   a `Z`. The source does not rewrite them — they land as sent. Treat them as UTC, which is
   what the zoned endpoints use.
 - **`lice_count` omits its five count fields entirely on a zero-sample record**, rather than
-  sending nulls. Those columns are typed by the model and land as `NULL`, so `sampleSize = 0`
+  sending nulls. Those columns are typed by the source's column hints and land as `NULL`, so `sampleSize = 0`
   is the condition to filter on, not `adultFemale IS NULL`.
 
 And one that bites when you are debugging rather than reading:

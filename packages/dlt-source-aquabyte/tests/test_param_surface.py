@@ -1,6 +1,6 @@
 """The published parameter surface is checked against the committed OpenAPI spec.
 
-These tests are what fails when the spec and the code drift apart; the README explains
+These tests are what fails when the spec and the code drift apart; `REFERENCE.md` explains
 which endpoints and params the source deliberately does not expose.
 """
 

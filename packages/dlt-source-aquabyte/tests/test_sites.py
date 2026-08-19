@@ -194,8 +194,8 @@ def test_an_unchanged_site_does_not_grow_a_version(mock_rest_client):
 def test_a_consumer_can_override_the_nesting_default(mock_rest_client):
     """`max_table_nesting=0` is a default, not a lock: raising it gives child tables.
 
-    The models must therefore not declare nested fields — a column hint would win over
-    the setting and silently ignore the consumer.
+    No column hint names `pens`, so nothing outranks the setting: a hint on a nested
+    field would win over it and silently ignore the consumer.
     """
     mock_rest_client.paginate.return_value = iter([load_mock("sites.json")["sites"]])
 

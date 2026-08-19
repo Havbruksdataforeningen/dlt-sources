@@ -20,8 +20,9 @@ has one place to be updated rather than two: they are in
 ["API quirks worth knowing"](../../specs/README.md#api-quirks-worth-knowing), next to the
 spec they depart from.
 
-`test_mock_fidelity.py` validates every fixture against its record model, so a shape the
-API could not have produced fails the suite rather than sitting here unnoticed.
+`test_mock_fidelity.py` validates every fixture against its endpoint's response schema in
+`specs/openapi.json`, so a shape the API could not have produced fails the suite rather
+than sitting here unnoticed.
 
 ## Identifiers and dates
 

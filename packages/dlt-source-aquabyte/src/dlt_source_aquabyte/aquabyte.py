@@ -13,26 +13,13 @@ from collections.abc import Iterator
 from typing import Any
 
 import dlt
-from dlt.common.schema.typing import TScd2StrategyDict
+from dlt.common.schema.typing import TScd2StrategyDict, TTableSchemaColumns
 from dlt.sources.helpers.rest_client.auth import APIKeyAuth
 from dlt.sources.helpers.rest_client.client import RESTClient
 from dlt.sources.helpers.rest_client.paginators import (
     BasePaginator,
     JSONResponseCursorPaginator,
     SinglePagePaginator,
-)
-
-from dlt_source_aquabyte.schemas import (
-    BehaviorBreathingIndex,
-    BehaviorSwimSpeed,
-    BiomassDailyModel,
-    BiomassHarvestReport,
-    EnvironmentalDataLive,
-    EnvironmentalDataPoint,
-    LiceCount,
-    Pen,
-    Site,
-    WelfareScoresRecord,
 )
 
 logger = logging.getLogger(__name__)
@@ -45,8 +32,116 @@ SCD2: TScd2StrategyDict = {"disposition": "merge", "strategy": "scd2"}
 
 Always paired with `merge_key="id"`, which scopes retirement to the ids a load carried,
 so reading one site does not retire the others. The trade-off, and how to take the other
-side, are in the README. https://dlthub.com/docs/general-usage/merge-loading#scd2-strategy
+side, are in `REFERENCE.md`. https://dlthub.com/docs/general-usage/merge-loading#scd2-strategy
 """
+
+
+# Column hints, one mapping per resource: the API's own field names, typed per
+# `specs/openapi.json` and checked against it by `tests/test_mock_fidelity.py`.
+#
+# They buy one thing — a column keeps its type when the first page is all nulls, or the
+# field is missing entirely. A field with no entry still lands, typed from the data, and
+# nested fields have none, so `max_table_nesting` alone decides their shape.
+# `nullable: False` marks the fields the spec requires and forbids to be null.
+
+SITE_COLUMNS: TTableSchemaColumns = {
+    "id": {"data_type": "text", "nullable": False},
+    "name": {"data_type": "text", "nullable": False},
+    "governmentSiteNumber": {"data_type": "bigint"},
+    "external_site_id": {"data_type": "text"},
+}
+
+PEN_COLUMNS: TTableSchemaColumns = {
+    "id": {"data_type": "text", "nullable": False},
+    "name": {"data_type": "text", "nullable": False},
+    "penCode": {"data_type": "text"},
+    "isActive": {"data_type": "bool", "nullable": False},
+    "external_id": {"data_type": "text"},
+}
+
+ENVIRONMENTAL_COLUMNS: TTableSchemaColumns = {
+    "penId": {"data_type": "text", "nullable": False},
+    "fromTime": {"data_type": "text", "nullable": False},
+    "toTime": {"data_type": "text", "nullable": False},
+    "temperatureAvg": {"data_type": "double"},
+    "cameraDepthAvg": {"data_type": "double"},
+    "cameraDepthMin": {"data_type": "double"},
+    "cameraDepthMax": {"data_type": "double"},
+    "oxygenPct": {"data_type": "double"},
+    "salinity": {"data_type": "double"},
+    "fishDensity": {"data_type": "double"},
+}
+
+ENVIRONMENTAL_LATEST_COLUMNS: TTableSchemaColumns = {
+    "penId": {"data_type": "text"},
+    "time": {"data_type": "text", "nullable": False},
+    "temperature": {"data_type": "double"},
+    "cameraDepth": {"data_type": "double"},
+    "oxygenPct": {"data_type": "double"},
+    "salinity": {"data_type": "double"},
+}
+
+BIOMASS_COLUMNS: TTableSchemaColumns = {
+    "penId": {"data_type": "text", "nullable": False},
+    "date": {"data_type": "text", "nullable": False},
+    "sampleSize": {"data_type": "double"},
+    "avgWeight": {"data_type": "double"},
+    "kFactor": {"data_type": "double"},
+    "cv": {"data_type": "double"},
+}
+
+HARVEST_REPORT_COLUMNS: TTableSchemaColumns = {
+    "penId": {"data_type": "text", "nullable": False},
+    "mainReport": {"data_type": "bool", "nullable": False},
+    "asOfDate": {"data_type": "text", "nullable": False},
+    "lastFeedingDate": {"data_type": "text", "nullable": False},
+    "slaughterStartDate": {"data_type": "text", "nullable": False},
+    "slaughterEndDate": {"data_type": "text", "nullable": False},
+    "temperature": {"data_type": "double", "nullable": False},
+    "lossFactor": {"data_type": "double", "nullable": False},
+    "packingMethod": {"data_type": "text"},
+    "fishType": {"data_type": "text"},
+    "measurementCount": {"data_type": "bigint", "nullable": False},
+    "coefficientOfVariation": {"data_type": "double", "nullable": False},
+    "avgPackedWeightGrams": {"data_type": "double", "nullable": False},
+    "avgRoundWeightGrams": {"data_type": "double", "nullable": False},
+    "superiorRate": {"data_type": "double", "nullable": False},
+    "createdAt": {"data_type": "text", "nullable": False},
+}
+
+LICE_COUNT_COLUMNS: TTableSchemaColumns = {
+    "penId": {"data_type": "text", "nullable": False},
+    "date": {"data_type": "text", "nullable": False},
+    "sampleSize": {"data_type": "double", "nullable": False},
+    "adultFemale": {"data_type": "double"},
+    "adultFemaleConverted": {"data_type": "double"},
+    "mobile": {"data_type": "double"},
+    "mobileConverted": {"data_type": "double"},
+    "caligus": {"data_type": "double"},
+}
+
+SWIM_SPEED_COLUMNS: TTableSchemaColumns = {
+    "penId": {"data_type": "text", "nullable": False},
+    "fromTime": {"data_type": "text", "nullable": False},
+    "toTime": {"data_type": "text", "nullable": False},
+    "swimSpeedsampleSize": {"data_type": "double", "nullable": False},
+    "swimSpeed": {"data_type": "double"},
+    "swimTiltsampleSize": {"data_type": "double", "nullable": False},
+    "swimTilt": {"data_type": "double"},
+}
+
+BREATHING_INDEX_COLUMNS: TTableSchemaColumns = {
+    "penId": {"data_type": "text", "nullable": False},
+    "fromTime": {"data_type": "text", "nullable": False},
+    "toTime": {"data_type": "text", "nullable": False},
+    "sampleSize": {"data_type": "double", "nullable": False},
+    "breathingIndex": {"data_type": "double"},
+}
+
+WELFARE_SCORES_COLUMNS: TTableSchemaColumns = {
+    "penId": {"data_type": "text", "nullable": False},
+    "date": {"data_type": "text", "nullable": False},
+}
 
 
 def _query(extra: dict[str, Any] | None = None, **named: Any) -> dict[str, Any]:
@@ -77,7 +172,7 @@ def _window_start(
             raise ValueError(
                 f"{resource}: {param}={explicit} reaches back before the incremental cursor "
                 f"({cursor_value}), whose filter would drop every row below it. Backfill by "
-                f"binding the window on the resource's incremental_* argument instead — see the README."
+                f"binding the window on the resource's incremental_* argument instead — see REFERENCE.md."
             )
         logger.info("%s: %s=%s passed explicitly; the incremental cursor is ignored.", resource, param, explicit)
         return explicit
@@ -86,7 +181,8 @@ def _window_start(
             config_key = "initial_time" if param == "fromTime" else "initial_date"
             raise ValueError(
                 f"{resource}: no {param} bound, no incremental cursor value, and no configured "
-                f"start. Set {config_key} under [sources.aquabyte], or bind a window — see the README."
+                f"start. Set {config_key} under [sources.aquabyte] — see the README — or bind a window, "
+                f"which REFERENCE.md covers under backfilling."
             )
         logger.warning(
             "%s: no %s and no incremental cursor value, so the configured start applies, %s=%s.",
@@ -103,7 +199,7 @@ def _window_start(
 def _window_end(explicit: str | None, incremental: dlt.sources.incremental[str] | None) -> str | None:
     """An explicit override, else the incremental's `end_value`, else nothing.
 
-    `end_value` is set when a backfill window is bound (see the README), and sending it
+    `end_value` is set when a backfill window is bound (see `REFERENCE.md`), and sending it
     as the request's window end keeps the API asked for exactly the rows dlt will keep.
     """
     if explicit is not None:
@@ -152,7 +248,7 @@ def aquabyte_source(
         paginator=JSONResponseCursorPaginator(cursor_path="nextToken", cursor_param="nextToken"),
     )
 
-    @dlt.resource(write_disposition=SCD2, merge_key="id", columns=Site)
+    @dlt.resource(write_disposition=SCD2, merge_key="id", columns=SITE_COLUMNS)
     def sites(site_id: str | None = None, params: dict[str, Any] | None = None):
         """Every site from `GET /sites`, or one from `GET /sites/{siteId}` when `site_id` is bound.
 
@@ -168,7 +264,7 @@ def aquabyte_source(
 
     # `dlt.transformer` types write_disposition as the literals only, unlike `dlt.resource`;
     # both hand it to the same hint machinery, so the dict is fine at runtime.
-    @dlt.transformer(data_from=sites, write_disposition=SCD2, merge_key="id", columns=Pen)  # type: ignore[arg-type]
+    @dlt.transformer(data_from=sites, write_disposition=SCD2, merge_key="id", columns=PEN_COLUMNS)  # type: ignore[arg-type]
     def pens(sites_page: list[dict[str, Any]]):
         """Every pen the `/sites` response nests, unwrapped into its own table — none filtered.
 
@@ -178,9 +274,7 @@ def aquabyte_source(
         for site in sites_page:
             yield from site.get("pens") or []
 
-    @dlt.resource(
-        write_disposition="merge", primary_key=["penId", "fromTime", "toTime"], columns=EnvironmentalDataPoint
-    )
+    @dlt.resource(write_disposition="merge", primary_key=["penId", "fromTime", "toTime"], columns=ENVIRONMENTAL_COLUMNS)
     def environmental(
         pen_id: PenId = "all",
         from_time: str | None = None,
@@ -203,7 +297,7 @@ def aquabyte_source(
             data_selector="data",
         )
 
-    @dlt.resource(write_disposition="replace", columns=EnvironmentalDataLive)
+    @dlt.resource(write_disposition="replace", columns=ENVIRONMENTAL_LATEST_COLUMNS)
     def environmental_latest(pen_id: PenId = "all", params: dict[str, Any] | None = None):
         """The latest environmental reading per pen from `GET /environmental/latest`."""
         yield from _paginate_per_pen(
@@ -215,7 +309,7 @@ def aquabyte_source(
             paginator=SinglePagePaginator(),
         )
 
-    @dlt.resource(write_disposition="merge", primary_key=["penId", "date"], columns=BiomassDailyModel)
+    @dlt.resource(write_disposition="merge", primary_key=["penId", "date"], columns=BIOMASS_COLUMNS)
     def biomass(
         pen_id: PenId = "all",
         from_date: str | None = None,
@@ -241,7 +335,7 @@ def aquabyte_source(
     @dlt.resource(
         write_disposition="merge",
         primary_key=["penId", "slaughterStartDate", "mainReport", "asOfDate"],
-        columns=BiomassHarvestReport,
+        columns=HARVEST_REPORT_COLUMNS,
     )
     def harvest_report(
         pen_id: PenId = "all",
@@ -265,7 +359,7 @@ def aquabyte_source(
             paginator=SinglePagePaginator(),
         )
 
-    @dlt.resource(write_disposition="merge", primary_key=["penId", "date"], columns=LiceCount)
+    @dlt.resource(write_disposition="merge", primary_key=["penId", "date"], columns=LICE_COUNT_COLUMNS)
     def lice_count(
         pen_id: PenId = "all",
         from_date: str | None = None,
@@ -285,7 +379,7 @@ def aquabyte_source(
             data_selector="liceCount",
         )
 
-    @dlt.resource(write_disposition="merge", primary_key=["penId", "fromTime", "toTime"], columns=BehaviorSwimSpeed)
+    @dlt.resource(write_disposition="merge", primary_key=["penId", "fromTime", "toTime"], columns=SWIM_SPEED_COLUMNS)
     def behaviour_swim_speed(
         pen_id: PenId = "all",
         from_time: str | None = None,
@@ -308,7 +402,7 @@ def aquabyte_source(
             data_selector="swimSpeed",
         )
 
-    @dlt.resource(write_disposition="merge", primary_key=["penId", "fromTime"], columns=BehaviorBreathingIndex)
+    @dlt.resource(write_disposition="merge", primary_key=["penId", "fromTime"], columns=BREATHING_INDEX_COLUMNS)
     def behaviour_breathing_index(
         pen_id: PenId = "all",
         from_time: str | None = None,
@@ -330,7 +424,7 @@ def aquabyte_source(
             data_selector="breathingIndex",
         )
 
-    @dlt.resource(write_disposition="merge", primary_key=["penId", "date"], columns=WelfareScoresRecord)
+    @dlt.resource(write_disposition="merge", primary_key=["penId", "date"], columns=WELFARE_SCORES_COLUMNS)
     def welfare_scores(
         pen_id: PenId = "all",
         from_date: str | None = None,
