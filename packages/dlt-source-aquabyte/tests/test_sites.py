@@ -1,5 +1,7 @@
 """Tests for the sites resource."""
 
+import json
+
 from dlt.sources.helpers.rest_client.paginators import SinglePagePaginator
 
 from dlt_source_aquabyte import aquabyte_source
@@ -13,6 +15,12 @@ from tests.conftest import (
     query,
     run_source,
 )
+
+
+def _current_pens(pipeline, field):
+    """One field of every pen nested on site-001's current row, in the order stored."""
+    (row,) = query(pipeline, "SELECT pens FROM sites WHERE id = 'site-001' AND _dlt_valid_to IS NULL")
+    return [pen[field] for pen in json.loads(row[0])]
 
 
 def _load(pipeline, mock_rest_client, sites_list, site_id=None):
@@ -113,10 +121,12 @@ def test_a_changed_site_is_versioned_rather_than_overwritten(mock_rest_client):
     assert versions == [("Nordfjord Farm", False), ("Nordfjord Farm AS", True)]
 
 
-def test_pen_churn_does_not_version_its_site(mock_rest_client):
-    """A site versions on its own fields only — a renamed pen is the `pens` table's business.
+def test_a_renamed_pen_versions_its_site(mock_rest_client):
+    """A site versions on its whole record, the nested pens included.
 
-    dlt's default row hash covers nested data, so this is what `SITE_VERSION` buys.
+    dlt's default row hash covers nested data, so a pen change lands a new site version
+    rather than leaving the site row — and its `pens` snapshot — behind. The site's own
+    fields version it too, as they always did.
     """
     site = load_mock("sites.json")["sites"][0]
     pens = [{**pen, "name": "Renamed"} if pen["id"] == "pen-001" else pen for pen in site["pens"]]
@@ -124,10 +134,43 @@ def test_pen_churn_does_not_version_its_site(mock_rest_client):
 
     _load(pipeline, mock_rest_client, [site])
     _load(pipeline, mock_rest_client, [{**site, "pens": pens}])
-    assert_row_count(pipeline, "sites", 1)
+    assert_row_count(pipeline, "sites", 2)
 
     _load(pipeline, mock_rest_client, [{**site, "pens": pens, "name": "Nordfjord Farm AS"}])
+    assert_row_count(pipeline, "sites", 3)
+
+
+def test_the_current_site_row_lists_the_pens_as_they_are_now(mock_rest_client):
+    """The nested `pens` snapshot on the current site row cannot go stale.
+
+    A JSON column of pens invites unnesting, so it must not disagree with the `pens`
+    table next to it. It used to: while a site versioned on its own fields only, the
+    snapshot froze at whenever those fields last changed, which for a site is rarely.
+    """
+    site = load_mock("sites.json")["sites"][0]
+    renamed = [{**pen, "name": "Renamed"} if pen["id"] == "pen-001" else pen for pen in site["pens"]]
+    pipeline = make_pipeline("test_sites_nested_pens_current")
+
+    _load(pipeline, mock_rest_client, [site])
+    _load(pipeline, mock_rest_client, [{**site, "pens": renamed}])
+
+    assert _current_pens(pipeline, "name") == ["Renamed", "Pen B", "Pen C"]
+
+
+def test_a_pen_dropped_from_the_response_versions_its_site(mock_rest_client):
+    """A pen emptied and gone from `/sites` retires the site version that still listed it.
+
+    The pen itself stays in the `pens` table, which is what historical `penId` joins need.
+    """
+    site = load_mock("sites.json")["sites"][0]
+    remaining = [pen for pen in site["pens"] if pen["id"] != "pen-002"]
+    pipeline = make_pipeline("test_sites_scd2_pen_dropped")
+
+    _load(pipeline, mock_rest_client, [site])
+    _load(pipeline, mock_rest_client, [{**site, "pens": remaining}])
+
     assert_row_count(pipeline, "sites", 2)
+    assert _current_pens(pipeline, "id") == ["pen-001", "pen-003"]
 
 
 def test_an_unchanged_site_does_not_grow_a_version(mock_rest_client):

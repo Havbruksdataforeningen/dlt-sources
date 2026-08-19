@@ -8,8 +8,6 @@ merged into the query string last. Bind them per resource or set them in config 
 `[sources.aquabyte.<resource>]`; see the README.
 """
 
-import hashlib
-import json
 import logging
 from collections.abc import Iterator
 from typing import Any
@@ -49,20 +47,6 @@ Always paired with `merge_key="id"`, which scopes retirement to the ids a load c
 so reading one site does not retire the others. The trade-off, and how to take the other
 side, are in the README. https://dlthub.com/docs/general-usage/merge-loading#scd2-strategy
 """
-
-SITE_VERSION_COLUMN = "_site_version"
-SITES_SCD2: TScd2StrategyDict = {**SCD2, "row_version_column_name": SITE_VERSION_COLUMN}
-"""As `SCD2`, but a site versions on its own fields only.
-
-dlt's default row hash covers the whole record, nested data included, so a renamed pen
-would otherwise version its site too. Pens have their own scd2 table for that.
-"""
-
-
-def _site_version(site: dict[str, Any]) -> str:
-    """Digest of everything the API returns for a site except `pens`."""
-    own = {key: value for key, value in site.items() if key != "pens"}
-    return hashlib.sha256(json.dumps(own, sort_keys=True, default=str).encode()).hexdigest()
 
 
 def _query(extra: dict[str, Any] | None = None, **named: Any) -> dict[str, Any]:
@@ -168,12 +152,13 @@ def aquabyte_source(
         paginator=JSONResponseCursorPaginator(cursor_path="nextToken", cursor_param="nextToken"),
     )
 
-    @dlt.resource(write_disposition=SITES_SCD2, merge_key="id", columns=Site)
+    @dlt.resource(write_disposition=SCD2, merge_key="id", columns=Site)
     def sites(site_id: str | None = None, params: dict[str, Any] | None = None):
         """Every site from `GET /sites`, or one from `GET /sites/{siteId}` when `site_id` is bound.
 
-        Both endpoints write the same table. Pens stay nested as the API nests them, but
-        do not version the site — see `SITES_SCD2`.
+        Both endpoints write the same table. Pens stay nested as the API nests them, and
+        version the site along with its own fields: dlt's default row hash covers the
+        whole record, so the nested snapshot cannot drift from what the API reported.
         """
         pages = client.paginate(
             f"/sites/{site_id}" if site_id is not None else "/sites",
@@ -181,8 +166,7 @@ def aquabyte_source(
             data_selector="sites",
             paginator=SinglePagePaginator(),
         )
-        for page in pages:
-            yield [{**site, SITE_VERSION_COLUMN: _site_version(site)} for site in page]
+        yield from pages
 
     # `dlt.transformer` types write_disposition as the literals only, unlike `dlt.resource`;
     # both hand it to the same hint machinery, so the dict is fine at runtime.

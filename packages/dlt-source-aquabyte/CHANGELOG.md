@@ -15,4 +15,5 @@ All notable changes to `dlt-source-aquabyte`, written for people using the packa
 
 ### Fixed
 
+- The `sites` table no longer carries a `_site_version` column. A site now versions on its whole record, the nested `pens` list included, so the nested snapshot on the current site row always shows the pens the API last reported instead of freezing until one of the site's own fields changed — and unnesting it with `source.sites.max_table_nesting = 1` gives current rows. The cost is more `sites` versions, one per pen change; the `pens` table is unchanged.
 - The packaged secrets example declared the API key under a section dlt does not read for this source, so following the [quick start](README.md#quick-start) left credentials unresolved. It now uses `[sources.aquabyte]`, the section [Configuration](README.md#configuration) documents.
