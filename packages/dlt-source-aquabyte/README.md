@@ -4,17 +4,13 @@ An installable [dlt](https://dlthub.com/) source package that loads aquaculture 
 
 **Records land as the API returns them** — nothing renamed, nothing dropped, no invented child tables. What *is* added is named up front rather than discovered later: `_dlt_valid_from` and `_dlt_valid_to` on the two versioned tables, and the pens nested inside each site, unwrapped into a `pens` table. Column names are the API's own field names, in dlt's usual snake_case.
 
-Everything else the source does is mechanics: auth, pagination, envelope unwrapping, incremental cursors, and overridable key and write-disposition defaults. Reshaping belongs in your transform layer, where you can change it without waiting for a release.
-
-It depends on dlt and nothing else: destination, orchestrator, secrets manager and log routing stay your choices.
+Everything else is mechanics: auth, pagination, envelope unwrapping, incremental cursors, and overridable key and write-disposition defaults. Reshaping belongs in your transform layer, where you can change it without waiting for a release. The package depends on dlt and nothing else — destination, orchestrator, secrets manager and log routing stay your choices.
 
 ## Install
 
 ```bash
-uv add dlt-source-aquabyte "dlt[duckdb]"      # or: pip install dlt-source-aquabyte "dlt[duckdb]"
+uv add dlt-source-aquabyte "dlt[duckdb]"   # any dlt destination works; DuckDB is the one below
 ```
-
-Any dlt destination works; DuckDB is what the quick start below loads into.
 
 ## Quick start
 
@@ -50,7 +46,7 @@ pipeline = dlt.pipeline(
 print(pipeline.run(aquabyte_source()))
 ```
 
-The two `initial_*` values are the first-run start for the resources that keep an incremental cursor; a run of only `sites`, `pens` or `environmental_latest` needs neither. How far back your data goes differs per endpoint and per account, and setting a start earlier than that costs empty requests, not errors.
+The two `initial_*` values are the first-run start for the resources that keep an incremental cursor; a run of only `sites`, `pens` or `environmental_latest` needs neither, and a cursor resource missing one fails with an error naming it. How far back your data goes differs per endpoint and per account, and setting a start earlier than that costs empty requests, not errors.
 
 ## What it loads
 
@@ -67,9 +63,7 @@ The two `initial_*` values are the first-run start for the resources that keep a
 | `behaviour_breathing_index` | `GET /behaviour/breathingIndex` | merge | `penId`, `fromTime` |
 | `welfare_scores` | `GET /welfareScores` | merge | `penId`, `date` |
 
-`sites` reads every site, and `pens` unwraps the pens nested in each one — every pen, active or not. Both are **versioned rather than replaced**: a row is retired, never deleted, because a pen leaves `/sites` as soon as it is emptied. What that means for your queries is in [the reference](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/REFERENCE.md#the-registry-tables-are-versioned).
-
-Nested objects land as one JSON column each, and `welfare_scores` is not unpivoted — [why, and how to override it](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/REFERENCE.md#nesting).
+`sites` reads every site, and `pens` unwraps the pens nested in each one — every pen, active or not. Both are **versioned rather than replaced**: a row is retired, never deleted, because a pen leaves `/sites` as soon as it is emptied ([what that means for your queries](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/REFERENCE.md#the-registry-tables-are-versioned)). Nested objects land as one JSON column each, and `welfare_scores` is not unpivoted ([why, and how to override it](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/REFERENCE.md#nesting)).
 
 ## Configuring a resource
 
@@ -82,7 +76,7 @@ source.biomass.bind(pen_id="pen-abc", from_date="2026-01-01", bucket_size=500)
 pipeline.run(source)
 ```
 
-- **`pen_id`** defaults to `"all"` — the API's own value for "every pen", in one request. Pass one id, or a list to issue one request per pen.
+- **`pen_id`** defaults to `"all"` — the API's own value for "every pen", in one request. Pass one id, or a list to issue one request per pen. It is the one param `params` cannot override: it drives the fan-out, so `penId` is re-stamped per request after the merge.
 - **Window params** (`from_date`/`from_time`) default to the incremental cursor, so a daily run resumes where it left off. Backfilling a past window has its own rule — see [the reference](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/REFERENCE.md#windows-cursors-and-backfilling).
 - **`params`** is on every resource and merged into the query string last: the escape hatch for a query param the API grows later, no release needed.
 
@@ -112,7 +106,7 @@ One concept each, readable on GitHub. From a checkout, run one with `python exam
 |---|---|
 | 0.1.x | v3.1 |
 
-The two numbers are unrelated: the package version is ordinary [SemVer](https://semver.org/) describing what changed *for you*, and never mirrors the API's. Built against that version's [`specs/openapi.json`](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/specs/README.md) and run against the live API (last on 2026-08-17). A later backwards-compatible version is expected to work and is not verified here; run the suite first.
+The two numbers are unrelated — the package version is ordinary [SemVer](https://semver.org/) and never mirrors the API's. Built against that version's [`specs/openapi.json`](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/specs/README.md) and run against the live API (last on 2026-08-17). A later backwards-compatible version is expected to work and is not verified here; run the suite first.
 
 ## Read next
 

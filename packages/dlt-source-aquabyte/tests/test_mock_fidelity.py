@@ -6,9 +6,12 @@ for both. A fixture in a shape the API could not produce makes the whole offline
 blind to the real one, and a column hint naming a field the API does not send is a hint
 that silently does nothing.
 
-Presence is asserted only for fields the spec both requires and forbids to be null. The
-API omits nullable fields it declares required — see "API quirks worth knowing" in
-`specs/README.md`.
+The spec is validated as the JSON Schema it is, with two relaxations applied first:
+
+- **A required field that may be null may also be absent.** The API omits such fields
+  rather than sending nulls — see "API quirks worth knowing" in `specs/README.md`.
+- **A record may carry no field the spec does not declare.** JSON Schema allows extras by
+  default; here an extra means an invented fixture, which is the thing worth catching.
 """
 
 import json
@@ -16,53 +19,54 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from jsonschema import Draft202012Validator
 
 from dlt_source_aquabyte import aquabyte_source
 from tests.conftest import ALL_PEN_IDS, MOCK_DIR, SOURCE_CONFIG, load_mock
 
 SPEC = json.loads((Path(__file__).parent.parent / "specs" / "openapi.json").read_text())
 
-# fixture file -> the endpoint whose response it stands in for. The response schema in the
-# spec covers the envelope key too, so the fixture's own top-level shape is checked with it.
-FIXTURES = {
-    "sites.json": "/sites",
-    "environmental.json": "/environmental",
-    "environmental_latest.json": "/environmental/latest",
-    "biomass.json": "/biomass",
-    "harvest_report.json": "/biomass/harvestReport",
-    "lice_count.json": "/liceCount",
-    "swim_speed.json": "/behaviour/swimSpeed",
-    "breathing_index.json": "/behaviour/breathingIndex",
-    "welfare_scores.json": "/welfareScores",
+# endpoint -> the fixture standing in for its response, and the resource that reads it.
+# `pens` is absent: it has no endpoint, and unwraps the `pens` list nested in a site.
+ENDPOINTS = {
+    "/sites": ("sites.json", "sites"),
+    "/environmental": ("environmental.json", "environmental"),
+    "/environmental/latest": ("environmental_latest.json", "environmental_latest"),
+    "/biomass": ("biomass.json", "biomass"),
+    "/biomass/harvestReport": ("harvest_report.json", "harvest_report"),
+    "/liceCount": ("lice_count.json", "lice_count"),
+    "/behaviour/swimSpeed": ("swim_speed.json", "behaviour_swim_speed"),
+    "/behaviour/breathingIndex": ("breathing_index.json", "behaviour_breathing_index"),
+    "/welfareScores": ("welfare_scores.json", "welfare_scores"),
 }
 
-# resource -> the endpoint it reads. `pens` reads none: it unwraps the `pens` list nested
-# in a `/sites` record, so its records are that list's items.
-RESOURCE_ENDPOINTS = {
-    "sites": "/sites",
-    "environmental": "/environmental",
-    "environmental_latest": "/environmental/latest",
-    "biomass": "/biomass",
-    "harvest_report": "/biomass/harvestReport",
-    "lice_count": "/liceCount",
-    "behaviour_swim_speed": "/behaviour/swimSpeed",
-    "behaviour_breathing_index": "/behaviour/breathingIndex",
-    "welfare_scores": "/welfareScores",
-}
+RESOURCE_ENDPOINTS = {resource: path for path, (_, resource) in ENDPOINTS.items()}
 
 # OpenAPI type -> the dlt data type a column hint gives it. Dates and timestamps stay text:
 # the source declares them as the API sends them and leaves parsing to the consumer.
 DLT_DATA_TYPES = {"string": "text", "number": "double", "integer": "bigint", "boolean": "bool"}
 
-JSON_TYPES: dict[str, type | tuple[type, ...]] = {
-    "string": str,
-    "number": (int, float),
-    "integer": int,
-    "boolean": bool,
-    "object": dict,
-    "array": list,
-    "null": type(None),
-}
+
+def _permits_null(schema: dict[str, Any]) -> bool:
+    return any(branch.get("type") == "null" for branch in schema.get("anyOf", []))
+
+
+def _tightened(node: Any) -> Any:
+    """The spec with the two relaxations of the module docstring applied, recursively."""
+    if isinstance(node, list):
+        return [_tightened(item) for item in node]
+    if not isinstance(node, dict):
+        return node
+    schema = {key: _tightened(value) for key, value in node.items()}
+    if "properties" in schema:
+        schema.setdefault("additionalProperties", False)
+        schema["required"] = [
+            name for name in schema.get("required", []) if not _permits_null(schema["properties"][name])
+        ]
+    return schema
+
+
+TIGHTENED_SPEC = _tightened(SPEC)
 
 
 def _resolve(schema: dict[str, Any]) -> dict[str, Any]:
@@ -77,111 +81,65 @@ def _response_schema(path: str) -> dict[str, Any]:
     return _resolve(SPEC["paths"][path]["get"]["responses"]["200"]["content"]["application/json"]["schema"])
 
 
-def _records_key(path: str) -> str:
+def _records_key(envelope: dict[str, Any]) -> str:
     """The envelope key holding the records — the one array in the response body."""
-    properties = _response_schema(path)["properties"]
-    (key,) = [name for name, prop in properties.items() if prop.get("type") == "array"]
+    (key,) = [name for name, prop in envelope["properties"].items() if prop.get("type") == "array"]
     return key
 
 
-def _record_schema(path: str) -> dict[str, Any]:
-    """The schema of one record inside that response's envelope."""
-    envelope = _response_schema(path)
-    return _resolve(envelope["properties"][_records_key(path)]["items"])
+def _record_schema(resource_name: str) -> dict[str, Any]:
+    """The spec's schema for one record a resource loads."""
+    if resource_name == "pens":
+        return _resolve(_record_schema("sites")["properties"]["pens"]["items"])
+    envelope = _response_schema(RESOURCE_ENDPOINTS[resource_name])
+    return _resolve(envelope["properties"][_records_key(envelope)]["items"])
 
 
-def _nullable(schema: dict[str, Any]) -> bool:
-    return any(branch.get("type") == "null" for branch in schema.get("anyOf", []))
-
-
-def _problems(value: Any, schema: dict[str, Any], where: str) -> list[str]:
-    """Every way `value` departs from `schema`, as messages naming where it happened."""
-    schema = _resolve(schema)
-
-    if "anyOf" in schema:
-        branches = [_problems(value, branch, where) for branch in schema["anyOf"]]
-        return [] if any(not found for found in branches) else [f"{where} matches no branch of anyOf"]
-
-    declared = schema.get("type")
-    if declared is None:
-        return []
-    expected = JSON_TYPES[declared]
-    if isinstance(value, bool) != (declared == "boolean") or not isinstance(value, expected):
-        return [f"{where} is {type(value).__name__}, not {declared}"]
-
-    if declared == "array":
-        return [p for i, item in enumerate(value) for p in _problems(item, schema["items"], f"{where}[{i}]")]
-
-    if declared == "object":
-        properties = schema.get("properties", {})
-        extra = schema.get("additionalProperties")
-        found = [
-            f"{where}.{key} is not a field of {schema.get('title', 'the record')}"
-            for key in value
-            if key not in properties and not extra
-        ]
-        found += [
-            f"{where}.{key} is required and cannot be null, but is missing"
-            for key in schema.get("required", [])
-            if key not in value and not _nullable(properties[key])
-        ]
-        for key, item in value.items():
-            found += _problems(item, properties.get(key) or extra or {}, f"{where}.{key}")
-        return found
-
-    return []
-
-
-@pytest.mark.parametrize(("filename", "path"), FIXTURES.items())
-def test_fixture_matches_its_endpoints_response_schema(filename, path):
-    problems = _problems(load_mock(filename), _response_schema(path), filename)
+@pytest.mark.parametrize(("path", "fixture_and_resource"), ENDPOINTS.items())
+def test_fixture_matches_its_endpoints_response_schema(path, fixture_and_resource):
+    filename, _ = fixture_and_resource
+    body = SPEC["paths"][path]["get"]["responses"]["200"]["content"]["application/json"]["schema"]
+    validator = Draft202012Validator({**TIGHTENED_SPEC, **body})
+    problems = [
+        f"{filename}.{error.json_path}: {error.message}" for error in validator.iter_errors(load_mock(filename))
+    ]
     assert not problems, "\n".join(problems)
 
 
-@pytest.mark.parametrize(("filename", "path"), FIXTURES.items())
-def test_fixture_has_records(filename, path):
+@pytest.mark.parametrize(("path", "fixture_and_resource"), ENDPOINTS.items())
+def test_fixture_has_records(path, fixture_and_resource):
     """An empty envelope would satisfy the schema and prove nothing downstream."""
-    assert load_mock(filename)[_records_key(path)]
+    filename, _ = fixture_and_resource
+    assert load_mock(filename)[_records_key(_response_schema(path))]
 
 
-@pytest.mark.parametrize(("resource_name", "path"), RESOURCE_ENDPOINTS.items())
-def test_column_hints_name_fields_the_api_sends(resource_name, path):
-    """A hint is only worth having on a field the spec declares, typed the way it declares it."""
-    properties = _record_schema(path)["properties"]
+@pytest.mark.parametrize("resource_name", [*RESOURCE_ENDPOINTS, "pens"])
+def test_column_hints_match_the_spec(resource_name):
+    """A hint is worth having only on a field the API sends, typed and nulled as declared."""
+    record = _record_schema(resource_name)
+    properties = record["properties"]
     hinted = _hinted_columns(resource_name)
 
     unknown = set(hinted) - set(properties)
-    assert not unknown, f"{resource_name} hints {sorted(unknown)}, which /{path.lstrip('/')} does not send"
+    assert not unknown, f"{resource_name} hints {sorted(unknown)}, which the API does not send"
 
-    for name, data_type in hinted.items():
-        assert data_type == _expected_data_type(properties[name]), f"{resource_name}.{name} is typed against the spec"
-
-
-def test_pens_column_hints_name_fields_the_api_sends():
-    """`pens` has no endpoint of its own — its records are the `pens` list on a site."""
-    properties = _resolve(_record_schema("/sites")["properties"]["pens"]["items"])["properties"]
-    hinted = _hinted_columns("pens")
-
-    assert not set(hinted) - set(properties)
-    for name, data_type in hinted.items():
-        assert data_type == _expected_data_type(properties[name]), f"pens.{name} is typed against the spec"
+    for name, column in hinted.items():
+        declared = properties[name]
+        assert column.get("data_type") == _dlt_data_type(declared), f"{resource_name}.{name}: wrong data type"
+        mandatory = name in record.get("required", []) and not _permits_null(declared)
+        assert column.get("nullable", True) is not mandatory, f"{resource_name}.{name}: wrong nullability"
 
 
-def _hinted_columns(resource_name: str) -> dict[str, str]:
+def _hinted_columns(resource_name: str) -> dict[str, dict[str, Any]]:
     """The declared columns of a resource's table, minus the ones dlt adds itself."""
     table = aquabyte_source(**SOURCE_CONFIG).resources[resource_name].compute_table_schema()
-    hinted = {}
-    for name, column in table.get("columns", {}).items():
-        data_type = column.get("data_type")
-        if data_type and not name.startswith("_dlt"):
-            hinted[name] = data_type
-    return hinted
+    return {name: dict(column) for name, column in table.get("columns", {}).items() if not name.startswith("_dlt")}
 
 
-def _expected_data_type(prop: dict[str, Any]) -> str:
+def _dlt_data_type(declared: dict[str, Any]) -> str:
     """The dlt data type for a spec property, looking through its nullable wrapper."""
-    declared = [branch for branch in prop.get("anyOf", [prop]) if branch.get("type") != "null"]
-    return DLT_DATA_TYPES[_resolve(declared[0])["type"]]
+    branches = [branch for branch in declared.get("anyOf", [declared]) if branch.get("type") != "null"]
+    return DLT_DATA_TYPES[_resolve(branches[0])["type"]]
 
 
 def test_sites_fixture_matches_the_pen_constants():
@@ -192,7 +150,7 @@ def test_sites_fixture_matches_the_pen_constants():
 
 
 def test_no_fixture_carries_an_external_identifier():
-    """These two fields are declared by the API and were never sent — see the README.
+    """These two fields are declared by the API and were never sent — see `specs/README.md`.
 
     An earlier fixture invented them, which made the suite assert a shape the live API
     has not produced. They most likely arrive once an account populates them, so if that

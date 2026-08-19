@@ -36,7 +36,7 @@ side, are in `REFERENCE.md`. https://dlthub.com/docs/general-usage/merge-loading
 """
 
 
-Columns = dict[str, TColumnSchema]
+ColumnHints = dict[str, TColumnSchema]
 """Column hints for one resource: the API's own field names, typed per `specs/openapi.json`.
 
 They buy one thing — a column keeps its type when the first page is all nulls, or the
@@ -45,14 +45,14 @@ Nested fields have no entry, so `max_table_nesting` alone decides their shape.
 `nullable: False` marks the fields the spec requires and forbids to be null.
 """
 
-SITE_COLUMNS: Columns = {
+SITE_COLUMNS: ColumnHints = {
     "id": {"data_type": "text", "nullable": False},
     "name": {"data_type": "text", "nullable": False},
     "governmentSiteNumber": {"data_type": "bigint"},
     "external_site_id": {"data_type": "text"},
 }
 
-PEN_COLUMNS: Columns = {
+PEN_COLUMNS: ColumnHints = {
     "id": {"data_type": "text", "nullable": False},
     "name": {"data_type": "text", "nullable": False},
     "penCode": {"data_type": "text"},
@@ -60,7 +60,7 @@ PEN_COLUMNS: Columns = {
     "external_id": {"data_type": "text"},
 }
 
-ENVIRONMENTAL_COLUMNS: Columns = {
+ENVIRONMENTAL_COLUMNS: ColumnHints = {
     "penId": {"data_type": "text", "nullable": False},
     "fromTime": {"data_type": "text", "nullable": False},
     "toTime": {"data_type": "text", "nullable": False},
@@ -73,7 +73,7 @@ ENVIRONMENTAL_COLUMNS: Columns = {
     "fishDensity": {"data_type": "double"},
 }
 
-ENVIRONMENTAL_LATEST_COLUMNS: Columns = {
+ENVIRONMENTAL_LATEST_COLUMNS: ColumnHints = {
     "penId": {"data_type": "text"},
     "time": {"data_type": "text", "nullable": False},
     "temperature": {"data_type": "double"},
@@ -82,7 +82,7 @@ ENVIRONMENTAL_LATEST_COLUMNS: Columns = {
     "salinity": {"data_type": "double"},
 }
 
-BIOMASS_COLUMNS: Columns = {
+BIOMASS_COLUMNS: ColumnHints = {
     "penId": {"data_type": "text", "nullable": False},
     "date": {"data_type": "text", "nullable": False},
     "sampleSize": {"data_type": "double"},
@@ -91,7 +91,7 @@ BIOMASS_COLUMNS: Columns = {
     "cv": {"data_type": "double"},
 }
 
-HARVEST_REPORT_COLUMNS: Columns = {
+HARVEST_REPORT_COLUMNS: ColumnHints = {
     "penId": {"data_type": "text", "nullable": False},
     "mainReport": {"data_type": "bool", "nullable": False},
     "asOfDate": {"data_type": "text", "nullable": False},
@@ -110,7 +110,7 @@ HARVEST_REPORT_COLUMNS: Columns = {
     "createdAt": {"data_type": "text", "nullable": False},
 }
 
-LICE_COUNT_COLUMNS: Columns = {
+LICE_COUNT_COLUMNS: ColumnHints = {
     "penId": {"data_type": "text", "nullable": False},
     "date": {"data_type": "text", "nullable": False},
     "sampleSize": {"data_type": "double", "nullable": False},
@@ -121,7 +121,7 @@ LICE_COUNT_COLUMNS: Columns = {
     "caligus": {"data_type": "double"},
 }
 
-SWIM_SPEED_COLUMNS: Columns = {
+SWIM_SPEED_COLUMNS: ColumnHints = {
     "penId": {"data_type": "text", "nullable": False},
     "fromTime": {"data_type": "text", "nullable": False},
     "toTime": {"data_type": "text", "nullable": False},
@@ -131,7 +131,7 @@ SWIM_SPEED_COLUMNS: Columns = {
     "swimTilt": {"data_type": "double"},
 }
 
-BREATHING_INDEX_COLUMNS: Columns = {
+BREATHING_INDEX_COLUMNS: ColumnHints = {
     "penId": {"data_type": "text", "nullable": False},
     "fromTime": {"data_type": "text", "nullable": False},
     "toTime": {"data_type": "text", "nullable": False},
@@ -139,7 +139,7 @@ BREATHING_INDEX_COLUMNS: Columns = {
     "breathingIndex": {"data_type": "double"},
 }
 
-WELFARE_SCORES_COLUMNS: Columns = {
+WELFARE_SCORES_COLUMNS: ColumnHints = {
     "penId": {"data_type": "text", "nullable": False},
     "date": {"data_type": "text", "nullable": False},
 }
@@ -182,7 +182,8 @@ def _window_start(
             config_key = "initial_time" if param == "fromTime" else "initial_date"
             raise ValueError(
                 f"{resource}: no {param} bound, no incremental cursor value, and no configured "
-                f"start. Set {config_key} under [sources.aquabyte], or bind a window — see the README."
+                f"start. Set {config_key} under [sources.aquabyte] — see the README — or bind a window, "
+                f"which REFERENCE.md covers under backfilling."
             )
         logger.warning(
             "%s: no %s and no incremental cursor value, so the configured start applies, %s=%s.",
