@@ -71,7 +71,7 @@ On your release branch:
 
 ```bash
 uv version --package dlt-source-aquabyte --bump minor --bump rc   # 0.1.0 -> 0.2.0rc1
-git add packages/dlt-source-aquabyte/pyproject.toml
+git add packages/dlt-source-aquabyte/pyproject.toml uv.lock
 git commit -m "Release candidate dlt-source-aquabyte 0.2.0rc1"
 git push origin HEAD
 
@@ -82,6 +82,8 @@ git push origin dlt-source-aquabyte/v0.2.0rc1
 
 The validator catches a reused candidate number before TestPyPI refuses it.
 
+> **A package still at its initial version sets the candidate explicitly.** `--bump rc` derives the candidate from a *higher* release version, so it fails when `pyproject.toml` already holds the version you are about to release — `0.1.0 => 0.1.0rc1 didn't increase the version`. Pass the version instead: `uv version --package dlt-source-aquabyte 0.1.0rc1`, and use the matching `dlt-source-aquabyte/v0.1.0rc1` tag.
+
 The workflow sees a pre-release version and publishes to TestPyPI, with no approval step. Then install it from there and check it works — dependencies still come from normal PyPI, because TestPyPI does not carry them:
 
 ```bash
@@ -90,13 +92,15 @@ uv run --with 'dlt-source-aquabyte==0.2.0rc1' \
   python -c 'import dlt_source_aquabyte'
 ```
 
-If something is wrong, fix it on the branch and bump to `rc2` with `uv version --package dlt-source-aquabyte --bump rc` — both indexes refuse a version number that has already been used, so every attempt needs a fresh one.
+If something is wrong, fix it on the branch and go to `rc2` with `uv version --package dlt-source-aquabyte --bump rc` (or an explicit `uv version --package dlt-source-aquabyte 0.1.0rc2` in the first-release case above) — both indexes refuse a version number that has already been used, so every attempt needs a fresh one.
 
 When it looks good, drop the candidate marker and continue at step 3:
 
 ```bash
 uv version --package dlt-source-aquabyte --bump stable   # 0.2.0rc1 -> 0.2.0
 ```
+
+In the first-release case, set it back explicitly: `uv version --package dlt-source-aquabyte 0.1.0`.
 
 ## Step 3 — write the changelog entry
 
@@ -119,7 +123,7 @@ Describe what a user of the package will notice, not what the commits say. If th
 ## Step 4 — open a pull request and get it merged
 
 ```bash
-git add packages/dlt-source-aquabyte/pyproject.toml packages/dlt-source-aquabyte/CHANGELOG.md
+git add packages/dlt-source-aquabyte/pyproject.toml packages/dlt-source-aquabyte/CHANGELOG.md uv.lock
 git commit -m "Release dlt-source-aquabyte 0.2.0"
 git push origin HEAD
 ```
@@ -147,11 +151,11 @@ Two things to be careful about here:
 - **Push the one tag by name, never `git push --tags`.** GitHub sends no event at all when more than three tags arrive at once, so the release would silently not run.
 - **Pushing the tag is the point of no return.** PyPI never lets a version number be reused — not even after deleting it. If something is wrong, you fix it in a new version; you cannot re-release this one.
 
-> **Known limitation:** the maintainer-approval step in the workflow does not gate anything yet — pushing the tag publishes immediately, and nobody reviews the run. Tracked in [#8](https://github.com/Havbruksdataforeningen/dlt-sources/issues/8), which must be resolved before the first real release. Remove this note when it is.
-
 ## What happens after the push
 
 The workflow runs the same validator you ran in step 5, builds the package, and publishes it — a final version goes to PyPI, a pre-release version (like `0.2.0rc1`) goes to TestPyPI. Watch it under the repo's **Actions** tab, then check the result at `https://pypi.org/p/dlt-source-aquabyte`.
+
+A final version waits for approval in the `pypi` environment before it uploads; a pre-release goes straight out through `testpypi`, which has no protection rules. Be clear about what that approval is: the environment has one required reviewer and `prevent_self_review: false`, so with a single maintainer you approve your own run. It is a deliberate pause — a last chance to stop before the upload becomes permanent — not a second pair of eyes. Turning `prevent_self_review` on would block every release until there is a second maintainer.
 
 ## First release of a package
 
