@@ -179,4 +179,4 @@ You only need these if you are changing [`release.yml`](../.github/workflows/rel
 - **Trusted Publishing only, no stored tokens.** `id-token: write` goes at job level, never workflow level.
 - **Build with `uv build --package <pkg> --no-sources`,** so the package is built the way someone installing it from PyPI gets it.
 - **Environment names are fixed text — `pypi` and `testpypi`.** If the name came from an expression, GitHub would create any unknown environment with no protection rules, and a new package would publish ungated.
-- **Pin the publish action to a commit SHA.** It holds our PyPI identity.
+- **Pin the publish action to a commit SHA.** It holds our PyPI identity. [`.github/dependabot.yml`](../.github/dependabot.yml) keeps that pin, and every other one, from going stale — a SHA cannot be moved under us, but it does not pick up the action's own security fixes either.
