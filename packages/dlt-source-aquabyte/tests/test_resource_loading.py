@@ -184,6 +184,43 @@ def test_resource_accepts_a_disabled_incremental(mock_rest_client, endpoint):
     assert params_sent(mock_rest_client, endpoint.path)[0][endpoint.window_param] == endpoint.configured_start
 
 
+@pytest.mark.parametrize("endpoint", ENDPOINTS, ids=lambda endpoint: endpoint.resource)
+def test_resource_requests_the_window_a_backfill_incremental_carries(mock_rest_client, endpoint):
+    """A bound backfill incremental drives both window params — start from its
+    `initial_value`, end from its `end_value` — so the API is asked for exactly the
+    rows dlt will keep."""
+    mock_rest_client.paginate.reset_mock()
+    mock_rest_client.paginate.side_effect = serve({endpoint.path: endpoint.records})
+
+    start, end = endpoint.window.values()
+    source = aquabyte_source(**SOURCE_CONFIG)
+    argument = next(
+        name for name in resource_signature(source, endpoint.resource).parameters if name.startswith("incremental_")
+    )
+    window = dlt.sources.incremental(initial_value=start, end_value=end)
+    source.resources[endpoint.resource].bind(**{argument: window})
+    _, load_info = run_source(f"test_backfill_{endpoint.resource}", source, [endpoint.resource])
+
+    assert load_info is not None
+    sent = params_sent(mock_rest_client, endpoint.path)[0]
+    assert sent[endpoint.window_param] == start
+    assert sent[endpoint.window_param.replace("from", "to")] == end
+
+
+@pytest.mark.parametrize("endpoint", ENDPOINTS, ids=lambda endpoint: endpoint.resource)
+def test_resource_refuses_a_window_start_behind_an_active_cursor(mock_rest_client, endpoint):
+    """A window reaching back before the cursor is an error, never a silent empty load."""
+    mock_rest_client.paginate.side_effect = serve({endpoint.path: endpoint.records})
+
+    source = aquabyte_source(**SOURCE_CONFIG)
+    argument = "from_date" if endpoint.window_param == "fromDate" else "from_time"
+    behind_the_cursor = "2019-01-01" if argument == "from_date" else "2019-01-01T00:00:00Z"
+    source.resources[endpoint.resource].bind(**{argument: behind_the_cursor})
+
+    with pytest.raises(Exception, match="reaches back before the incremental cursor"):
+        run_source(f"test_window_behind_{endpoint.resource}", source, [endpoint.resource])
+
+
 @pytest.mark.parametrize("endpoint", WITH_OPTIONAL, ids=lambda endpoint: endpoint.resource)
 def test_resource_sends_an_optional_param_only_when_it_is_bound(mock_rest_client, endpoint):
     """An optional param is absent unless asked for, so the API's own default applies."""
