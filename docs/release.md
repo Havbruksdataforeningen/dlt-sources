@@ -118,6 +118,8 @@ In `packages/dlt-source-aquabyte/CHANGELOG.md`, move the `Unreleased` content in
 - `biomass` no longer drops rows where `packing_method` is missing.
 ```
 
+The date is the day you tag, not the day you write the entry — a release can sit on a branch for a while. The validator in step 5 checks it is present, real, not in the future, and no more than a week old, because nothing downstream notices a stale date.
+
 Describe what a user of the package will notice, not what the commits say. If the release contains a breaking change (see the 0.x rule above), state it in bold at the top of the entry.
 
 ## Step 4 — open a pull request and get it merged
