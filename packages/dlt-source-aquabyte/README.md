@@ -87,7 +87,7 @@ Params can also be set in config, per resource:
 period = "15min"
 ```
 
-The package emits no log records of its own. dlt logs the window each run asked for and every request it made, on its own `dlt` logger, so [routing is yours](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/REFERENCE.md#logging).
+The package emits no log records of its own. dlt logs the window each run asked for and every request it made, on its own `dlt` logger, and routing them is dlt's `[runtime]` settings rather than anything here: [what to set](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/REFERENCE.md#logging), and dlt's own [logging documentation](https://dlthub.com/docs/running-in-production/running#set-the-log-level-and-format).
 
 ## Examples
 
@@ -98,7 +98,6 @@ One concept each, readable on GitHub. From a checkout, run one with `python exam
 | [`quickstart.py`](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/examples/quickstart.py) | Load every resource into DuckDB |
 | [`daily_load.py`](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/examples/daily_load.py) | Re-running resumes from the stored cursor |
 | [`backfill.py`](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/examples/backfill.py) | Re-load a window, stored cursor untouched |
-| [`logging_setup.py`](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/examples/logging_setup.py) | Logs to your collector, errors to Sentry |
 
 ## Compatibility
 

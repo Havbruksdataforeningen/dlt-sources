@@ -65,7 +65,15 @@ The package emits no log records of its own — it has nothing to say that dlt d
 
 dlt logs, on the logger named `dlt` at INFO, the two lines an operator needs to verify a catch-up run or a backfill: the window each resource bound, and every request made. Both are off by default, because dlt's own level is `WARNING`.
 
-Three `[runtime]` settings cover routing, and they are dlt's, not ours: `log_level`, `log_format` (`"JSON"` for a collector, or a `{}`-style format string), and `sentry_dsn`, which sends logged errors and unhandled exceptions to Sentry once `sentry-sdk` is installed. A service with its own handler goes on the `dlt` logger, which dlt then uses. [`examples/logging_setup.py`](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/examples/logging_setup.py) is all three in one file; dlt documents them under [running in production](https://dlthub.com/docs/running-in-production/running#set-the-log-level-and-format).
+Three `[runtime]` settings cover routing, and they are dlt's, not ours:
+
+| Setting | What it buys |
+|---|---|
+| `log_level` | `"INFO"` turns both lines on |
+| `log_format` | `"JSON"` for a collector to parse, or your own `{}`-style format string |
+| `sentry_dsn` | logged errors and unhandled exceptions go to Sentry, once `sentry-sdk` is installed |
+
+Each has an env var too (`RUNTIME__LOG_LEVEL` and so on). A service that ships records itself hands you a handler: attach it to the `dlt` logger before the run and dlt uses it. dlt documents all of this under [running in production](https://dlthub.com/docs/running-in-production/running#set-the-log-level-and-format), which is worth reading once — there is nothing package-specific to add.
 
 ## Column types
 
