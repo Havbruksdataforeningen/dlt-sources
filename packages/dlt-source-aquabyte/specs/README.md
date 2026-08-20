@@ -59,8 +59,14 @@ And one that bites when you are debugging rather than reading:
   instead of `fromDate` and you get the endpoint's own default window with nothing to tell
   you the window you asked for was dropped. Invalid *values* are rejected properly
   (`period=15min` on an endpoint allowing only `h` and `D` returns `422`); it is only unknown
-  *names* that pass silently. This is also why `/behaviour/breathingIndex` accepting a
-  `period` it does not document is no evidence that it supports one.
+  *names* that pass silently.
+
+- **`/behaviour/breathingIndex` takes a `period` its OpenAPI document does not list, and
+  allows only the daily one.** `period=h` returns `400 period must be daily` and
+  `period=15min` a `422` naming the `h`/`D` enum — so the parameter is recognised and acted
+  on, not ignored as an unknown name would be. The grain is therefore fixed, which is why
+  the resource is keyed on `penId` + `fromTime` without `toTime`. Reported upstream in #29.
+  (2026-08-20.)
 
 ### Identifiers
 
