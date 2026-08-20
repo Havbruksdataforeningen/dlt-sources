@@ -67,7 +67,7 @@ The two `initial_*` values are the first-run start for the resources that keep a
 
 ## Configuring a resource
 
-Each resource takes exactly the params its endpoint documents, in snake_case:
+Each resource takes its endpoint's params in snake_case, except the window ones, which the incremental cursor drives:
 
 ```python
 source = aquabyte_source()

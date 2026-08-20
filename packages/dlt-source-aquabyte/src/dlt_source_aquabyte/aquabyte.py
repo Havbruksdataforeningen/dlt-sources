@@ -145,13 +145,6 @@ def _query(extra: dict[str, Any] | None = None, **named: Any) -> dict[str, Any]:
     return params
 
 
-def _window(incremental: dlt.sources.incremental[str] | None) -> tuple[str | None, str | None]:
-    """The window an incremental defines: its cursor value, and the end a backfill bound."""
-    if incremental is None:
-        return None, None
-    return incremental.last_value, incremental.end_value
-
-
 def _windowed_query(resource: str, start_param: str, extra: dict[str, Any] | None, **named: Any) -> dict[str, Any]:
     """`_query`, plus the one guarantee the windowed resources keep: a window start is sent.
 
@@ -226,7 +219,8 @@ def aquabyte_source(
         ),
     ):
         """Environmental readings from `GET /environmental`."""
-        start, end = _window(incremental_from_time)
+        start = incremental_from_time.last_value if incremental_from_time is not None else None
+        end = incremental_from_time.end_value if incremental_from_time is not None else None
         yield from client.paginate(
             "/environmental",
             params=_windowed_query(
@@ -255,7 +249,8 @@ def aquabyte_source(
         ),
     ):
         """Daily biomass from `GET /biomass`."""
-        start, end = _window(incremental_date)
+        start = incremental_date.last_value if incremental_date is not None else None
+        end = incremental_date.end_value if incremental_date is not None else None
         yield from client.paginate(
             "/biomass",
             params=_windowed_query(
@@ -277,7 +272,8 @@ def aquabyte_source(
         ),
     ):
         """Harvest reports from `GET /biomass/harvestReport`."""
-        start, end = _window(incremental_slaughter_start_date)
+        start = incremental_slaughter_start_date.last_value if incremental_slaughter_start_date is not None else None
+        end = incremental_slaughter_start_date.end_value if incremental_slaughter_start_date is not None else None
         yield from client.paginate(
             "/biomass/harvestReport",
             params=_windowed_query("harvest_report", "fromDate", params, penId=pen_id, fromDate=start, toDate=end),
@@ -294,7 +290,8 @@ def aquabyte_source(
         ),
     ):
         """Lice counts from `GET /liceCount`."""
-        start, end = _window(incremental_date)
+        start = incremental_date.last_value if incremental_date is not None else None
+        end = incremental_date.end_value if incremental_date is not None else None
         yield from client.paginate(
             "/liceCount",
             params=_windowed_query("lice_count", "fromDate", params, penId=pen_id, fromDate=start, toDate=end),
@@ -311,7 +308,8 @@ def aquabyte_source(
         ),
     ):
         """Swim speed and tilt from `GET /behaviour/swimSpeed`."""
-        start, end = _window(incremental_from_time)
+        start = incremental_from_time.last_value if incremental_from_time is not None else None
+        end = incremental_from_time.end_value if incremental_from_time is not None else None
         yield from client.paginate(
             "/behaviour/swimSpeed",
             params=_windowed_query(
@@ -329,7 +327,8 @@ def aquabyte_source(
         ),
     ):
         """Breathing index from `GET /behaviour/breathingIndex`, which documents no `period`."""
-        start, end = _window(incremental_from_time)
+        start = incremental_from_time.last_value if incremental_from_time is not None else None
+        end = incremental_from_time.end_value if incremental_from_time is not None else None
         yield from client.paginate(
             "/behaviour/breathingIndex",
             params=_windowed_query(
@@ -347,7 +346,8 @@ def aquabyte_source(
         ),
     ):
         """Welfare scores from `GET /welfareScores` — one row per pen and date, categories nested."""
-        start, end = _window(incremental_date)
+        start = incremental_date.last_value if incremental_date is not None else None
+        end = incremental_date.end_value if incremental_date is not None else None
         yield from client.paginate(
             "/welfareScores",
             params=_windowed_query("welfare_scores", "fromDate", params, penId=pen_id, fromDate=start, toDate=end),

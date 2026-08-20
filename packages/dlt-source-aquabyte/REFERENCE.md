@@ -43,7 +43,7 @@ The incremental cursor is the only window mechanism, and its value is **always s
 
 To backfill, bind the window on the resource's `incremental_*` argument: `dlt.sources.incremental(initial_value=..., end_value=...)` runs with transient state, so dlt fetches and keeps exactly that window and the stored cursor is neither consulted nor advanced. The `end_value` is sent as the request's `toDate`/`toTime`. Runnable version: [`examples/backfill.py`](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/examples/backfill.py).
 
-A window overlaps by design, and dlt drops what it already has: a daily load asks again for the cursor's own day, and a date backfill asks for one day past `end_value`, because dlt's end is exclusive and the API's `toDate` is inclusive. That is one row per pen per day, not worth correcting for.
+A window overlaps by design, and dlt drops what it already has. A daily load asks again for the cursor's own value: one row per pen per day for the date-based resources, one `period` bucket for the time-based ones. A date backfill also asks for one day past `end_value`, because dlt's end is exclusive and the API's `toDate` is inclusive; `toTime` is exclusive, so the time-based resources have no such extra bucket. Neither overlap is worth correcting for.
 
 ⚠️ **The cursor is per resource, not per pen.** One cursor covers every pen the resource loads (`penId=all` included), advancing to the newest row *any* pen reported. Data arriving late — a pen whose camera was offline, a re-issued `harvest_report` revision for an old slaughter — falls behind the cursor and is not requested again. When that matters, periodically re-load a recent window the backfill way; merge dispositions make re-loading idempotent.
 
@@ -61,7 +61,7 @@ Rate limit and result cap are in `specs/openapi.json`. The package does not thro
 
 ## Logging
 
-The package emits no log records of its own — it has nothing to say that dlt does not already log, and on failure it raises. Attaching a handler to a `dlt_source_aquabyte` logger would wire up something that never fires.
+The package emits no log records of its own — it has nothing to say that dlt does not already log, and on failure it raises. There is no package logger to attach a handler to.
 
 dlt logs, on the logger named `dlt` at INFO, the two lines an operator needs to verify a catch-up run or a backfill: the window each resource bound, and every request made. Both are off by default, because dlt's own level is `WARNING`. Raising it and routing the records is [`examples/logging_setup.py`](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/examples/logging_setup.py).
 

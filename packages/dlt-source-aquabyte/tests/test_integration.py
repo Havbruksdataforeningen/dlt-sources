@@ -17,6 +17,7 @@ import dlt
 import pytest
 
 from dlt_source_aquabyte import aquabyte_source
+from tests.conftest import resource_signature
 
 
 def _require_credentials() -> None:
@@ -40,18 +41,8 @@ _NOW = datetime.now(tz=UTC)
 _DATE_WINDOW = ((_NOW - timedelta(days=3)).strftime("%Y-%m-%d"), _NOW.strftime("%Y-%m-%d"))
 _TIME_WINDOW = ((_NOW - timedelta(days=3)).strftime("%Y-%m-%dT%H:%M:%SZ"), _NOW.strftime("%Y-%m-%dT%H:%M:%SZ"))
 
-# Resource → the `incremental_*` argument its window is bound on, as in examples/backfill.py.
-_DATE_BASED = {
-    "biomass": "incremental_date",
-    "harvest_report": "incremental_slaughter_start_date",
-    "lice_count": "incremental_date",
-    "welfare_scores": "incremental_date",
-}
-_TIME_BASED = {
-    "environmental": "incremental_from_time",
-    "behaviour_swim_speed": "incremental_from_time",
-    "behaviour_breathing_index": "incremental_from_time",
-}
+_DATE_BASED = ("biomass", "harvest_report", "lice_count", "welfare_scores")
+_TIME_BASED = ("environmental", "behaviour_swim_speed", "behaviour_breathing_index")
 
 
 def _make_pipeline(name: str) -> dlt.Pipeline:
@@ -64,19 +55,19 @@ def _make_pipeline(name: str) -> dlt.Pipeline:
     )
 
 
-def _window_for(resource_name: str) -> dict[str, Any]:
-    """The bound backfill window for a resource, ready to pass to `bind`."""
-    if resource_name in _DATE_BASED:
-        argument, (start, end) = _DATE_BASED[resource_name], _DATE_WINDOW
-    else:
-        argument, (start, end) = _TIME_BASED[resource_name], _TIME_WINDOW
-    return {argument: dlt.sources.incremental(initial_value=start, end_value=end)}
+def _bind_window(source: Any, resource_name: str) -> None:
+    """Bind the test window on the resource's `incremental_*` argument, as backfill.py does."""
+    start, end = _DATE_WINDOW if resource_name in _DATE_BASED else _TIME_WINDOW
+    argument = next(
+        name for name in resource_signature(source, resource_name).parameters if name.startswith("incremental_")
+    )
+    source.resources[resource_name].bind(**{argument: dlt.sources.incremental(initial_value=start, end_value=end)})
 
 
 def _source_with_window(resource_name: str):
     """A source whose named resource reads the test window for every pen."""
     source = aquabyte_source()
-    source.resources[resource_name].bind(**_window_for(resource_name))
+    _bind_window(source, resource_name)
     return source
 
 
@@ -201,7 +192,7 @@ class TestFullPipeline:
         pipeline = _make_pipeline("full_pipeline")
         source = aquabyte_source()
         for resource_name in (*_DATE_BASED, *_TIME_BASED):
-            source.resources[resource_name].bind(**_window_for(resource_name))
+            _bind_window(source, resource_name)
 
         load_info = pipeline.run(source)
         assert load_info is not None
