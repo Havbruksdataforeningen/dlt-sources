@@ -3,6 +3,7 @@
 import copy
 import inspect
 import json
+import os
 import shutil
 import time
 from collections.abc import Callable
@@ -30,8 +31,9 @@ SOURCE_CONFIG: dict[str, Any] = {
     "api_key": "test-key",
 }
 
-DATE_RANGE = {"from_date": "2026-01-01", "to_date": "2026-01-31"}
-TIME_RANGE = {"from_time": "2026-01-01T00:00:00Z", "to_time": "2026-01-31T00:00:00Z"}
+# A backfill window, as (initial_value, end_value) for a bound `dlt.sources.incremental`.
+DATE_WINDOW = ("2026-01-01", "2026-01-31")
+TIME_WINDOW = ("2026-01-01T00:00:00Z", "2026-01-31T00:00:00Z")
 
 
 # --- Optional teardown -------------------------------------------------------
@@ -101,6 +103,25 @@ def load_mock(filename: str) -> dict:
 def make_per_pen_data(template: list[dict], pen_id: str) -> list[dict]:
     """Clone template records and stamp them with the given pen_id."""
     return [{**copy.deepcopy(r), "penId": pen_id} for r in template]
+
+
+@pytest.fixture
+def without_configured_starts(tmp_path, monkeypatch):
+    """Run with no config at all: no `.dlt/` files, no `SOURCES__*` variables.
+
+    A maintainer's own `.dlt/config.toml` supplies `initial_date` and `initial_time`, which
+    is what a test of the missing-start error needs gone.
+    """
+    for name in [name for name in os.environ if name.startswith("SOURCES__")]:
+        monkeypatch.delenv(name, raising=False)
+
+    run_context = Container()[PluggableRunContext]
+    original_run_dir = run_context.context.run_dir
+    run_context.reload(str(tmp_path))
+    try:
+        yield
+    finally:
+        run_context.reload(original_run_dir)
 
 
 @pytest.fixture

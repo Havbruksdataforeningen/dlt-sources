@@ -4,7 +4,6 @@ import copy
 
 from dlt_source_aquabyte import aquabyte_source
 from tests.conftest import (
-    DATE_RANGE,
     SOURCE_CONFIG,
     assert_row_count,
     load_mock,
@@ -23,7 +22,7 @@ def test_unknown_field_lands_in_the_destination(mock_rest_client):
     mock_rest_client.paginate.side_effect = serve({"/liceCount": records})
 
     source = aquabyte_source(**SOURCE_CONFIG)
-    source.lice_count.bind(pen_id="pen-001", **DATE_RANGE)
+    source.lice_count.bind(pen_id="pen-001")
     pipeline, load_info = run_source("test_leniency_extra_field", source, ["lice_count"])
 
     assert load_info is not None
@@ -41,7 +40,7 @@ def test_known_fields_keep_their_types(mock_rest_client):
     mock_rest_client.paginate.side_effect = serve({"/biomass": records})
 
     source = aquabyte_source(**SOURCE_CONFIG)
-    source.biomass.bind(pen_id="pen-001", **DATE_RANGE)
+    source.biomass.bind(pen_id="pen-001")
     pipeline, _ = run_source("test_leniency_types", source, ["biomass"])
 
     rows = query(pipeline, "SELECT data_type FROM information_schema.columns WHERE column_name = 'k_factor'")
@@ -57,7 +56,7 @@ def test_missing_nullable_field_does_not_fail_the_load(mock_rest_client):
     mock_rest_client.paginate.side_effect = serve({"/biomass": records})
 
     source = aquabyte_source(**SOURCE_CONFIG)
-    source.biomass.bind(pen_id="pen-001", **DATE_RANGE)
+    source.biomass.bind(pen_id="pen-001")
     pipeline, load_info = run_source("test_leniency_missing_field", source, ["biomass"])
 
     assert load_info is not None

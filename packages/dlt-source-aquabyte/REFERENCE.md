@@ -39,13 +39,13 @@ The API returns one record per pen and date with every welfare category nested i
 
 ## Windows, cursors and backfilling
 
-Window params (`from_date`/`from_time`) default to the incremental cursor and are **always sent**, falling back to `initial_date`/`initial_time` when there is no cursor value — so a run never silently inherits the API's own default window.
+The incremental cursor is the only window mechanism, and its value is **always sent** as the request's `fromDate`/`fromTime`. A daily load binds nothing: the first run starts at `initial_date`/`initial_time`, every later one resumes from the stored cursor. A run whose request would carry no window start fails with an error naming what to set, so it never silently inherits the API's own default window.
 
-Passing one explicitly overrides the cursor for that run, forward only: a window reaching back *before* the stored cursor is refused, because dlt's incremental filter would silently drop every fetched row below the cursor.
+To backfill, bind the window on the resource's `incremental_*` argument: `dlt.sources.incremental(initial_value=..., end_value=...)` runs with transient state, so dlt fetches and keeps exactly that window and the stored cursor is neither consulted nor advanced. The `end_value` is sent as the request's `toDate`/`toTime`. Runnable version: [`examples/backfill.py`](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/examples/backfill.py).
 
-To backfill, bind the window on the `incremental_*` argument instead. `dlt.sources.incremental(initial_value=..., end_value=...)` runs with transient state, so dlt fetches and keeps exactly that window and the stored cursor is neither consulted nor advanced. Runnable version: [`examples/backfill.py`](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/examples/backfill.py).
+A window overlaps by design, and dlt drops what it already has. A daily load asks again for the cursor's own value: one row per pen per day for the date-based resources, one `period` bucket for the time-based ones. A date backfill also asks for one day past `end_value`, because dlt's end is exclusive and the API's `toDate` is inclusive; `toTime` is exclusive, so the time-based resources have no such extra bucket. Neither overlap is worth correcting for.
 
-⚠️ **The cursor is per resource, not per pen.** One incremental cursor spans the whole pen fan-out (`penId=all` included), advancing to the newest row *any* pen reported. Data arriving late — a pen whose camera was offline, a re-issued `harvest_report` revision for an old slaughter — falls behind the cursor and is not requested again. When that matters, periodically re-load a recent window the backfill way; merge dispositions make re-loading idempotent.
+⚠️ **The cursor is per resource, not per pen.** One cursor covers every pen the resource loads (`penId=all` included), advancing to the newest row *any* pen reported. Data arriving late — a pen whose camera was offline, a re-issued `harvest_report` revision for an old slaughter — falls behind the cursor and is not requested again. When that matters, periodically re-load a recent window the backfill way; merge dispositions make re-loading idempotent.
 
 ## What the source does not expose
 
@@ -53,15 +53,27 @@ To backfill, bind the window on the `incremental_*` argument instead. `dlt.sourc
 
 ⚠️ **The paginator has never actually run.** As of 2026-08-17 no live response had carried a `nextToken`: the API caps a result set at 10,000 records and nothing we asked for came close. The wiring is right by inspection and the offline suite covers it, but the first backfill wide enough to hit the cap will be its first real test.
 
-**The eight `/pens/{penId}/…` path variants**, marked `deprecated: true` — the v3.0 shape of the same data, replaced in v3.1 by `?penId=`. None accepts `nextToken`, so a result set past the record cap cannot be paged through, and `penId=all` fetches every pen in one request. Bind `pen_id` to read one pen or several.
+**The eight `/pens/{penId}/…` path variants**, marked `deprecated: true` — the v3.0 shape of the same data, replaced in v3.1 by `?penId=`. None accepts `nextToken`, so a result set past the record cap cannot be paged through, and `penId=all` fetches every pen in one request. Bind `pen_id` to read a single pen.
 
 **`POST /superiorRate`** — marked "(Experimental API) … subject to change", and a POST computation rather than a read endpoint. Worth revisiting once it leaves preview.
 
-Rate limit and result cap are in `specs/openapi.json`. The package does not throttle; close to the limit, prefer `pen_id="all"` over per-pen fan-out.
+Rate limit and result cap are in `specs/openapi.json`. The package does not throttle; each resource makes one request per page, for every pen at once.
 
 ## Logging
 
-The package logs on the named logger `dlt_source_aquabyte` and installs no handlers; routing is yours, via standard `logging`. It logs only what dlt cannot: an explicit window overriding the cursor (INFO), a pen-id fan-out (INFO), a window start falling back to config (WARNING), and the cursor value a run resumed from (DEBUG). dlt logs the requests. On failure it raises. See [`examples/logging_setup.py`](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/examples/logging_setup.py).
+The package emits no log records of its own — it has nothing to say that dlt does not already log, and on failure it raises. There is no package logger to attach a handler to.
+
+dlt logs, on the logger named `dlt` at INFO, the two lines an operator needs to verify a catch-up run or a backfill: the window each resource bound, and every request made. Both are off by default, because dlt's own level is `WARNING`.
+
+Three `[runtime]` settings cover routing, and they are dlt's, not ours:
+
+| Setting | What it buys |
+|---|---|
+| `log_level` | `"INFO"` turns both lines on |
+| `log_format` | `"JSON"` for a collector to parse, or your own `{}`-style format string |
+| `sentry_dsn` | logged errors and unhandled exceptions go to Sentry, once `sentry-sdk` is installed |
+
+Each has an env var too (`RUNTIME__LOG_LEVEL` and so on). A service that ships records itself hands you a handler: attach it to the `dlt` logger before the run and dlt uses it. dlt documents all of this under [running in production](https://dlthub.com/docs/running-in-production/running#set-the-log-level-and-format), which is worth reading once — there is nothing package-specific to add.
 
 ## Column types
 

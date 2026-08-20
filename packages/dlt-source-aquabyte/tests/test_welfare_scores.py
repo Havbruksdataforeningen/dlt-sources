@@ -12,7 +12,6 @@ import dlt
 
 from dlt_source_aquabyte import aquabyte_source
 from tests.conftest import (
-    DATE_RANGE,
     SOURCE_CONFIG,
     assert_row_count,
     load_mock,
@@ -29,7 +28,7 @@ def test_welfare_scores_lands_one_row_per_pen_and_date(mock_rest_client):
     mock_rest_client.paginate.side_effect = serve({"/welfareScores": RECORDS})
 
     source = aquabyte_source(**SOURCE_CONFIG)
-    source.welfare_scores.bind(pen_id="pen-001", **DATE_RANGE)
+    source.welfare_scores.bind(pen_id="pen-001")
     pipeline, _ = run_source("test_welfare_scores", source, ["welfare_scores"])
 
     rows = query(pipeline, "SELECT date FROM welfare_scores ORDER BY date")
@@ -41,7 +40,7 @@ def test_welfare_scores_keeps_the_nested_object_intact(mock_rest_client):
     mock_rest_client.paginate.side_effect = serve({"/welfareScores": RECORDS})
 
     source = aquabyte_source(**SOURCE_CONFIG)
-    source.welfare_scores.bind(pen_id="pen-001", **DATE_RANGE)
+    source.welfare_scores.bind(pen_id="pen-001")
     pipeline, _ = run_source("test_welfare_nested", source, ["welfare_scores"])
 
     rows = query(pipeline, "SELECT welfare_scores FROM welfare_scores WHERE date = '2026-01-15'")
@@ -69,7 +68,7 @@ def test_welfare_scores_passes_through_an_unknown_category(mock_rest_client):
     mock_rest_client.paginate.side_effect = serve({"/welfareScores": records})
 
     source = aquabyte_source(**SOURCE_CONFIG)
-    source.welfare_scores.bind(pen_id="pen-001", **DATE_RANGE)
+    source.welfare_scores.bind(pen_id="pen-001")
     pipeline, load_info = run_source("test_welfare_new_category", source, ["welfare_scores"])
 
     assert load_info is not None
@@ -82,7 +81,7 @@ def test_welfare_scores_merges_on_pen_and_date(mock_rest_client):
     mock_rest_client.paginate.side_effect = serve({"/welfareScores": RECORDS})
 
     source = aquabyte_source(**SOURCE_CONFIG)
-    source.welfare_scores.bind(pen_id="pen-001", **DATE_RANGE)
+    source.welfare_scores.bind(pen_id="pen-001")
     pipeline, _ = run_source("test_welfare_merge", source, ["welfare_scores"])
 
     # Re-reading a window the cursor has moved past means backfilling: the window is

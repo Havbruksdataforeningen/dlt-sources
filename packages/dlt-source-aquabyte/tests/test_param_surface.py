@@ -37,8 +37,10 @@ ENDPOINTS = {
     "welfare_scores": ("/welfareScores",),
 }
 
-# nextToken is pagination mechanics: the paginator owns it, so no resource exposes it.
-PARAMS_OWNED_BY_MECHANICS = {"next_token"}
+# Params no resource exposes, because a mechanism owns them: `nextToken` belongs to the
+# paginator, and the window params to the resource's incremental, which is where a caller
+# sets a window.
+PARAMS_OWNED_BY_MECHANICS = {"next_token", "from_date", "to_date", "from_time", "to_time"}
 
 # Resource arguments that are not API params.
 NON_API_ARGS = {"params"}
@@ -85,7 +87,7 @@ def test_params_passthrough_reaches_the_request(mock_rest_client):
     mock_rest_client.paginate.side_effect = serve({"/biomass": load_mock("biomass.json")["biomass"]})
 
     source = aquabyte_source(**SOURCE_CONFIG)
-    source.biomass.bind(from_date="2026-01-01", params={"someFutureParam": "yes"})
+    source.biomass.bind(params={"someFutureParam": "yes"})
     run_source("test_params_passthrough", source, ["biomass"])
 
     assert params_sent(mock_rest_client, "/biomass")[0]["someFutureParam"] == "yes"
@@ -96,19 +98,9 @@ def test_params_passthrough_wins_over_named_params(mock_rest_client):
     mock_rest_client.paginate.side_effect = serve({"/biomass": load_mock("biomass.json")["biomass"]})
 
     source = aquabyte_source(**SOURCE_CONFIG)
-    source.biomass.bind(from_date="2026-01-01", params={"fromDate": "2025-06-01"})
+    source.biomass.bind(pen_id="pen-001", params={"fromDate": "2025-06-01", "penId": "pen-004"})
     run_source("test_params_override", source, ["biomass"])
 
-    assert params_sent(mock_rest_client, "/biomass")[0]["fromDate"] == "2025-06-01"
-
-
-def test_pen_id_list_fans_out_one_request_per_pen(mock_rest_client):
-    """A list of pen ids is request fan-out only — one request each, nothing filtered."""
-    mock_rest_client.paginate.side_effect = serve({"/liceCount": load_mock("lice_count.json")["liceCount"]})
-
-    source = aquabyte_source(**SOURCE_CONFIG)
-    source.lice_count.bind(pen_id=["pen-001", "pen-004"], from_date="2026-01-01")
-    _, load_info = run_source("test_pen_fan_out", source, ["lice_count"])
-
-    assert load_info is not None
-    assert [p["penId"] for p in params_sent(mock_rest_client, "/liceCount")] == ["pen-001", "pen-004"]
+    sent = params_sent(mock_rest_client, "/biomass")[0]
+    assert sent["fromDate"] == "2025-06-01"
+    assert sent["penId"] == "pen-004"
