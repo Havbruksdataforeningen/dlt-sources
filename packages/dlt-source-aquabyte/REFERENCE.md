@@ -21,31 +21,11 @@ Background: [SCD2 and incremental loading](https://dlthub.com/blog/scd2-and-incr
 
 ### Pens live on the site record
 
-There is no `pens` table. The API serves no pens endpoint; it nests each site's pens inside the site record, and that is how they land — one JSON column, versioning with the site.
+There is no `pens` table. The API serves no pens endpoint; it nests each site's pens inside the site record, and that is how they land — the `pens` column, one JSON array, versioning with the site. It carries every field the API declares on a pen: `id`, `name`, `penCode`, `isActive` and `external_id`. Which of them to join on is in [Identifiers](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/specs/README.md#identifiers).
 
-**Which pens exist today** is the pens on the current site rows:
+Unnesting it is your transform layer's job. Current pens are the `pens` of the rows where `_dlt_valid_to IS NULL`; pen history is the `pens` of every version, each carrying that version's validity interval.
 
-```sql
-SELECT s.id AS site_id,
-       json_extract_string(pen, '$.id')          AS pen_id,
-       json_extract_string(pen, '$.name')        AS pen_name,
-       json_extract_string(pen, '$.penCode')     AS pen_code,
-       json_extract(pen, '$.isActive')::BOOLEAN  AS is_active,
-       json_extract_string(pen, '$.external_id') AS external_id
-FROM sites s, UNNEST(json_extract(s.pens, '$[*]')) AS t(pen)   -- DuckDB; your warehouse's JSON unnest differs
-WHERE s._dlt_valid_to IS NULL;
-```
-
-Those are every field the API declares on a pen. `id` is what the data resources stamp their rows with, and `penCode` and `external_id` are the two that can carry into another system — which to join on, and what each one guarantees, is in [Identifiers](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/specs/README.md#identifiers). `external_id` is declared but has not been seen in a live response, so expect it null until an account populates it.
-
-**Pen history** is the same unnest over *every* site version rather than only the current ones, in two steps:
-
-1. Drop the `WHERE` clause, and select `s._dlt_valid_from` and `s._dlt_valid_to` alongside each pen. Those are the interval in which that pen record was reported.
-2. Collapse consecutive intervals in which the pen's own fields did not change. A site versions on any of its fields, so one pen's record repeats unchanged across the versions its neighbours caused.
-
-What comes out is one row per pen per interval its record held, which is the pen dimension with validity intervals — built from the site rows rather than shipped by this package.
-
-Two rules about records disappearing. The first is what the source guarantees; the second is a decision it leaves to you:
+Two rules to build on, because they are the source's and not your warehouse's. The first is a guarantee; the second is a decision left to you:
 
 - **A pen leaving a site retires the version that listed it.** That version's `_dlt_valid_to` is the date the pen stopped being reported, and the pen's full record — not only its id — stays readable on that row. The pen's history therefore survives the pen.
 - **A site leaving `/sites` is not retired at all.** `merge_key="id"` retires only ids the load carried, so a site absent from even a full response keeps `_dlt_valid_to IS NULL`, carrying its last pens snapshot with it. Whether such a site counts as gone is your decision, not the source's: record a last-seen timestamp per load on your side and read it from that.
