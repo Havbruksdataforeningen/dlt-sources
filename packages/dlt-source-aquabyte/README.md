@@ -72,11 +72,12 @@ Each resource takes its endpoint's params in snake_case, except the window ones,
 ```python
 source = aquabyte_source()
 source.sites.bind(site_id="site-001")     # switches to GET /sites/{siteId}
-source.biomass.bind(pen_id="pen-abc", bucket_size=500)
+source.biomass.bind(pen_id="pen-abc", bucket_size=250)
 pipeline.run(source)
 ```
 
 - **`pen_id`** defaults to `"all"` — the API's own value for "every pen", in one request. Pass one id to read a single pen.
+- **`site_id`** is the one path param, not a query param: binding it moves `sites` to the per-site endpoint, and both write the same table.
 - **The window** is the incremental cursor's, not a parameter of its own: a daily run resumes where it left off, and a backfill binds the window on the resource's `incremental_*` argument — see [the reference](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/REFERENCE.md#windows-cursors-and-backfilling).
 - **`params`** is on every resource and merged into the query string last: the escape hatch for a query param the API grows later, no release needed. It wins over every named param, `penId` included.
 
@@ -86,6 +87,20 @@ Params can also be set in config, per resource:
 [sources.aquabyte.environmental]
 period = "15min"
 ```
+
+### Two params decide the grain of the data itself
+
+`period` and `bucket_size` change what the API computes for you, not which rows you ask for. Both are worth deciding before the first load: a coarse setting is not wrong, but the detail under it never lands, and getting it later means re-loading that history the backfill way.
+
+| Param | Resource | Values | API default | What it decides |
+|---|---|---|---|---|
+| `period` | `environmental` | `h`, `D`, `15min` | `D` | Row grain: `h` is 24× the rows of `D`, `15min` is 96× |
+| `period` | `behaviour_swim_speed` | `h`, `D` | `D` | As above. `15min` here is a `422` — only `environmental` takes it |
+| `bucket_size` | `biomass` | integer grams | `1000` | Bucket width of the nested `weightDist` histogram — no extra rows |
+
+⚠️ **Changing `period` later leaves both grains in the table.** The key is `penId` + `fromTime` + `toTime`, so hourly rows do not merge over the daily ones they cover — both sit there. Pick a period per resource and keep it, or re-load the history behind the change.
+
+`bucket_size` is cheaper than it looks: `weightDist` spans only the weights actually observed, so a pen of smolt comes back with a couple of buckets and a harvest-size pen at 250 g with a few dozen, in one JSON column either way ([what the arrays hold](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/specs/README.md#api-quirks-worth-knowing)).
 
 The package emits no log records of its own. dlt logs the window each run asked for and every request it made, on its own `dlt` logger, and routing them is dlt's `[runtime]` settings rather than anything here: [what to set](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/REFERENCE.md#logging), and dlt's own [logging documentation](https://dlthub.com/docs/running-in-production/running#set-the-log-level-and-format).
 

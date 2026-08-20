@@ -33,7 +33,7 @@ Aquabyte is sent to them directly rather than kept here.
 > section — and the fixtures that model it — when you do.
 
 The API does a few things `openapi.json` does not describe. The source does not paper over
-them: records land as sent, so these reach whoever reads the data. The two that change how
+them: records land as sent, so these reach whoever reads the data. The ones that change how
 you read it:
 
 - **`behaviour_swim_speed` and `behaviour_breathing_index` return timestamps with no time
@@ -43,6 +43,16 @@ you read it:
 - **`lice_count` omits its five count fields entirely on a zero-sample record**, rather than
   sending nulls. Those columns are typed by the source's column hints and land as `NULL`, so `sampleSize = 0`
   is the condition to filter on, not `adultFemale IS NULL`.
+- **`biomass.weightDist` spans only the weights observed, which `openapi.json` does not say.**
+  It documents two parallel arrays and nothing about their extent. `interval` holds each
+  bucket's **lower** edge, starts at `0`, and stops at the bucket holding the heaviest fish
+  in the pen — nothing pads it to a fixed maximum. So the bucket count follows the
+  population as much as the setting: observed on 2026-08-20 across 51 pens, a pen averaging
+  180 g came back with one bucket at the default 1000 g and two at `bucketSize=250`, while a
+  pen averaging 4.7 kg came back with ten and thirty-seven. `distribution` holds shares
+  summing to 1, one per edge, and buckets inside the range — the first included — can be
+  `0`. None of the 51 records carried an empty pair, but the offline fixture models one, so
+  read the arrays as possibly empty.
 
 And one that bites when you are debugging rather than reading:
 
@@ -61,9 +71,9 @@ Which key to use depends on what you are joining to, and the answer is different
 and outside this dataset.
 
 **Joining Aquabyte data to Aquabyte data: use `id`.** Every data endpoint stamps its
-records with `penId`, and that value is the `id` on the pen — verified live, and asserted
-by `test_full_pipeline_with_live_pens`. So `pens.id = biomass.pen_id` and so on, and there
-is no alternative: `penCode` does not appear on the data endpoints at all.
+records with `penId`, and that value is the `id` on the pen — verified live. So
+`pens.id = biomass.pen_id` and so on, and there is no alternative: `penCode` does not
+appear on the data endpoints at all.
 
 **Joining Aquabyte data to your own systems: `penCode` is the best available today.**
 `pen.id` is Aquabyte's internal auto-increment key. It is stable within their system, which
