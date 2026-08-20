@@ -63,7 +63,9 @@ Rate limit and result cap are in `specs/openapi.json`. The package does not thro
 
 The package emits no log records of its own — it has nothing to say that dlt does not already log, and on failure it raises. There is no package logger to attach a handler to.
 
-dlt logs, on the logger named `dlt` at INFO, the two lines an operator needs to verify a catch-up run or a backfill: the window each resource bound, and every request made. Both are off by default, because dlt's own level is `WARNING`. Raising it and routing the records is [`examples/logging_setup.py`](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/examples/logging_setup.py).
+dlt logs, on the logger named `dlt` at INFO, the two lines an operator needs to verify a catch-up run or a backfill: the window each resource bound, and every request made. Both are off by default, because dlt's own level is `WARNING`.
+
+Three `[runtime]` settings cover routing, and they are dlt's, not ours: `log_level`, `log_format` (`"JSON"` for a collector, or a `{}`-style format string), and `sentry_dsn`, which sends logged errors and unhandled exceptions to Sentry once `sentry-sdk` is installed. A service with its own handler goes on the `dlt` logger, which dlt then uses. [`examples/logging_setup.py`](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/examples/logging_setup.py) is all three in one file; dlt documents them under [running in production](https://dlthub.com/docs/running-in-production/running#set-the-log-level-and-format).
 
 ## Column types
 

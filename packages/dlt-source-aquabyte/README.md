@@ -98,7 +98,7 @@ One concept each, readable on GitHub. From a checkout, run one with `python exam
 | [`quickstart.py`](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/examples/quickstart.py) | Load every resource into DuckDB |
 | [`daily_load.py`](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/examples/daily_load.py) | Re-running resumes from the stored cursor |
 | [`backfill.py`](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/examples/backfill.py) | Re-load a window, stored cursor untouched |
-| [`logging_setup.py`](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/examples/logging_setup.py) | Route dlt's log records into your own stack |
+| [`logging_setup.py`](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/examples/logging_setup.py) | Logs to your collector, errors to Sentry |
 
 ## Compatibility
 
