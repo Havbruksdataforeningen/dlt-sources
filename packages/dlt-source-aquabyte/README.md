@@ -72,13 +72,13 @@ Each resource takes exactly the params its endpoint documents, in snake_case:
 ```python
 source = aquabyte_source()
 source.sites.bind(site_id="site-001")     # switches to GET /sites/{siteId}
-source.biomass.bind(pen_id="pen-abc", from_date="2026-01-01", bucket_size=500)
+source.biomass.bind(pen_id="pen-abc", bucket_size=500)
 pipeline.run(source)
 ```
 
-- **`pen_id`** defaults to `"all"` — the API's own value for "every pen", in one request. Pass one id, or a list to issue one request per pen. It is the one param `params` cannot override: it drives the fan-out, so `penId` is re-stamped per request after the merge.
-- **Window params** (`from_date`/`from_time`) default to the incremental cursor, so a daily run resumes where it left off. Backfilling a past window has its own rule — see [the reference](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/REFERENCE.md#windows-cursors-and-backfilling).
-- **`params`** is on every resource and merged into the query string last: the escape hatch for a query param the API grows later, no release needed.
+- **`pen_id`** defaults to `"all"` — the API's own value for "every pen", in one request. Pass one id to read a single pen.
+- **The window** is the incremental cursor's, not a parameter of its own: a daily run resumes where it left off, and a backfill binds the window on the resource's `incremental_*` argument — see [the reference](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/REFERENCE.md#windows-cursors-and-backfilling).
+- **`params`** is on every resource and merged into the query string last: the escape hatch for a query param the API grows later, no release needed. It wins over every named param, `penId` included.
 
 Params can also be set in config, per resource:
 
@@ -87,7 +87,7 @@ Params can also be set in config, per resource:
 period = "15min"
 ```
 
-The package logs on the named logger `dlt_source_aquabyte` and installs no handlers, so [routing is yours](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/REFERENCE.md#logging).
+The package emits no log records of its own. dlt logs the window each run asked for and every request it made, on its own `dlt` logger, so [routing is yours](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/REFERENCE.md#logging).
 
 ## Examples
 
@@ -98,7 +98,7 @@ One concept each, readable on GitHub. From a checkout, run one with `python exam
 | [`quickstart.py`](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/examples/quickstart.py) | Load every resource into DuckDB |
 | [`daily_load.py`](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/examples/daily_load.py) | Re-running resumes from the stored cursor |
 | [`backfill.py`](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/examples/backfill.py) | Re-load a window, stored cursor untouched |
-| [`logging_setup.py`](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/examples/logging_setup.py) | Route the package's logger consumer-side |
+| [`logging_setup.py`](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/examples/logging_setup.py) | Route dlt's log records into your own stack |
 
 ## Compatibility
 

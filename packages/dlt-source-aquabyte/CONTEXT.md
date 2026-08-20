@@ -13,14 +13,11 @@ A licensed farming location holding a group of pens. Identified by `id`, with an
 _Avoid_: farm, locality, lokalitet, facility
 
 **Pen**:
-One net pen holding a population of fish, belonging to a site. Identified by `id`, with an optional `penCode`.
+One net pen holding a population of fish, belonging to a site. Identified by `id`, with an optional `penCode`. The API accepts the literal value `all` for `penId`, which is the default this package sends.
 _Avoid_: cage, merd, unit
 
 **Active pen**:
 A pen currently holding fish, and therefore the only kind that returns data. A pen that exists but holds no fish is **inactive**. Most resources return data for active pens only.
-
-**Pen fan-out**:
-Requesting a resource once per pen instead of once for the site. The API accepts the literal value `all` for `penId`, which we treat as the default.
 
 ### Measurements
 

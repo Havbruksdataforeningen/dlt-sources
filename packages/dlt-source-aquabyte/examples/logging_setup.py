@@ -1,22 +1,23 @@
-"""Route the package's log records to wherever your stack already sends logs."""
+"""Bring your own logger: route dlt's log records to wherever your stack sends logs."""
 
 import logging
+import os
 
 import dlt
 
 from dlt_source_aquabyte import aquabyte_source
 
-# The package logs on the named logger `dlt_source_aquabyte` and installs no handlers of
-# its own, so this is the whole integration — stderr here, a file or syslog just as well.
-handler = logging.StreamHandler()
-handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)-8s %(name)s: %(message)s"))
-logger = logging.getLogger("dlt_source_aquabyte")
-logger.setLevel(logging.INFO)
-logger.addHandler(handler)
+# This package emits no log records of its own. dlt does, on the logger named `dlt`, and
+# two of its INFO lines are the ones an operator wants: the window each resource bound,
+# and every request made. dlt adopts a handler already on that logger, so attaching one
+# is the whole integration — stderr here, a file or a DataDog handler just as well. dlt
+# sets the format itself; `runtime.log_format` is where you change that.
+logging.getLogger("dlt").addHandler(logging.StreamHandler())
 
-source = aquabyte_source()
-source.biomass.bind(from_date="2026-01-01")  # overriding the cursor is logged at INFO
+# dlt's own level defaults to WARNING, so neither line is emitted until you raise it.
+# `[runtime] log_level` in config.toml does the same thing from outside the script.
+os.environ["RUNTIME__LOG_LEVEL"] = "INFO"
 
 pipeline = dlt.pipeline(pipeline_name="aquabyte_logged", destination="duckdb", dataset_name="aquabyte_data")
 
-print(pipeline.run(source.with_resources("biomass")))
+print(pipeline.run(aquabyte_source().with_resources("biomass")))

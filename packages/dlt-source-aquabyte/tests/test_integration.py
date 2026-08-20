@@ -4,6 +4,10 @@ Run with: python -m pytest -m integration
 
 dlt resolves the API key automatically (env vars first, then secrets.toml).
 Missing credentials cause a hard error — not a skip.
+
+Every resource runs for every pen (`penId=all`) over a short window, bound the way
+`examples/backfill.py` binds one: a `dlt.sources.incremental` carrying the window, so the
+stored cursor is neither consulted nor advanced. The assertion is that rows landed.
 """
 
 from datetime import UTC, datetime, timedelta
@@ -13,10 +17,6 @@ import dlt
 import pytest
 
 from dlt_source_aquabyte import aquabyte_source
-
-# ---------------------------------------------------------------------------
-# Credential check — fail loudly if missing
-# ---------------------------------------------------------------------------
 
 
 def _require_credentials() -> None:
@@ -35,22 +35,23 @@ def _require_credentials() -> None:
 
 pytestmark = [pytest.mark.integration]
 
-# Date/time ranges — keep tight to minimise API calls and runtime.
+# A three-day window — enough for every resource to have something, small enough to be quick.
 _NOW = datetime.now(tz=UTC)
-_TO_DATE = _NOW.strftime("%Y-%m-%d")
-_TO_TIME = _NOW.strftime("%Y-%m-%dT%H:%M:%SZ")
+_DATE_WINDOW = ((_NOW - timedelta(days=3)).strftime("%Y-%m-%d"), _NOW.strftime("%Y-%m-%d"))
+_TIME_WINDOW = ((_NOW - timedelta(days=3)).strftime("%Y-%m-%dT%H:%M:%SZ"), _NOW.strftime("%Y-%m-%dT%H:%M:%SZ"))
 
-# Discovery window (7 days) — just enough to find pens with fish.
-_DISCOVERY_FROM_DATE = (_NOW - timedelta(days=7)).strftime("%Y-%m-%d")
-
-# Per-resource test window (3 days) — keeps data volume small.
-_FROM_DATE = (_NOW - timedelta(days=3)).strftime("%Y-%m-%d")
-_FROM_TIME = (_NOW - timedelta(days=3)).strftime("%Y-%m-%dT%H:%M:%SZ")
-
-_REQUIRED_LIVE_PENS = 2
-
-_DATE_WINDOW = {"from_date": _FROM_DATE, "to_date": _TO_DATE}
-_TIME_WINDOW = {"from_time": _FROM_TIME, "to_time": _TO_TIME}
+# Resource → the `incremental_*` argument its window is bound on, as in examples/backfill.py.
+_DATE_BASED = {
+    "biomass": "incremental_date",
+    "harvest_report": "incremental_slaughter_start_date",
+    "lice_count": "incremental_date",
+    "welfare_scores": "incremental_date",
+}
+_TIME_BASED = {
+    "environmental": "incremental_from_time",
+    "behaviour_swim_speed": "incremental_from_time",
+    "behaviour_breathing_index": "incremental_from_time",
+}
 
 
 def _make_pipeline(name: str) -> dlt.Pipeline:
@@ -63,10 +64,19 @@ def _make_pipeline(name: str) -> dlt.Pipeline:
     )
 
 
-def _source_with(resource_name: str, **bound: Any):
-    """A source with `resource_name`'s query params bound, since params live per resource."""
+def _window_for(resource_name: str) -> dict[str, Any]:
+    """The bound backfill window for a resource, ready to pass to `bind`."""
+    if resource_name in _DATE_BASED:
+        argument, (start, end) = _DATE_BASED[resource_name], _DATE_WINDOW
+    else:
+        argument, (start, end) = _TIME_BASED[resource_name], _TIME_WINDOW
+    return {argument: dlt.sources.incremental(initial_value=start, end_value=end)}
+
+
+def _source_with_window(resource_name: str):
+    """A source whose named resource reads the test window for every pen."""
     source = aquabyte_source()
-    source.resources[resource_name].bind(**bound)
+    source.resources[resource_name].bind(**_window_for(resource_name))
     return source
 
 
@@ -77,63 +87,10 @@ def _count(pipeline: dlt.Pipeline, sql: str) -> int:
         return result[0][0]
 
 
-# ---------------------------------------------------------------------------
-# Discover live pens (pens with fish = recent biomass where avg_weight > 0)
-# ---------------------------------------------------------------------------
-_cached_live_pens: list[str] | None = None
-
-
-def _discover_live_pens() -> list[str]:
-    """Find pens that currently have fish by checking recent biomass data.
-
-    Runs the biomass resource for all pens over the last 7 days, then picks the
-    first N pens where avg_weight > 0.
-    """
-    global _cached_live_pens
-    if _cached_live_pens is not None:
-        return _cached_live_pens
-
-    pipeline = _make_pipeline("pen_discovery")
-    source = _source_with("biomass", from_date=_DISCOVERY_FROM_DATE, to_date=_TO_DATE)
-    load_info = pipeline.run(source.with_resources("biomass"))
-    assert load_info is not None
-
-    with pipeline.sql_client() as client:
-        # ORDER BY, because an unordered LIMIT picks a different pair of pens on each
-        # run — which made the environmental assertion below fail intermittently and
-        # left the failure impossible to reproduce.
-        rows = client.execute_sql(
-            f"SELECT DISTINCT pen_id FROM biomass WHERE avg_weight > 0 ORDER BY pen_id LIMIT {_REQUIRED_LIVE_PENS}"
-        )
-        assert rows and len(rows) >= _REQUIRED_LIVE_PENS, (
-            f"Need {_REQUIRED_LIVE_PENS} pens with fish (avg_weight > 0) in the last 7 days, "
-            f"found {len(rows) if rows else 0}"
-        )
-        _cached_live_pens = [row[0] for row in rows]
-
-    return _cached_live_pens
-
-
-# ---------------------------------------------------------------------------
-# Fixtures
-# ---------------------------------------------------------------------------
-
-
 @pytest.fixture(scope="module", autouse=True)
 def require_credentials():
     """Ensure credentials exist before any test in this module runs."""
     _require_credentials()
-
-
-@pytest.fixture(scope="module")
-def live_pen_ids(require_credentials) -> list[str]:
-    """Two pen IDs that currently have fish (discovered via 7-day biomass window)."""
-    return _discover_live_pens()
-
-
-# ---------------------------------------------------------------------------
-# Individual resource tests
-# ---------------------------------------------------------------------------
 
 
 class TestSites:
@@ -154,24 +111,11 @@ class TestPens:
 
 
 class TestEnvironmental:
-    def test_environmental_loads(self, live_pen_ids):
+    def test_environmental_loads(self):
         pipeline = _make_pipeline("environmental")
-        source = _source_with("environmental", pen_id=live_pen_ids, **_TIME_WINDOW)
-        load_info = pipeline.run(source.with_resources("environmental"))
+        load_info = pipeline.run(_source_with_window("environmental").with_resources("environmental"))
         assert load_info is not None
-
-        assert _count(pipeline, "SELECT COUNT(*) FROM environmental") > 0, (
-            f"Expected environmental data for live pens {live_pen_ids}"
-        )
-
-        # Carrying biomass does not oblige a pen to have environmental readings in this
-        # tighter window, so requiring every pen to return rows is not a claim the API
-        # makes. What must hold is that the fan-out asked only for the pens we bound.
-        with pipeline.sql_client() as client:
-            rows = client.execute_sql("SELECT DISTINCT pen_id FROM environmental")
-            assert rows is not None
-            loaded_pens = {row[0] for row in rows}
-        assert loaded_pens <= set(live_pen_ids), f"Got data for pens we did not ask for: {loaded_pens}"
+        assert _count(pipeline, "SELECT COUNT(*) FROM environmental") > 0, "Expected environmental data"
 
 
 class TestEnvironmentalLatest:
@@ -185,74 +129,60 @@ class TestEnvironmentalLatest:
 
 
 class TestBiomass:
-    def test_biomass_loads(self, live_pen_ids):
+    def test_biomass_loads(self):
         pipeline = _make_pipeline("biomass")
-        source = _source_with("biomass", pen_id=live_pen_ids, **_DATE_WINDOW)
-        load_info = pipeline.run(source.with_resources("biomass"))
+        load_info = pipeline.run(_source_with_window("biomass").with_resources("biomass"))
         assert load_info is not None
         assert _count(pipeline, "SELECT COUNT(*) FROM biomass WHERE avg_weight > 0") > 0, (
-            f"Expected biomass rows with avg_weight > 0 for live pens {live_pen_ids}"
+            "Expected biomass rows with avg_weight > 0"
         )
 
 
 class TestHarvestReport:
-    def test_harvest_report_loads(self, live_pen_ids):
+    def test_harvest_report_loads(self):
         pipeline = _make_pipeline("harvest_report")
-        source = _source_with("harvest_report", pen_id=live_pen_ids, **_DATE_WINDOW)
-        load_info = pipeline.run(source.with_resources("harvest_report"))
+        load_info = pipeline.run(_source_with_window("harvest_report").with_resources("harvest_report"))
         assert load_info is not None
-        # Harvest reports are rare — pens with fish haven't been harvested yet.
+        # Harvest reports are rare — a window with no slaughter in it holds none.
         # Just verify no errors.
 
 
 class TestLiceCount:
-    def test_lice_count_loads(self, live_pen_ids):
+    def test_lice_count_loads(self):
         pipeline = _make_pipeline("lice_count")
-        source = _source_with("lice_count", pen_id=live_pen_ids, **_DATE_WINDOW)
-        load_info = pipeline.run(source.with_resources("lice_count"))
+        load_info = pipeline.run(_source_with_window("lice_count").with_resources("lice_count"))
         assert load_info is not None
-        assert _count(pipeline, "SELECT COUNT(*) FROM lice_count") > 0, (
-            f"Expected lice count data for live pens {live_pen_ids}"
-        )
+        assert _count(pipeline, "SELECT COUNT(*) FROM lice_count") > 0, "Expected lice count data"
 
 
 class TestBehaviourSwimSpeed:
-    def test_behaviour_swim_speed_loads(self, live_pen_ids):
+    def test_behaviour_swim_speed_loads(self):
         pipeline = _make_pipeline("behaviour_swim_speed")
-        source = _source_with("behaviour_swim_speed", pen_id=live_pen_ids, **_TIME_WINDOW)
-        load_info = pipeline.run(source.with_resources("behaviour_swim_speed"))
+        load_info = pipeline.run(_source_with_window("behaviour_swim_speed").with_resources("behaviour_swim_speed"))
         assert load_info is not None
-        assert _count(pipeline, "SELECT COUNT(*) FROM behaviour_swim_speed") > 0, (
-            f"Expected swim speed data for live pens {live_pen_ids}"
-        )
+        assert _count(pipeline, "SELECT COUNT(*) FROM behaviour_swim_speed") > 0, "Expected swim speed data"
 
 
 class TestBehaviourBreathingIndex:
-    def test_behaviour_breathing_index_loads(self, live_pen_ids):
+    def test_behaviour_breathing_index_loads(self):
         pipeline = _make_pipeline("behaviour_breathing_index")
-        source = _source_with("behaviour_breathing_index", pen_id=live_pen_ids, **_TIME_WINDOW)
+        source = _source_with_window("behaviour_breathing_index")
         load_info = pipeline.run(source.with_resources("behaviour_breathing_index"))
         assert load_info is not None
-        assert _count(pipeline, "SELECT COUNT(*) FROM behaviour_breathing_index") > 0, (
-            f"Expected breathing index data for live pens {live_pen_ids}"
-        )
+        assert _count(pipeline, "SELECT COUNT(*) FROM behaviour_breathing_index") > 0, "Expected breathing index data"
 
 
 class TestWelfareScores:
-    def test_welfare_scores_loads(self, live_pen_ids):
+    def test_welfare_scores_loads(self):
         pipeline = _make_pipeline("welfare_scores")
-        source = _source_with("welfare_scores", pen_id=live_pen_ids, **_DATE_WINDOW)
-        load_info = pipeline.run(source.with_resources("welfare_scores"))
+        load_info = pipeline.run(_source_with_window("welfare_scores").with_resources("welfare_scores"))
         assert load_info is not None
-        assert _count(pipeline, "SELECT COUNT(*) FROM welfare_scores") > 0, (
-            f"Expected welfare scores for live pens {live_pen_ids}"
-        )
+        assert _count(pipeline, "SELECT COUNT(*) FROM welfare_scores") > 0, "Expected welfare scores"
 
-    def test_welfare_scores_land_as_raw_records(self, live_pen_ids):
+    def test_welfare_scores_land_as_raw_records(self):
         """One row per pen and date, with the API's nested categories intact."""
         pipeline = _make_pipeline("welfare_scores_raw")
-        source = _source_with("welfare_scores", pen_id=live_pen_ids, **_DATE_WINDOW)
-        assert pipeline.run(source.with_resources("welfare_scores")) is not None
+        assert pipeline.run(_source_with_window("welfare_scores").with_resources("welfare_scores")) is not None
 
         duplicates = _count(
             pipeline,
@@ -265,33 +195,17 @@ class TestWelfareScores:
             assert rows, "Expected at least one row carrying the nested welfareScores object"
 
 
-# ---------------------------------------------------------------------------
-# Full pipeline test
-# ---------------------------------------------------------------------------
-
-
 class TestFullPipeline:
-    def test_full_pipeline_with_live_pens(self, live_pen_ids):
-        """Run the full aquabyte_source with 2 live pens over a 3-day window."""
+    def test_full_pipeline(self):
+        """Run the full aquabyte_source over the test window."""
         pipeline = _make_pipeline("full_pipeline")
         source = aquabyte_source()
-        for resource_name in ("biomass", "harvest_report", "lice_count", "welfare_scores"):
-            source.resources[resource_name].bind(pen_id=live_pen_ids, **_DATE_WINDOW)
-        for resource_name in ("environmental", "behaviour_swim_speed", "behaviour_breathing_index"):
-            source.resources[resource_name].bind(pen_id=live_pen_ids, **_TIME_WINDOW)
+        for resource_name in (*_DATE_BASED, *_TIME_BASED):
+            source.resources[resource_name].bind(**_window_for(resource_name))
 
         load_info = pipeline.run(source)
         assert load_info is not None
 
         assert _count(pipeline, "SELECT COUNT(*) FROM sites") > 0, "Expected sites data"
-
-        # pens is unfiltered — every pen the API reports lands, including our live ones.
-        with pipeline.sql_client() as client:
-            rows = client.execute_sql("SELECT DISTINCT id FROM pens")
-            assert rows is not None
-            loaded_pens = {row[0] for row in rows}
-        assert set(live_pen_ids) <= loaded_pens, f"Expected {live_pen_ids} among the loaded pens"
-
-        assert _count(pipeline, "SELECT COUNT(*) FROM biomass WHERE avg_weight > 0") > 0, (
-            "Expected biomass data for live pens"
-        )
+        assert _count(pipeline, "SELECT COUNT(*) FROM pens") > 0, "Expected pens data"
+        assert _count(pipeline, "SELECT COUNT(*) FROM biomass WHERE avg_weight > 0") > 0, "Expected biomass data"
