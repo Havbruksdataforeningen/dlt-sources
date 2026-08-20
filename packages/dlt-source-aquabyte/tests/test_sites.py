@@ -145,10 +145,10 @@ def test_a_changed_pen_versions_its_site(mock_rest_client, kind, change):
 def test_each_site_version_lists_the_pens_it_was_loaded_with(mock_rest_client):
     """The nested `pens` snapshot cannot go stale, on the current row or a retired one.
 
-    A JSON column of pens invites unnesting, so it must not disagree with the `pens`
-    table next to it. It used to: while a site versioned on its own fields only, the
-    snapshot froze at whenever those fields last changed, which for a site is rarely.
-    Reading a version's pens is only meaningful if they are the pens of that version.
+    The snapshot is the only record of a site's pens, and consumers unnest it, so it has
+    to be the pens of that version. It used to freeze instead: while a site versioned on
+    its own fields only, the snapshot stayed at whenever those last changed, which for a
+    site is rarely.
     """
     site = load_mock("sites.json")["sites"][0]
     renamed = [{**pen, "name": "Renamed"} if pen["id"] == "pen-001" else pen for pen in site["pens"]]
@@ -165,8 +165,8 @@ def test_each_site_version_lists_the_pens_it_was_loaded_with(mock_rest_client):
 def test_a_pen_dropped_from_the_response_versions_its_site(mock_rest_client):
     """A pen emptied and gone from `/sites` retires the site version that still listed it.
 
-    Only the site side is asserted here; that the pen itself survives in `pens` is
-    `test_an_emptied_pen_survives_dropping_out_of_the_response`.
+    That version's `_dlt_valid_to` is what dates the pen's departure — the source keeps
+    no other record of it.
     """
     site = load_mock("sites.json")["sites"][0]
     remaining = [pen for pen in site["pens"] if pen["id"] != "pen-002"]
@@ -178,6 +178,25 @@ def test_a_pen_dropped_from_the_response_versions_its_site(mock_rest_client):
     assert_row_count(pipeline, "sites", 2)
     _, current = _pens_by_version(pipeline)
     assert [pen["id"] for pen in current] == ["pen-001", "pen-003"]
+
+
+def test_a_departed_pens_record_is_still_readable_on_the_retired_version(mock_rest_client):
+    """A pen's history outlives the pen: its last known record stays in the retired site row.
+
+    A pen leaves `/sites` once it is emptied, possibly after years of production, and the
+    Aquabyte data already loaded still refers to it. This is the guarantee that makes the
+    nested snapshot enough on its own — the fields, not only the id, survive the departure.
+    """
+    site = load_mock("sites.json")["sites"][0]
+    remaining = [pen for pen in site["pens"] if pen["id"] != "pen-002"]
+    pipeline = make_pipeline("test_sites_scd2_pen_departed")
+
+    _load(pipeline, mock_rest_client, [site])
+    _load(pipeline, mock_rest_client, [{**site, "pens": remaining}])
+
+    retired, _ = _pens_by_version(pipeline)
+    (departed,) = [pen for pen in retired if pen["id"] == "pen-002"]
+    assert departed == {"id": "pen-002", "name": "Pen B", "penCode": "PB", "isActive": False}
 
 
 def test_an_unchanged_site_does_not_grow_a_version(mock_rest_client):

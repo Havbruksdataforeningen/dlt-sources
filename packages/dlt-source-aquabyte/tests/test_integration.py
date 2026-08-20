@@ -86,19 +86,14 @@ def require_credentials():
 
 class TestSites:
     def test_sites_loads(self):
+        """Sites land, each carrying the pens the live API nests inside it."""
         pipeline = _make_pipeline("sites")
         load_info = pipeline.run(aquabyte_source().with_resources("sites"))
         assert load_info is not None
         assert _count(pipeline, "SELECT COUNT(*) FROM sites") > 0, "Expected at least 1 site"
-
-
-class TestPens:
-    def test_pens_loads(self):
-        """Verify the pens resource populates the pens table."""
-        pipeline = _make_pipeline("pens")
-        load_info = pipeline.run(aquabyte_source().with_resources("sites", "pens"))
-        assert load_info is not None
-        assert _count(pipeline, "SELECT COUNT(*) FROM pens") > 0, "Expected at least 1 pen"
+        assert _count(pipeline, "SELECT COUNT(*) FROM sites WHERE pens IS NOT NULL AND pens != '[]'") > 0, (
+            "Expected at least one site carrying a non-empty nested pens snapshot"
+        )
 
 
 class TestEnvironmental:
@@ -198,5 +193,4 @@ class TestFullPipeline:
         assert load_info is not None
 
         assert _count(pipeline, "SELECT COUNT(*) FROM sites") > 0, "Expected sites data"
-        assert _count(pipeline, "SELECT COUNT(*) FROM pens") > 0, "Expected pens data"
         assert _count(pipeline, "SELECT COUNT(*) FROM biomass WHERE avg_weight > 0") > 0, "Expected biomass data"
