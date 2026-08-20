@@ -44,15 +44,12 @@ you read it:
   sending nulls. Those columns are typed by the source's column hints and land as `NULL`, so `sampleSize = 0`
   is the condition to filter on, not `adultFemale IS NULL`.
 - **`biomass.weightDist` spans only the weights observed, which `openapi.json` does not say.**
-  It documents two parallel arrays and nothing about their extent. `interval` holds each
-  bucket's **lower** edge, starts at `0`, and stops at the bucket holding the heaviest fish
-  in the pen — nothing pads it to a fixed maximum. So the bucket count follows the
-  population as much as the setting: observed on 2026-08-20 across 51 pens, a pen averaging
-  180 g came back with one bucket at the default 1000 g and two at `bucketSize=250`, while a
-  pen averaging 4.7 kg came back with ten and thirty-seven. `distribution` holds shares
-  summing to 1, one per edge, and buckets inside the range — the first included — can be
-  `0`. None of the 51 records carried an empty pair, but the offline fixture models one, so
-  read the arrays as possibly empty.
+  `interval` holds each bucket's **lower** edge, starts at `0`, and stops at the bucket
+  holding the heaviest fish in the pen — nothing pads it to a fixed maximum, so the bucket
+  count follows the population as much as `bucketSize` does. A pen of smolt returns one or
+  two buckets; a pen averaging 4.7 kg at `bucketSize=250` returns thirty-seven.
+  `distribution` holds shares summing to 1, one per edge, and any bucket in the range — the
+  first included — can be `0`. Both arrays can be empty. (2026-08-20.)
 
 And one that bites when you are debugging rather than reading:
 
