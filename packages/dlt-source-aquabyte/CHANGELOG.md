@@ -2,12 +2,11 @@
 
 All notable changes to `dlt-source-aquabyte`, written for people using the package. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); how to write an entry is in [`docs/release.md`](../../docs/release.md).
 
-## [Unreleased]
+## [0.1.0] - 2026-08-20
 
 ### Added
 
 - Initial release: a dlt source for the Aquabyte API — sites, biomass, lice counts, welfare scores, behaviour (swim speed, breathing index), environmental readings and harvest reports. What each resource loads and how to configure it is in the [README](README.md).
-- `pydantic` is no longer a dependency, leaving `dlt` as the only one this package installs into your environment. Column types now come from dlt's own column hints, so nothing here rides on dlt's deprecated pydantic integration. Destination column types, and how the source handles a field the API adds or stops sending, are unchanged.
 - [REFERENCE.md](REFERENCE.md) holds the operational detail — the versioned site registry, nesting, backfilling, and what the source deliberately does not expose — so the README stays a first read.
 - [API quirks worth knowing](specs/README.md#api-quirks-worth-knowing) records where the live API departs from its own OpenAPI document, in ways that reach you as a consumer.
 - [Compatibility](README.md#compatibility) records which Aquabyte API version the package is built and verified against. This release targets v3.1.
