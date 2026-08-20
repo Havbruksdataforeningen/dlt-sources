@@ -50,7 +50,7 @@ Two rules about records disappearing. The first is what the source guarantees; t
 - **A pen leaving a site retires the version that listed it.** That version's `_dlt_valid_to` is the date the pen stopped being reported, and the pen's full record — not only its id — stays readable on that row. The pen's history therefore survives the pen.
 - **A site leaving `/sites` is not retired at all.** `merge_key="id"` retires only ids the load carried, so a site absent from even a full response keeps `_dlt_valid_to IS NULL`, carrying its last pens snapshot with it. Whether such a site counts as gone is your decision, not the source's: record a last-seen timestamp per load on your side and read it from that.
 
-If you would rather have a flat pen table than write the unnest, raise the nesting on `sites` and let dlt build one — see [Nesting](#nesting).
+If you would rather have a flat pen table than write the unnest, set `source.sites.max_table_nesting = 1` before the run and a `sites__pens` table appears — see [Nesting](#nesting).
 
 ## Nesting
 
