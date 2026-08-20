@@ -21,16 +21,22 @@ initial_time = "2020-01-01T00:00:00Z"
 # Query params belong to the resource that sends them, so they are configured per
 # resource — the same names the API documents, in snake_case. Everything below is
 # optional: leave a param out and the API's own default applies.
-# The full list is the spec: specs/openapi.json, or https://api.aquabyte.ai/v3/docs.
+#
+# Which values each one takes, what it defaults to, and what it costs you are in the
+# README under "Configuring a resource" — kept there so there is one place to update.
+# The full param list is the spec: specs/openapi.json, or https://api.aquabyte.ai/v3/docs.
+#
+# period and bucket_size decide the grain of the data itself, so they are worth deciding
+# before the first load rather than after it. Read that section before setting them.
 
 # [sources.aquabyte.environmental]
-# period = "D"          # "15min", "h" or "D" (API default: "D")
+# period = "D"
 
 # [sources.aquabyte.behaviour_swim_speed]
-# period = "D"          # "h" or "D" (API default: "D")
+# period = "D"
 
 # [sources.aquabyte.biomass]
-# bucket_size = 1000    # weightDist bucket size in grams (API default: 1000)
+# bucket_size = 1000
 
 # [sources.aquabyte.welfare_scores]
-# pen_id = "all"        # a single pen id, or "all" (the default)
+# pen_id = "all"
