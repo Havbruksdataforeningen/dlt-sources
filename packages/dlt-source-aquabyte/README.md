@@ -99,6 +99,8 @@ period = "15min"
 
 ⚠️ **Changing `period` later leaves both grains in the table.** The key is `penId` + `fromTime` + `toTime`, so hourly rows do not merge over the daily ones they cover — both sit there. Pick a period per resource and keep it, or re-load the history behind the change.
 
+That is also why `behaviour_breathing_index` is keyed on `penId` + `fromTime` alone: `toTime` earns its place in a key only where the grain can change, and that endpoint is daily-only (`period=h` returns a `400`).
+
 `bucket_size` adds no rows. `weightDist` covers only the weights observed, so a pen of smolt returns a couple of buckets and a harvest-size pen at 250 g a few dozen — one JSON column either way ([what the arrays hold](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/specs/README.md#api-quirks-worth-knowing)).
 
 The package emits no log records of its own. dlt logs the window each run asked for and every request it made, on its own `dlt` logger, and routing them is dlt's `[runtime]` settings rather than anything here: [what to set](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/REFERENCE.md#logging), and dlt's own [logging documentation](https://dlthub.com/docs/running-in-production/running#set-the-log-level-and-format).
