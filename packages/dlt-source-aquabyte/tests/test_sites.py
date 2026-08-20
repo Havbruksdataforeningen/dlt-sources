@@ -33,6 +33,17 @@ def _load(pipeline, mock_rest_client, sites_list, site_id=None):
     pipeline.run(source.with_resources("sites"))
 
 
+def _after_pen_002_departs(mock_rest_client, pipeline_name):
+    """A pipeline that loaded site-001 with its three pens, then again without pen-002."""
+    site = load_mock("sites.json")["sites"][0]
+    remaining = [pen for pen in site["pens"] if pen["id"] != "pen-002"]
+    pipeline = make_pipeline(pipeline_name)
+
+    _load(pipeline, mock_rest_client, [site])
+    _load(pipeline, mock_rest_client, [{**site, "pens": remaining}])
+    return pipeline
+
+
 def test_sites_resource_loads_into_duckdb(mock_rest_client):
     """Sites resource loads mock data into DuckDB with correct row count."""
     sites_list = load_mock("sites.json")["sites"]
@@ -168,12 +179,7 @@ def test_a_pen_dropped_from_the_response_versions_its_site(mock_rest_client):
     That version's `_dlt_valid_to` is what dates the pen's departure — the source keeps
     no other record of it.
     """
-    site = load_mock("sites.json")["sites"][0]
-    remaining = [pen for pen in site["pens"] if pen["id"] != "pen-002"]
-    pipeline = make_pipeline("test_sites_scd2_pen_dropped")
-
-    _load(pipeline, mock_rest_client, [site])
-    _load(pipeline, mock_rest_client, [{**site, "pens": remaining}])
+    pipeline = _after_pen_002_departs(mock_rest_client, "test_sites_scd2_pen_dropped")
 
     assert_row_count(pipeline, "sites", 2)
     _, current = _pens_by_version(pipeline)
@@ -187,12 +193,7 @@ def test_a_departed_pens_record_is_still_readable_on_the_retired_version(mock_re
     Aquabyte data already loaded still refers to it. This is the guarantee that makes the
     nested snapshot enough on its own — the fields, not only the id, survive the departure.
     """
-    site = load_mock("sites.json")["sites"][0]
-    remaining = [pen for pen in site["pens"] if pen["id"] != "pen-002"]
-    pipeline = make_pipeline("test_sites_scd2_pen_departed")
-
-    _load(pipeline, mock_rest_client, [site])
-    _load(pipeline, mock_rest_client, [{**site, "pens": remaining}])
+    pipeline = _after_pen_002_departs(mock_rest_client, "test_sites_scd2_pen_departed")
 
     retired, _ = _pens_by_version(pipeline)
     (departed,) = [pen for pen in retired if pen["id"] == "pen-002"]

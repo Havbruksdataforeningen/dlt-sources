@@ -91,7 +91,7 @@ class TestSites:
         load_info = pipeline.run(aquabyte_source().with_resources("sites"))
         assert load_info is not None
         assert _count(pipeline, "SELECT COUNT(*) FROM sites") > 0, "Expected at least 1 site"
-        assert _count(pipeline, "SELECT COUNT(*) FROM sites WHERE pens IS NOT NULL AND pens != '[]'") > 0, (
+        assert _count(pipeline, "SELECT COUNT(*) FROM sites WHERE json_array_length(pens) > 0") > 0, (
             "Expected at least one site carrying a non-empty nested pens snapshot"
         )
 
