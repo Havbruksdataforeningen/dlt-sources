@@ -27,7 +27,6 @@ from tests.conftest import ALL_PEN_IDS, MOCK_DIR, SOURCE_CONFIG, load_mock
 SPEC = json.loads((Path(__file__).parent.parent / "specs" / "openapi.json").read_text())
 
 # endpoint -> the fixture standing in for its response, and the resource that reads it.
-# `pens` is absent: it has no endpoint, and unwraps the `pens` list nested in a site.
 ENDPOINTS = {
     "/sites": ("sites.json", "sites"),
     "/environmental": ("environmental.json", "environmental"),
@@ -89,8 +88,6 @@ def _records_key(envelope: dict[str, Any]) -> str:
 
 def _record_schema(resource_name: str) -> dict[str, Any]:
     """The spec's schema for one record a resource loads."""
-    if resource_name == "pens":
-        return _resolve(_record_schema("sites")["properties"]["pens"]["items"])
     envelope = _response_schema(RESOURCE_ENDPOINTS[resource_name])
     return _resolve(envelope["properties"][_records_key(envelope)]["items"])
 
@@ -113,7 +110,7 @@ def test_fixture_has_records(path, fixture_and_resource):
     assert load_mock(filename)[_records_key(_response_schema(path))]
 
 
-@pytest.mark.parametrize("resource_name", [*RESOURCE_ENDPOINTS, "pens"])
+@pytest.mark.parametrize("resource_name", RESOURCE_ENDPOINTS)
 def test_column_hints_match_the_spec(resource_name):
     """A hint is worth having only on a field the API sends, typed and nulled as declared."""
     record = _record_schema(resource_name)

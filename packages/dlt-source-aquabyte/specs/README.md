@@ -68,9 +68,9 @@ Which key to use depends on what you are joining to, and the answer is different
 and outside this dataset.
 
 **Joining Aquabyte data to Aquabyte data: use `id`.** Every data endpoint stamps its
-records with `penId`, and that value is the `id` on the pen — verified live. So
-`pens.id = biomass.pen_id` and so on, and there is no alternative: `penCode` does not
-appear on the data endpoints at all.
+records with `penId`, and that value is the `id` on the pen — verified live. So a pen's
+`id`, read off the site record it is nested in, joins to `biomass.pen_id` and so on, and
+there is no alternative: `penCode` does not appear on the data endpoints at all.
 
 **Joining Aquabyte data to your own systems: `penCode` is the best available today.**
 `pen.id` is Aquabyte's internal auto-increment key. It is stable within their system, which

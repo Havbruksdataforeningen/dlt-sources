@@ -1,8 +1,8 @@
 # dlt-source-aquabyte
 
-An installable [dlt](https://dlthub.com/) source package that loads aquaculture data from the [Aquabyte API v3](https://api.aquabyte.ai/v3/docs) into any dlt destination: sites, pens, biomass, lice counts, welfare scores, behaviour and environmental readings.
+An installable [dlt](https://dlthub.com/) source package that loads aquaculture data from the [Aquabyte API v3](https://api.aquabyte.ai/v3/docs) into any dlt destination: sites, biomass, lice counts, welfare scores, behaviour and environmental readings.
 
-**Records land as the API returns them** — nothing renamed, nothing dropped, no invented child tables. What *is* added is named up front rather than discovered later: `_dlt_valid_from` and `_dlt_valid_to` on the two versioned tables, and the pens nested inside each site, unwrapped into a `pens` table. Column names are the API's own field names, in dlt's usual snake_case.
+**Records land as the API returns them** — nothing renamed, nothing dropped, no invented child tables. What *is* added is named up front rather than discovered later: `_dlt_valid_from` and `_dlt_valid_to` on the versioned `sites` table. Column names are the API's own field names, in dlt's usual snake_case.
 
 Everything else is mechanics: auth, pagination, envelope unwrapping, incremental cursors, and overridable key and write-disposition defaults. Reshaping belongs in your transform layer, where you can change it without waiting for a release. Its only dependency is dlt itself — destination, orchestrator, secrets manager and log routing stay your choices.
 
@@ -46,14 +46,13 @@ pipeline = dlt.pipeline(
 print(pipeline.run(aquabyte_source()))
 ```
 
-The two `initial_*` values are the first-run start for the resources that keep an incremental cursor; a run of only `sites`, `pens` or `environmental_latest` needs neither, and a cursor resource missing one fails with an error naming it. How far back your data goes differs per endpoint and per account, and setting a start earlier than that costs empty requests, not errors.
+The two `initial_*` values are the first-run start for the resources that keep an incremental cursor; a run of only `sites` or `environmental_latest` needs neither, and a cursor resource missing one fails with an error naming it. How far back your data goes differs per endpoint and per account, and setting a start earlier than that costs empty requests, not errors.
 
 ## What it loads
 
 | Resource | Endpoint | Load strategy | Key |
 |---|---|---|---|
 | `sites` | `GET /sites`, `GET /sites/{siteId}` | merge, `scd2` | `id` (merge key) |
-| `pens` | _(transformer over `sites`)_ | merge, `scd2` | `id` (merge key) |
 | `environmental` | `GET /environmental` | merge | `penId`, `fromTime`, `toTime` |
 | `environmental_latest` | `GET /environmental/latest` | replace | — |
 | `biomass` | `GET /biomass` | merge | `penId`, `date` |
@@ -63,7 +62,7 @@ The two `initial_*` values are the first-run start for the resources that keep a
 | `behaviour_breathing_index` | `GET /behaviour/breathingIndex` | merge | `penId`, `fromTime` |
 | `welfare_scores` | `GET /welfareScores` | merge | `penId`, `date` |
 
-`sites` reads every site, and `pens` unwraps the pens nested in each one — every pen, active or not. Both are **versioned rather than replaced**: a row is retired, never deleted, because a pen leaves `/sites` as soon as it is emptied ([what that means for your queries](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/REFERENCE.md#the-registry-tables-are-versioned)). Nested objects land as one JSON column each, and `welfare_scores` is not unpivoted ([why, and how to override it](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/REFERENCE.md#nesting)).
+`sites` reads every site, and each site record carries its pens the way the API nests them — every pen, active or not. There is no separate pens table, because the API serves no pens endpoint; [where pen history lives, and what the source does and does not promise about a pen or site that stops being reported](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/REFERENCE.md#pens-live-on-the-site-record). `sites` is **versioned rather than replaced**: a row is retired, never deleted, because a pen leaves `/sites` as soon as it is emptied ([what that means for your queries](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/REFERENCE.md#the-site-registry-is-versioned)). Nested objects land as one JSON column each, and `welfare_scores` is not unpivoted ([why, and how to override it](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/REFERENCE.md#nesting)).
 
 ## Configuring a resource
 
@@ -124,7 +123,7 @@ The two numbers are unrelated — the package version is ordinary [SemVer](https
 
 ## Read next
 
-- [**Reference**](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/REFERENCE.md) — versioned registry tables, nesting, backfilling, column types, and what the source deliberately does not expose.
+- [**Reference**](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/REFERENCE.md) — the versioned site registry, nesting, backfilling, column types, and what the source deliberately does not expose.
 - [**API quirks worth knowing**](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/specs/README.md#api-quirks-worth-knowing) — where the live API departs from its own OpenAPI document, including which identifiers to join on. Some of them change what a correct query looks like, so read it before your first one.
 - [**Changelog**](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/CHANGELOG.md) and [**contributing**](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/CONTRIBUTING.md).
 

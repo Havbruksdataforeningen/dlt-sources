@@ -44,14 +44,6 @@ SITE_COLUMNS: TTableSchemaColumns = {
     "external_site_id": {"data_type": "text"},
 }
 
-PEN_COLUMNS: TTableSchemaColumns = {
-    "id": {"data_type": "text", "nullable": False},
-    "name": {"data_type": "text", "nullable": False},
-    "penCode": {"data_type": "text"},
-    "isActive": {"data_type": "bool", "nullable": False},
-    "external_id": {"data_type": "text"},
-}
-
 ENVIRONMENTAL_COLUMNS: TTableSchemaColumns = {
     "penId": {"data_type": "text", "nullable": False},
     "fromTime": {"data_type": "text", "nullable": False},
@@ -196,18 +188,6 @@ def aquabyte_source(
             paginator=SinglePagePaginator(),
         )
         yield from pages
-
-    # `dlt.transformer` types write_disposition as the literals only, unlike `dlt.resource`;
-    # both hand it to the same hint machinery, so the dict is fine at runtime.
-    @dlt.transformer(data_from=sites, write_disposition=SCD2, merge_key="id", columns=PEN_COLUMNS)  # type: ignore[arg-type]
-    def pens(sites_page: list[dict[str, Any]]):
-        """Every pen the `/sites` response nests, unwrapped into its own table — none filtered.
-
-        Versioned because a pen leaves `/sites` once it is emptied, and its history has to
-        outlive it.
-        """
-        for site in sites_page:
-            yield from site.get("pens") or []
 
     @dlt.resource(write_disposition="merge", primary_key=["penId", "fromTime", "toTime"], columns=ENVIRONMENTAL_COLUMNS)
     def environmental(
@@ -356,7 +336,6 @@ def aquabyte_source(
 
     return (
         sites,
-        pens,
         environmental,
         environmental_latest,
         biomass,

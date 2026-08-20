@@ -1,5 +1,7 @@
 """End-to-end test: every resource of aquabyte_source, one pipeline run."""
 
+import json
+
 import dlt
 
 from dlt_source_aquabyte import aquabyte_source
@@ -61,10 +63,11 @@ def test_end_to_end_all_resources(mock_rest_client):
     assert load_info is not None
 
     assert_row_count(pipeline, "sites", 2)
-    assert_row_count(pipeline, "pens", len(ALL_PEN_IDS))
 
-    rows = query(pipeline, "SELECT id FROM pens ORDER BY id")
-    assert sorted(row[0] for row in rows) == sorted(ALL_PEN_IDS)
+    # No pen is filtered on the way in: every pen the fixture holds is on a current site row.
+    rows = query(pipeline, "SELECT pens FROM sites WHERE _dlt_valid_to IS NULL")
+    loaded = [pen["id"] for row in rows for pen in json.loads(row[0])]
+    assert sorted(loaded) == sorted(ALL_PEN_IDS)
 
     for table in PEN_TABLES:
         assert_all_active_pens(pipeline, table)

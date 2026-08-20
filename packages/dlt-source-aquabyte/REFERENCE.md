@@ -2,22 +2,35 @@
 
 The operational detail behind the [README](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/README.md) — written for adopting the package rather than evaluating it. Nothing here is needed to get a first load running.
 
-## The registry tables are versioned
+## The site registry is versioned
 
-`/sites` reports what exists *today*, and a pen leaves it as soon as it is emptied, possibly after years of production. Replacing these tables each run would drop the row with it, so `sites` and `pens` load with dlt's [`scd2` strategy](https://dlthub.com/docs/general-usage/merge-loading#scd2-strategy): **a row is never deleted**, only retired by stamping `_dlt_valid_to`.
+`/sites` reports what exists *today*, and a pen leaves it as soon as it is emptied, possibly after years of production. Replacing the table each run would drop the row with it, so `sites` loads with dlt's [`scd2` strategy](https://dlthub.com/docs/general-usage/merge-loading#scd2-strategy): **a row is never deleted**, only retired by stamping `_dlt_valid_to`.
 
 ```sql
-SELECT * FROM pens WHERE _dlt_valid_to IS NULL;                    -- current
-SELECT * FROM pens WHERE id = 'pen-002' ORDER BY _dlt_valid_from;  -- one pen's history
+SELECT * FROM sites WHERE _dlt_valid_to IS NULL;                     -- current
+SELECT * FROM sites WHERE id = 'site-001' ORDER BY _dlt_valid_from;  -- one site's history
 ```
 
-**What counts as a new version.** Any field of the record changing. For `pens` that includes `isActive`; for `sites` it includes the nested `pens` list, so a pen being renamed, going inactive or leaving the response versions its site too. The nested snapshot on the current site row therefore always shows the pens the API last reported — and so a site accumulates a version per pen change, which at a member company's site count is a handful of rows.
+**What counts as a new version.** Any field of the record changing, the nested `pens` list included, so a pen being renamed, going inactive or leaving the response versions its site too. The snapshot on the current site row therefore always shows the pens the API last reported — and so a site accumulates a version per pen change, which at a member company's site count is a handful of rows.
 
-**`merge_key="id"`** scopes retirement to the ids a load actually carried, which is what makes `bind(site_id=...)` safe. The trade-off: a site or pen absent from a *full* response is not retired either, and stays current indefinitely. Retire-on-absence and safe partial loads are the same switch, and this source picks the one that cannot lose data.
+**`merge_key="id"`** scopes retirement to the ids a load actually carried, which is what makes `bind(site_id=...)` safe. The trade-off: a site absent from a *full* response is not retired either, and stays current indefinitely. Retire-on-absence and safe partial loads are the same switch, and this source picks the one that cannot lose data.
 
 ⚠️ To choose the other side, drop the merge key on a pipeline's **first** load only. dlt stores `merge_key` on the column and never removes it, so `apply_hints(merge_key=())` against an existing table is silently ignored (verified against dlt 1.30).
 
 Background: [SCD2 and incremental loading](https://dlthub.com/blog/scd2-and-incremental-loading).
+
+### Pens live on the site record
+
+There is no `pens` table. The API serves no pens endpoint; it nests each site's pens inside the site record, and that is how they land — the `pens` column, one JSON array, versioning with the site. It carries every field the API declares on a pen: `id`, `name`, `penCode`, `isActive` and `external_id`. Which of them to join on is in [Identifiers](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/specs/README.md#identifiers).
+
+Unnesting it is your transform layer's job. Current pens are the `pens` of the rows where `_dlt_valid_to IS NULL`; pen history is the `pens` of every version, each carrying that version's validity interval.
+
+Two rules to build on, because they are the source's and not your warehouse's. The first is a guarantee; the second is a decision left to you:
+
+- **A pen leaving a site retires the version that listed it.** That version's `_dlt_valid_to` is the date the pen stopped being reported, and the pen's full record — not only its id — stays readable on that row. The pen's history therefore survives the pen.
+- **A site leaving `/sites` is not retired at all.** `merge_key="id"` retires only ids the load carried, so a site absent from even a full response keeps `_dlt_valid_to IS NULL`, carrying its last pens snapshot with it. Whether such a site counts as gone is your decision, not the source's: record a last-seen timestamp per load on your side and read it from that.
+
+If you would rather have a flat pen table than write the unnest, set `source.sites.max_table_nesting = 1` before the run and a `sites__pens` table appears — see [Nesting](#nesting).
 
 ## Nesting
 
@@ -31,7 +44,7 @@ source.max_table_nesting = 2          # every resource
 source.sites.max_table_nesting = 1    # or just one — gives you a sites__pens table
 ```
 
-Nothing outranks that setting. The source declares column hints for scalar fields only, so no hint names a nested field, and the destination shape of nested data stays your call. The one exception is `pens`, unwrapped by an explicit transformer rather than by dlt behind your back.
+Nothing outranks that setting. The source declares column hints for scalar fields only, so no hint names a nested field, and the destination shape of nested data stays your call.
 
 ### `welfare_scores` is not unpivoted
 
