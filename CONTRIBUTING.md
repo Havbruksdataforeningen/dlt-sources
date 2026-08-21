@@ -45,9 +45,24 @@ Easy to forget:
 
 Copy [`packages/dlt-source-aquabyte/`](packages/dlt-source-aquabyte/) and adapt it. Adding the folder is the whole job: the workspace root globs `packages/*` and CI loops over every package, so there is no workflow to write.
 
+**Name the folder after the distribution.** `packages/dlt-source-barentswatch/` publishes `dlt-source-barentswatch`. CI builds each package as `uv build --package "$(basename "$d")"`, which takes the distribution name, so a folder named anything else fails the Build job.
+
 It needs `pyproject.toml` (keep the ruff, pyright and pytest sections identical), `src/`, `tests/` that pass without credentials, `examples/`, a `README.md` with a `## Compatibility` table, `CHANGELOG.md`, a copy of `LICENSE`, and `CONTEXT.md`.
 
-The one manual step is PyPI registration before the first publish: [`docs/release.md`](docs/release.md#first-release-of-a-package).
+Four things in the copy still carry the old package's name. Only the last one raises an error; the rest are wrong quietly, so check them:
+
+| Where | Change it to |
+|---|---|
+| `[project.urls]` — `Homepage`, `Changelog` | Your package's path in this repo |
+| `[tool.setuptools.package-data]` — the key | Your **import** name, `dlt_source_barentswatch`. A wrong key silently drops `py.typed`, and consumers get an untyped package |
+| `[tool.ruff.lint.isort]` — `known-first-party` | Your import name |
+| `src/<import name>/__init__.py` — `version("...")` | Your **distribution** name. If it does not match `[project] name`, importing the package raises `PackageNotFoundError` |
+
+Do not copy `src/*.egg-info/` or any `.duckdb` files left in the folder; both are build and test residue.
+
+Then add your package to the two repo-level lists a reader starts from: the table in [`README.md`](README.md) and the entry in [`CONTEXT-MAP.md`](CONTEXT-MAP.md).
+
+The one manual step outside this repo is PyPI registration before the first publish — including who ends up owning the project, which is a person until Havbruksdataforeningen's PyPI organization is approved: [`docs/release.md`](docs/release.md#first-release-of-a-package).
 
 ## Pull requests
 

@@ -173,7 +173,24 @@ Register it on **both** indexes — TestPyPI is a separate service with its own 
 | Workflow | `release.yml` | `release.yml` |
 | Environment | `pypi` | `testpypi` |
 
+The environment names are `pypi` and `testpypi` for every package, not one pair per package: [`release.yml`](../.github/workflows/release.yml) names them literally, and the same two GitHub environments already exist and already carry the required reviewers. Only the project name differs from what `dlt-source-aquabyte` registered.
+
 A pending publisher does not reserve the name — the name is claimed the first time the publish actually runs — so also check the name is still free on both indexes. For a first release, a test release is strongly recommended: it proves the whole chain (tag, workflow, publisher, install) before anything lands permanently on PyPI.
+
+### Who owns the project on PyPI
+
+The `Owner` field in that table is the **GitHub** owner, and it is `Havbruksdataforeningen` for every package. Who owns the project on **PyPI** is a separate question, and today the answer is a person, not the association.
+
+Havbruksdataforeningen has requested a PyPI organization — submitted 2 July 2026, still pending approval. PyPI reviews these by hand and gives no estimate. Until it is approved there is nowhere association-owned to put a project, so:
+
+- **A pending publisher is created on an account's own Publishing page**, which makes the account that creates it the owner of that project once it publishes. There is no way to register one on behalf of someone else.
+- **So whoever sets up a new package owns it**, and should register both pending publishers themselves. If you are adding `dlt-source-barentswatch`, that is you.
+- **`dlt-source-aquabyte` is owned by Torkil Sinkaberg Johnsen**, as sole owner, for the same reason.
+- **Add the other maintainers as collaborators** on the project after the first publish, so a release does not depend on one person being reachable.
+
+None of this affects publishing. Trusted Publishing matches the workflow, not the account, so the release runs the same either way — the only thing the missing organization costs is that ownership sits with individuals.
+
+When the organization is approved, each project is transferred into it from its owner's project page, and the pending publishers stay as they are.
 
 ## Rules for the release workflow
 
