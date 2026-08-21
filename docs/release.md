@@ -163,28 +163,46 @@ A final version waits for approval in the `pypi` environment before it uploads; 
 
 The workflow authenticates with **Trusted Publishing**: PyPI accepts the upload because the workflow matches a registered publisher, not because anyone holds a token. For a package that does not exist on PyPI yet, that registration is a **pending publisher**, and a human has to create it once, by hand, before the first publish. If it is missing, the release fails at the very last step with an `invalid-publisher` error that does not explain itself.
 
-Register it on **both** indexes — TestPyPI is a separate service with its own account, and test releases publish there. On each, go to your account's **Publishing** page and add a pending publisher:
+You need one on **each** index. PyPI and TestPyPI are separate services with separate accounts, and pre-release versions publish to TestPyPI, so a package registered on only one of them can do only half its releases.
 
-| Field | On pypi.org | On test.pypi.org |
-|---|---|---|
-| Project name | `dlt-source-aquabyte` | `dlt-source-aquabyte` |
-| Owner | `Havbruksdataforeningen` | `Havbruksdataforeningen` |
-| Repository | `dlt-sources` | `dlt-sources` |
-| Workflow | `release.yml` | `release.yml` |
-| Environment | `pypi` | `testpypi` |
+### Register the pending publisher
+
+Do this on **pypi.org** first, then repeat the identical steps on **test.pypi.org**. Only the environment name differs between them.
+
+1. **Sign in.** [pypi.org](https://pypi.org/account/login/), and separately [test.pypi.org](https://test.pypi.org/account/login/) — an account on one is not an account on the other. Both require two-factor authentication before you can publish anything.
+2. **Open the publishing page.** Your account menu, top right → **Your account** → **Publishing** in the left sidebar. Direct links: [pypi.org/manage/account/publishing](https://pypi.org/manage/account/publishing/), [test.pypi.org/manage/account/publishing](https://test.pypi.org/manage/account/publishing/).
+3. **Choose the GitHub tab.** Under *Add a new pending publisher*, the providers are GitHub, Google, ActiveState and GitLab. Ours is GitHub.
+4. **Fill in the five fields:**
+
+   | Field | On pypi.org | On test.pypi.org |
+   |---|---|---|
+   | PyPI Project Name | `dlt-source-<sourcename>` | `dlt-source-<sourcename>` |
+   | Owner | `Havbruksdataforeningen` | `Havbruksdataforeningen` |
+   | Repository name | `dlt-sources` | `dlt-sources` |
+   | Workflow name | `release.yml` | `release.yml` |
+   | Environment name | `pypi` | `testpypi` |
+
+   `Owner` is the **GitHub** organization, not anything on PyPI. `Workflow name` is the filename, not the workflow's `name:`. `Environment name` is offered as optional — fill it in anyway; it is what stops a workflow run outside the reviewed environment from publishing.
+
+5. **Click Add.** The publisher now appears under *Pending publishers* on the same page, and moves to the project itself after the first successful publish.
+
+Two things this does not do:
+
+- **It does not reserve the name.** The name is claimed the first time a publish actually runs, so check the name is still free on both indexes, and do not leave a long gap between registering and releasing.
+- **It does not need repeating per version.** One registration covers every future release of that package.
+
+For a first release, do a test release first: a pre-release version like `0.1.0rc1` goes to TestPyPI, which proves the whole chain — tag, workflow, publisher, install — before anything lands permanently on PyPI.
 
 The environment names are `pypi` and `testpypi` for every package, not one pair per package: [`release.yml`](../.github/workflows/release.yml) names them literally, and the same two GitHub environments already exist and already carry the required reviewers. Only the project name differs from what `dlt-source-aquabyte` registered.
 
-A pending publisher does not reserve the name — the name is claimed the first time the publish actually runs — so also check the name is still free on both indexes. For a first release, a test release is strongly recommended: it proves the whole chain (tag, workflow, publisher, install) before anything lands permanently on PyPI.
-
 ### Who owns the project on PyPI
 
-The `Owner` field in that table is the **GitHub** owner, and it is `Havbruksdataforeningen` for every package. Who owns the project on **PyPI** is a separate question, and today the answer is a person, not the association.
+Nothing in that form says who owns the project on PyPI, and today the answer is a person, not the association.
 
 Havbruksdataforeningen has requested a PyPI organization — submitted 2 July 2026, still pending approval. PyPI reviews these by hand and gives no estimate. Until it is approved there is nowhere association-owned to put a project, so:
 
 - **A pending publisher is created on an account's own Publishing page**, which makes the account that creates it the owner of that project once it publishes. There is no way to register one on behalf of someone else.
-- **So whoever sets up a new package owns it**, and should register both pending publishers themselves. If you are adding `dlt-source-barentswatch`, that is you.
+- **So whoever sets up a new package owns it**, and should register both pending publishers themselves. If you are adding `dlt-source-<sourcename>`, that is you.
 - **`dlt-source-aquabyte` is owned by Torkil Sinkaberg Johnsen**, as sole owner, for the same reason.
 - **Add the other maintainers as collaborators** on the project after the first publish, so a release does not depend on one person being reachable.
 
