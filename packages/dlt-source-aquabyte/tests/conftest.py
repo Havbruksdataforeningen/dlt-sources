@@ -36,27 +36,27 @@ DATE_WINDOW = ("2026-01-01", "2026-01-31")
 TIME_WINDOW = ("2026-01-01T00:00:00Z", "2026-01-31T00:00:00Z")
 
 
-# --- Optional teardown -------------------------------------------------------
+# --- Teardown ----------------------------------------------------------------
 #
-# A test run leaves two things behind on purpose, so you can open them afterwards:
-# a `<pipeline_name>.duckdb` file per pipeline in the working directory, and dlt's
-# own state under `~/.dlt/pipelines/`, which is what `dlt pipeline <name> show`
-# reads. Both are kept by default — that is the point of having them.
+# A test run writes two things: a `<pipeline_name>.duckdb` file per pipeline in the
+# working directory, and dlt's own state under `~/.dlt/pipelines/`, which is what
+# `dlt pipeline <name> show` reads. Both are deleted when the session finishes, so a
+# run leaves the working tree as it found it. `pytest --keep-db` keeps them, for when
+# you want to open what a run actually ingested.
 #
-# `pytest --clean-db` removes them at the end of the session. It removes what this
-# session *touched*, not only what it newly created — pipeline names are fixed per
-# test, so a second run reuses the same file rather than making another one, and
-# "only if it did not exist before" would make the flag do nothing on every run
-# after the first. Artifacts of tests this session did not run keep their older
-# timestamps and survive, so `pytest -k sites --clean-db` leaves the rest alone.
+# Teardown removes what this session *touched*, never everything it finds: pipeline
+# names are fixed per test, so a rerun reuses the same file rather than making another
+# one. Artifacts of tests this session did not run keep their older timestamps and
+# survive — so `pytest -k sites` leaves the rest alone, including anything kept from
+# an earlier `--keep-db` run.
 
 
 def pytest_addoption(parser):
     parser.addoption(
-        "--clean-db",
+        "--keep-db",
         action="store_true",
         default=False,
-        help="On finish, delete the DuckDB files and dlt pipeline state this run touched.",
+        help="Keep the DuckDB files and dlt pipeline state this run touched, to inspect afterwards.",
     )
 
 
@@ -76,7 +76,7 @@ def _touched_since(path: Path, cutoff: float) -> bool:
 
 
 def pytest_sessionstart(session):
-    if session.config.getoption("--clean-db"):
+    if not session.config.getoption("--keep-db"):
         # A second of slack: filesystem timestamps are coarser than time.time().
         session.clean_db_cutoff = time.time() - 1  # type: ignore[attr-defined]
 

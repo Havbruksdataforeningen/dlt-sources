@@ -1,6 +1,9 @@
 # Windows artifacts
 nul
 
+# macOS artifacts
+.DS_Store
+
 # Temp scripts
 _find_uv.py
 
