@@ -190,7 +190,11 @@ Havbruksdataforeningen has requested a PyPI organization — submitted 2 July 20
 
 None of this affects publishing. Trusted Publishing matches the workflow, not the account, so the release runs the same either way — the only thing the missing organization costs is that ownership sits with individuals.
 
-When the organization is approved, each project is transferred into it from its owner's project page, and the pending publishers stay as they are.
+When the organization is approved, each project moves into it one at a time: as an organization owner, go to **Your organizations → Manage → Projects**, pick the project and choose *Transfer existing project*. Only an organization owner can do this, and only for a project held by their own account — so each package is transferred by whoever owns it.
+
+Nothing downstream notices. The project keeps its URL, because PyPI's namespace is flat and organizations do not scope names, and it keeps its trusted publishers, because a publisher matches on the GitHub owner, repository, workflow and environment — none of which is affected by who owns the project on PyPI. Individual owners and maintainers keep their roles.
+
+Reversing a transfer is not documented. Treat it as one way.
 
 ## Rules for the release workflow
 
