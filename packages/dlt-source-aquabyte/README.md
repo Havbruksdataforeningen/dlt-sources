@@ -121,7 +121,7 @@ One concept each, readable on GitHub. From a checkout, run one with `python exam
 |---|---|
 | 0.1.x | v3.1 |
 
-The two numbers are unrelated — the package version is ordinary [SemVer](https://semver.org/) and never mirrors the API's. Built against that version's [`specs/openapi.json`](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/specs/README.md) and run against the live API (last on 2026-08-17). A later backwards-compatible version is expected to work and is not verified here; run the suite first.
+The two numbers are unrelated — the package version is ordinary [SemVer](https://semver.org/) and never mirrors the API's. Built against that version's [`specs/openapi.json`](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/specs/README.md) and run against the live API (last on 2026-08-20). A later backwards-compatible version is expected to work and is not verified here; run the suite first.
 
 ## Read next
 

@@ -64,7 +64,7 @@ A window overlaps by design, and dlt drops what it already has. A daily load ask
 
 **`nextToken`**, on the six endpoints documenting it — pagination mechanics owned by dlt's `JSONResponseCursorPaginator`, and exposing it would let a caller break their own pagination. The other four read endpoints (`/sites`, `/sites/{siteId}`, `/environmental/latest`, `/biomass/harvestReport`) return none, so their resources read a single page rather than hoping a cursor paginator terminates.
 
-⚠️ **The paginator has never actually run.** As of 2026-08-17 no live response had carried a `nextToken`: the API caps a result set at 10,000 records and nothing we asked for came close. The wiring is right by inspection and the offline suite covers it, but the first backfill wide enough to hit the cap will be its first real test.
+**The paginator has been verified live.** On 2026-08-20, a 15-minute `environmental` window returned over 30,000 records across four pages, each landing near the ~9,700–9,900-record cap, and `biomass`, `lice_count` and `welfare_scores` each paged once in the same run. Every page arrived exactly once — no duplicate primary keys turned up across any of the merged results.
 
 **The eight `/pens/{penId}/…` path variants**, marked `deprecated: true` — the v3.0 shape of the same data, replaced in v3.1 by `?penId=`. None accepts `nextToken`, so a result set past the record cap cannot be paged through, and `penId=all` fetches every pen in one request. Bind `pen_id` to read a single pen.
 
