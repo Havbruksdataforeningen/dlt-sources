@@ -73,7 +73,11 @@ def test_a_window_one_day_over_the_cap_is_two_contiguous_requests(mock_rest_clie
 
 
 def test_a_date_window_splits_the_same_way(mock_rest_client):
-    """`fromDate`/`toDate` take the same arithmetic, at the date resources' 366-day cap."""
+    """`fromDate`/`toDate` take the same arithmetic, at the date resources' 366-day cap.
+
+    `toDate` is inclusive where `toTime` is exclusive, so a date sub-window stops the day
+    before the next one starts: contiguous, and no day asked for twice.
+    """
     sent = _run(
         mock_rest_client,
         BIOMASS,
@@ -82,7 +86,7 @@ def test_a_date_window_splits_the_same_way(mock_rest_client):
     )
 
     assert [(one["fromDate"], one["toDate"]) for one in sent] == [
-        ("2026-01-01", "2027-01-02"),
+        ("2026-01-01", "2027-01-01"),
         ("2027-01-02", "2027-01-03"),
     ]
 

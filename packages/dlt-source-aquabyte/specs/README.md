@@ -69,10 +69,10 @@ One the source does paper over, because no consumer could size a window without 
   | `/behaviour/breathingIndex` | `D`, omitted | 366 days |
   | `/biomass`, `/liceCount`, `/welfareScores`, `/biomass/harvestReport` | — | 366 days |
 
-  Two things make this worse than it looks. The cap applies to an **open-ended** window too,
+  Two properties widen the blast radius. The cap applies to an **open-ended** window too,
   measured from `fromTime` to today — so it is not only a backfill concern, and the finer the
   grain the shorter the outage a daily pipeline survives. And the cap follows the *grain*, so
-  choosing the finest `period` — the right default for a raw layer — buys the shortest cap.
+  choosing the finest `period` — the right default for a raw layer — gives the shortest cap.
   The source splits its own windows to stay inside them; the numbers live in
   `MAX_WINDOW_DAYS`. (2026-08-27.)
 

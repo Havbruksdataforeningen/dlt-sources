@@ -10,7 +10,6 @@ they come from the resource's incremental, which is where a caller sets a window
 """
 
 from datetime import UTC, date, datetime, timedelta
-from itertools import pairwise
 from typing import Any
 
 import dlt
@@ -147,7 +146,7 @@ MAX_WINDOW_DAYS: dict[tuple[str, str | None], int] = {
 
 The resources split their own requests to stay inside these, so nothing here has to be
 read to use the package. It is published for the caller who sizes chunks of its own — a
-`--chunk-days` can be checked against it before spending a request.
+`--chunk-days` can be checked against it before making a request.
 
 The API refuses a wider window with `400 Requested time range is larger than N days`
 rather than truncating it, and documents none of this: the numbers were measured against
@@ -155,7 +154,7 @@ the live API on 2026-08-27, boundaries inclusive. See `specs/README.md#api-quirk
 """
 
 DEFAULT_PERIOD = "D"
-"""The grain the API computes when `period` is omitted, and so the cap an omitted one buys."""
+"""The grain the API computes when `period` is omitted, and so the cap an omitted one gets."""
 
 # A resource or grain missing from the table gets the widest cap seen anywhere, which is
 # also the one every endpoint has at its default grain. Guessing narrower would cost
@@ -221,7 +220,7 @@ def _windows(
         return [(start, end)]
     if not isinstance(start, str) or not isinstance(end, str | None):
         # Nothing this can measure. A missing start may still be fatal, but that is
-        # `_windowed_query`'s call, after `params` has had its chance to supply one.
+        # `_windowed_queries`'s call, after `params` has had its chance to supply one.
         return [(start, end)]
 
     first = _parse_cursor(start)
@@ -243,8 +242,14 @@ def _windows(
     edges: list[date] = [first]
     while edges[-1] + step < last:
         edges.append(edges[-1] + step)
-    texts = [start, *(_format_like(edge, start) for edge in edges[1:]), end_text]
-    return list(pairwise(texts))
+
+    # `toDate` is inclusive where `toTime` is exclusive, so a date sub-window ends the day
+    # before the next one starts and a time sub-window ends exactly where the next begins.
+    # Either way the sub-windows are contiguous and none is asked for twice.
+    trim = timedelta(0) if isinstance(first, datetime) else timedelta(days=1)
+    starts = [start, *(_format_like(edge, start) for edge in edges[1:])]
+    ends = [*(_format_like(edge - trim, start) for edge in edges[1:]), end_text]
+    return list(zip(starts, ends, strict=True))
 
 
 def _query(extra: dict[str, Any] | None = None, **named: Any) -> dict[str, Any]:
@@ -255,20 +260,30 @@ def _query(extra: dict[str, Any] | None = None, **named: Any) -> dict[str, Any]:
     return params
 
 
-def _windowed_query(resource: str, start_param: str, extra: dict[str, Any] | None, **named: Any) -> dict[str, Any]:
-    """`_query`, plus the one guarantee the windowed resources keep: a window start is sent.
+def _windowed_queries(
+    resource: str,
+    start_param: str,
+    incremental: dlt.sources.incremental[str] | None,
+    extra: dict[str, Any] | None,
+    **named: Any,
+) -> list[dict[str, Any]]:
+    """The query params of every request a windowed resource makes, oldest window first.
 
+    Each carries the window params, which is why they are not the caller's to name, and each
+    is checked for the one guarantee the windowed resources keep: a window start is sent.
     Without one the API serves its own default window, which nothing here chose.
     """
-    query = _query(extra, **named)
-    if query.get(start_param) is None:
+    end_param = start_param.replace("from", "to")
+    windows = _windows(resource, start_param, incremental, extra, named.get("period"))
+    queries = [_query(extra, **named, **{start_param: start, end_param: end}) for start, end in windows]
+    if any(query.get(start_param) is None for query in queries):
         config_key = "initial_time" if start_param == "fromTime" else "initial_date"
         raise ValueError(
             f"{resource}: the request carries no {start_param}. Set {config_key} under [sources.aquabyte] "
             f"to start the cursor, bind a window on the resource's incremental_* argument to backfill "
             f"(see REFERENCE.md), or send {start_param} yourself through params."
         )
-    return query
+    return queries
 
 
 @dlt.source(max_table_nesting=0)
@@ -317,14 +332,10 @@ def aquabyte_source(
         ),
     ):
         """Environmental readings from `GET /environmental`."""
-        for start, end in _windows("environmental", "fromTime", incremental_from_time, params, period):
-            yield from client.paginate(
-                "/environmental",
-                params=_windowed_query(
-                    "environmental", "fromTime", params, penId=pen_id, fromTime=start, toTime=end, period=period
-                ),
-                data_selector="data",
-            )
+        for query in _windowed_queries(
+            "environmental", "fromTime", incremental_from_time, params, penId=pen_id, period=period
+        ):
+            yield from client.paginate("/environmental", params=query, data_selector="data")
 
     @dlt.resource(write_disposition="replace", columns=ENVIRONMENTAL_LATEST_COLUMNS)
     def environmental_latest(pen_id: str = "all", params: dict[str, Any] | None = None):
@@ -346,14 +357,10 @@ def aquabyte_source(
         ),
     ):
         """Daily biomass from `GET /biomass`."""
-        for start, end in _windows("biomass", "fromDate", incremental_date, params):
-            yield from client.paginate(
-                "/biomass",
-                params=_windowed_query(
-                    "biomass", "fromDate", params, penId=pen_id, fromDate=start, toDate=end, bucketSize=bucket_size
-                ),
-                data_selector="biomass",
-            )
+        for query in _windowed_queries(
+            "biomass", "fromDate", incremental_date, params, penId=pen_id, bucketSize=bucket_size
+        ):
+            yield from client.paginate("/biomass", params=query, data_selector="biomass")
 
     @dlt.resource(
         write_disposition="merge",
@@ -368,10 +375,12 @@ def aquabyte_source(
         ),
     ):
         """Harvest reports from `GET /biomass/harvestReport`."""
-        for start, end in _windows("harvest_report", "fromDate", incremental_slaughter_start_date, params):
+        for query in _windowed_queries(
+            "harvest_report", "fromDate", incremental_slaughter_start_date, params, penId=pen_id
+        ):
             yield from client.paginate(
                 "/biomass/harvestReport",
-                params=_windowed_query("harvest_report", "fromDate", params, penId=pen_id, fromDate=start, toDate=end),
+                params=query,
                 data_selector="reports",
                 paginator=SinglePagePaginator(),
             )
@@ -385,12 +394,8 @@ def aquabyte_source(
         ),
     ):
         """Lice counts from `GET /liceCount`."""
-        for start, end in _windows("lice_count", "fromDate", incremental_date, params):
-            yield from client.paginate(
-                "/liceCount",
-                params=_windowed_query("lice_count", "fromDate", params, penId=pen_id, fromDate=start, toDate=end),
-                data_selector="liceCount",
-            )
+        for query in _windowed_queries("lice_count", "fromDate", incremental_date, params, penId=pen_id):
+            yield from client.paginate("/liceCount", params=query, data_selector="liceCount")
 
     @dlt.resource(write_disposition="merge", primary_key=["penId", "fromTime", "toTime"], columns=SWIM_SPEED_COLUMNS)
     def behaviour_swim_speed(
@@ -402,14 +407,10 @@ def aquabyte_source(
         ),
     ):
         """Swim speed and tilt from `GET /behaviour/swimSpeed`."""
-        for start, end in _windows("behaviour_swim_speed", "fromTime", incremental_from_time, params, period):
-            yield from client.paginate(
-                "/behaviour/swimSpeed",
-                params=_windowed_query(
-                    "behaviour_swim_speed", "fromTime", params, penId=pen_id, fromTime=start, toTime=end, period=period
-                ),
-                data_selector="swimSpeed",
-            )
+        for query in _windowed_queries(
+            "behaviour_swim_speed", "fromTime", incremental_from_time, params, penId=pen_id, period=period
+        ):
+            yield from client.paginate("/behaviour/swimSpeed", params=query, data_selector="swimSpeed")
 
     @dlt.resource(write_disposition="merge", primary_key=["penId", "fromTime"], columns=BREATHING_INDEX_COLUMNS)
     def behaviour_breathing_index(
@@ -420,14 +421,10 @@ def aquabyte_source(
         ),
     ):
         """Breathing index from `GET /behaviour/breathingIndex`, which documents no `period`."""
-        for start, end in _windows("behaviour_breathing_index", "fromTime", incremental_from_time, params):
-            yield from client.paginate(
-                "/behaviour/breathingIndex",
-                params=_windowed_query(
-                    "behaviour_breathing_index", "fromTime", params, penId=pen_id, fromTime=start, toTime=end
-                ),
-                data_selector="breathingIndex",
-            )
+        for query in _windowed_queries(
+            "behaviour_breathing_index", "fromTime", incremental_from_time, params, penId=pen_id
+        ):
+            yield from client.paginate("/behaviour/breathingIndex", params=query, data_selector="breathingIndex")
 
     @dlt.resource(write_disposition="merge", primary_key=["penId", "date"], columns=WELFARE_SCORES_COLUMNS)
     def welfare_scores(
@@ -438,12 +435,8 @@ def aquabyte_source(
         ),
     ):
         """Welfare scores from `GET /welfareScores` — one row per pen and date, categories nested."""
-        for start, end in _windows("welfare_scores", "fromDate", incremental_date, params):
-            yield from client.paginate(
-                "/welfareScores",
-                params=_windowed_query("welfare_scores", "fromDate", params, penId=pen_id, fromDate=start, toDate=end),
-                data_selector="welfareScores",
-            )
+        for query in _windowed_queries("welfare_scores", "fromDate", incremental_date, params, penId=pen_id):
+            yield from client.paginate("/welfareScores", params=query, data_selector="welfareScores")
 
     return (
         sites,

@@ -11,7 +11,7 @@ All notable changes to `dlt-source-aquabyte`, written for people using the packa
 ### Added
 
 - **Every request now carries an explicit end** (`toDate`/`toTime`), which is `end_value` when one is bound and now when none is. The width of a request is therefore known before it is sent, rather than being whatever the gap since the last successful run happens to be.
-- **`MAX_WINDOW_DAYS`**, the cap table keyed by `(resource, period)`, is importable from the package — for sizing chunks of your own, or rejecting a `--chunk-days` before spending a request. The caps are [measured, not documented by the API](specs/README.md#api-quirks-worth-knowing).
+- **`MAX_WINDOW_DAYS`**, the cap table keyed by `(resource, period)`, is importable from the package — for sizing chunks of your own, or rejecting a `--chunk-days` before making a request. The caps are [measured, not documented by the API](specs/README.md#api-quirks-worth-knowing).
 
 ## [0.1.0] - 2026-08-20
 

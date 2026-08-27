@@ -64,7 +64,7 @@ A window overlaps by design, and dlt drops what it already has. A daily load ask
 
 The API caps how wide a window may be, and refuses a wider one with `400 Requested time range is larger than N days` rather than truncating it. The cap is a property of the endpoint **and the grain**, so `period` decides it — and an open-ended request is measured from the cursor to today, which makes this a daily-load concern and not only a backfill one. Without this, a pipeline that missed more days than its cap allows would fail every night afterwards, wider each time, and could not recover on its own.
 
-So each resource splits its own requests: every request carries an explicit end (`toDate`/`toTime`), and a span wider than the cap becomes several requests, oldest first, each beginning where the last ended. You see one resource and one stream — `nextToken` pagination still runs per request, and the cursor advances as rows arrive, so a run interrupted part-way resumes from the last row loaded rather than starting over.
+So each resource splits its own requests: every request carries an explicit end (`toDate`/`toTime`), and a span wider than the cap becomes several requests, oldest first and contiguous — nothing skipped between them, and nothing asked for twice. You see one resource and one stream — `nextToken` pagination still runs per request, and the cursor advances as rows arrive, so a run interrupted part-way resumes from the last row loaded rather than starting over.
 
 | Resource | `period` | Widest window |
 |---|---|---|
@@ -75,7 +75,7 @@ So each resource splits its own requests: every request carries an explicit end 
 | `behaviour_swim_speed` | `D`, unset | 366 days |
 | every other windowed resource | — | 366 days |
 
-Nothing here has to be read to use the package. The caps are also data — `MAX_WINDOW_DAYS`, keyed by `(resource, period)`, with `None` as the period for the resources that do not take one — for a caller sizing chunks of its own, or checking a `--chunk-days` before spending a request:
+Nothing here has to be read to use the package. The caps are also data — `MAX_WINDOW_DAYS`, keyed by `(resource, period)`, with `None` as the period for the resources that do not take one — for a caller sizing chunks of its own, or checking a `--chunk-days` before making a request:
 
 ```python
 from dlt_source_aquabyte import MAX_WINDOW_DAYS

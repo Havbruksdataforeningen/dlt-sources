@@ -134,7 +134,9 @@ def test_resource_loads_the_records_of_the_pen_it_was_bound_to(mock_rest_client,
     assert_row_count(pipeline, endpoint.resource, len(endpoint.records))
     assert_pen_ids(pipeline, endpoint.resource, ["pen-001"])
 
-    for call in calls_to(mock_rest_client, endpoint.path):
+    calls = calls_to(mock_rest_client, endpoint.path)
+    assert calls, "the resource must reach its endpoint"
+    for call in calls:
         assert call["data_selector"] == endpoint.selector
         # Only a single-page endpoint names a paginator; the rest take the client's own.
         assert isinstance(call.get("paginator"), SinglePagePaginator) is endpoint.single_page
@@ -152,7 +154,9 @@ def test_resource_defaults_to_every_pen(mock_rest_client, endpoint):
     assert load_info is not None
     assert_row_count(pipeline, endpoint.resource, len(endpoint.records) * len(ACTIVE_PEN_IDS))
     assert_pen_ids(pipeline, endpoint.resource, ACTIVE_PEN_IDS)
-    assert {sent["penId"] for sent in params_sent(mock_rest_client, endpoint.path)} == {"all"}
+    sent = params_sent(mock_rest_client, endpoint.path)
+    assert sent, "the resource must reach its endpoint"
+    assert {one["penId"] for one in sent} == {"all"}
 
 
 @pytest.mark.parametrize("endpoint", ENDPOINTS, ids=lambda endpoint: endpoint.resource)
