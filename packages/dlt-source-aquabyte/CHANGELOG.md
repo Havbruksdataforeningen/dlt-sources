@@ -6,12 +6,12 @@ All notable changes to `dlt-source-aquabyte`, written for people using the packa
 
 ### Fixed
 
-- **A window wider than the API allows is now split into several requests instead of failing the load.** The API caps window width per endpoint and per grain — 7 days at `period=15min`, 31 at `h`, 366 otherwise — and refuses a wider one with a `400` rather than truncating it. Because an open-ended request is measured to today, a daily load that missed more days than its cap allowed failed every night afterwards, wider each time, and could not recover without someone binding a window by hand. Each resource now splits its own span, oldest first: [what that means for a load](REFERENCE.md#the-window-is-split-to-stay-inside-the-apis-cap).
+- **A window wider than the API allows is split into several requests instead of failing the load.** The cap is 7 days at `period=15min`, 31 at `h` and 366 otherwise, and it applies to open-ended requests too — so a daily load that fell further behind than its cap allowed could not catch up on its own. [What that means for a load](REFERENCE.md#windows-are-split-to-fit-the-apis-cap).
 
 ### Added
 
-- **Every request now carries an explicit end** (`toDate`/`toTime`), which is `end_value` when one is bound and now when none is. The width of a request is therefore known before it is sent, rather than being whatever the gap since the last successful run happens to be.
-- **`MAX_WINDOW_DAYS`**, the cap table keyed by `(resource, period)`, is importable from the package — for sizing chunks of your own, or rejecting a `--chunk-days` before making a request. The caps are [measured, not documented by the API](specs/README.md#api-quirks-worth-knowing).
+- Every request now carries an explicit end (`toDate`/`toTime`): `end_value` when one is bound, now when none is.
+- `MAX_WINDOW_DAYS`, the cap table keyed by `(resource, period)`, is importable for sizing chunks of your own. The caps are [measured, not documented by the API](specs/README.md#api-quirks-worth-knowing).
 
 ## [0.1.0] - 2026-08-20
 

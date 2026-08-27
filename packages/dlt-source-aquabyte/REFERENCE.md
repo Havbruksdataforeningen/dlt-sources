@@ -54,28 +54,26 @@ The API returns one record per pen and date with every welfare category nested i
 
 The incremental cursor is the only window mechanism, and its value is **always sent** as the request's `fromDate`/`fromTime`. A daily load binds nothing: the first run starts at `initial_date`/`initial_time`, every later one resumes from the stored cursor. A run whose request would carry no window start fails with an error naming what to set, so it never silently inherits the API's own default window.
 
-To backfill, bind the window on the resource's `incremental_*` argument: `dlt.sources.incremental(initial_value=..., end_value=...)` runs with transient state, so dlt fetches and keeps exactly that window and the stored cursor is neither consulted nor advanced. The `end_value` is sent as the request's `toDate`/`toTime`; with no `end_value` bound, the request still carries an end, which is now. Runnable version: [`examples/backfill.py`](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/examples/backfill.py).
+To backfill, bind the window on the resource's `incremental_*` argument: `dlt.sources.incremental(initial_value=..., end_value=...)` runs with transient state, so dlt fetches and keeps exactly that window and the stored cursor is neither consulted nor advanced. The `end_value` is sent as the request's `toDate`/`toTime`. With none bound, the request still carries an end: now. Runnable version: [`examples/backfill.py`](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/examples/backfill.py).
 
 A window overlaps by design, and dlt drops what it already has. A daily load asks again for the cursor's own value: one row per pen per day for the date-based resources, one `period` bucket for the time-based ones. A date backfill also asks for one day past `end_value`, because dlt's end is exclusive and the API's `toDate` is inclusive; `toTime` is exclusive, so the time-based resources have no such extra bucket. Neither overlap is worth correcting for.
 
 ⚠️ **The cursor is per resource, not per pen.** One cursor covers every pen the resource loads (`penId=all` included), advancing to the newest row *any* pen reported. Data arriving late — a pen whose camera was offline, a re-issued `harvest_report` revision for an old slaughter — falls behind the cursor and is not requested again. When that matters, periodically re-load a recent window the backfill way; merge dispositions make re-loading idempotent.
 
-### The window is split to stay inside the API's cap
+### Windows are split to fit the API's cap
 
-The API caps how wide a window may be, and refuses a wider one with `400 Requested time range is larger than N days` rather than truncating it. The cap is a property of the endpoint **and the grain**, so `period` decides it — and an open-ended request is measured from the cursor to today, which makes this a daily-load concern and not only a backfill one. Without this, a pipeline that missed more days than its cap allows would fail every night afterwards, wider each time, and could not recover on its own.
+The API refuses a window wider than its cap rather than trimming it, and measures an open-ended one to today. So a daily load that falls further behind than the cap allows fails, and keeps failing.
 
-So each resource splits its own requests: every request carries an explicit end (`toDate`/`toTime`), and a span wider than the cap becomes several requests, oldest first and contiguous — nothing skipped between them, and nothing asked for twice. You see one resource and one stream — `nextToken` pagination still runs per request, and the cursor advances as rows arrive, so a run interrupted part-way resumes from the last row loaded rather than starting over.
+Each resource therefore sends an explicit end on every request, and splits a wider span into several requests, oldest first and contiguous. You still see one resource and one stream.
 
 | Resource | `period` | Widest window |
 |---|---|---|
 | `environmental` | `15min` | 7 days |
 | `environmental` | `h` | 31 days |
-| `environmental` | `D`, unset | 366 days |
 | `behaviour_swim_speed` | `h` | 31 days |
-| `behaviour_swim_speed` | `D`, unset | 366 days |
-| every other windowed resource | — | 366 days |
+| everything else | — | 366 days |
 
-Nothing here has to be read to use the package. The caps are also data — `MAX_WINDOW_DAYS`, keyed by `(resource, period)`, with `None` as the period for the resources that do not take one — for a caller sizing chunks of its own, or checking a `--chunk-days` before making a request:
+You need none of this to use the package. The same caps are importable, for sizing chunks of your own:
 
 ```python
 from dlt_source_aquabyte import MAX_WINDOW_DAYS
@@ -83,9 +81,9 @@ from dlt_source_aquabyte import MAX_WINDOW_DAYS
 MAX_WINDOW_DAYS[("environmental", "15min")]   # 7
 ```
 
-The numbers are measured, not documented by the API ([how, and when](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/specs/README.md#api-quirks-worth-knowing)). The arithmetic does not depend on them, so a cap that moves is a one-line change to that table.
+The key is `(resource, period)`, with `None` for the resources that take no `period`. The numbers are [measured, not documented by the API](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/specs/README.md#api-quirks-worth-knowing), so treat them as observations.
 
-One exception, and it is the `params` rule rather than a special case: send `fromDate`/`fromTime` or `toDate`/`toTime` through `params` and you own the window — it goes out as one request, unsplit.
+Send a window param through `params` and you own the window: it goes out as one request, unsplit.
 
 ## What the source does not expose
 

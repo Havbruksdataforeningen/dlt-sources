@@ -97,7 +97,7 @@ period = "15min"
 | `period` | `behaviour_swim_speed` | `h`, `D` | `D` | As above. `15min` here is a `422` — only `environmental` takes it |
 | `bucket_size` | `biomass` | integer grams | `1000` | Bucket width of the nested `weightDist` histogram — no extra rows |
 
-`period` also decides how wide a window the API accepts — 7 days at `15min`, 31 at `h`, 366 at `D` — so the finest grain has the shortest cap. The source splits its own requests to stay inside it, so a long catch-up or a first load from years back works at any grain ([how, and the caps as data](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/REFERENCE.md#the-window-is-split-to-stay-inside-the-apis-cap)).
+`period` also sets the widest window the API accepts: 7 days at `15min`, 31 at `h`, 366 at `D`. The source splits its requests to fit, so a long catch-up works at any grain ([detail](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/REFERENCE.md#windows-are-split-to-fit-the-apis-cap)).
 
 ⚠️ **Changing `period` later leaves both grains in the table.** The key is `penId` + `fromTime` + `toTime`, so hourly rows do not merge over the daily ones they cover — both sit there. Pick a period per resource and keep it, or re-load the history behind the change.
 

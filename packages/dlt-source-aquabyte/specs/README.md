@@ -53,36 +53,24 @@ you read it:
 
 One the source does paper over, because no consumer could size a window without knowing it:
 
-- **The window has a maximum width, per endpoint and per grain, and the spec names none of
-  it.** A wider request is refused — `400 Requested time range is larger than N days` — not
-  truncated. Measured live on 2026-08-27 by sending a deliberately oversized window, which
-  makes the API state its own cap; the two narrow ones were then confirmed inclusive by
-  bisection (7 days `200`, 8 days `400`; 31 days `200`, 32 days `400`).
+- **A window has a maximum width, per endpoint and per grain.** A wider request is refused
+  (`400 Requested time range is larger than N days`), not truncated — and an open-ended
+  window is measured to today, so this hits daily loads as well as backfills. The finer the
+  grain, the shorter the cap.
 
   | Endpoint | `period` | Max window |
   |---|---|---|
   | `/environmental` | `15min` | **7 days** |
   | `/environmental` | `h` | **31 days** |
-  | `/environmental` | `D`, omitted | 366 days |
   | `/behaviour/swimSpeed` | `h` | **31 days** |
-  | `/behaviour/swimSpeed` | `D`, omitted | 366 days |
-  | `/behaviour/breathingIndex` | `D`, omitted | 366 days |
-  | `/biomass`, `/liceCount`, `/welfareScores`, `/biomass/harvestReport` | — | 366 days |
+  | every endpoint at `D` or omitted | | 366 days |
 
-  Two properties widen the blast radius. The cap applies to an **open-ended** window too,
-  measured from `fromTime` to today — so it is not only a backfill concern, and the finer the
-  grain the shorter the outage a daily pipeline survives. And the cap follows the *grain*, so
-  choosing the finest `period` — the right default for a raw layer — gives the shortest cap.
-  The source splits its own windows to stay inside them; the numbers live in
-  `MAX_WINDOW_DAYS`. (2026-08-27.)
+  Nothing about this is in `openapi.json`. Measured live by sending an oversized window,
+  which makes the API state its own cap; the two narrow ones were then bisected (7 days
+  `200`, 8 days `400`; 31 `200`, 32 `400`). The source splits its own windows to fit.
+  (2026-08-27.)
 
 And one that bites when you are debugging rather than reading:
-
-- **dlt hides the `detail` that says which of these you hit.** `http_show_error_body`
-  defaults to `False`, so a refusal reaches your logs as `400 Client Error: Bad Request for
-  url: ...` and nothing else — indistinguishable from a window too wide, a `welfareScores`
-  date floor, or a bad parameter. Set `RUNTIME__HTTP_SHOW_ERROR_BODY=true` before debugging
-  anything against this API.
 
 - **The API ignores a query parameter it does not recognise instead of rejecting it.**
   Verified by sending an invented parameter name, which returned `200` and a normal result
@@ -98,6 +86,10 @@ And one that bites when you are debugging rather than reading:
   on, not ignored as an unknown name would be. The grain is therefore fixed, which is why
   the resource is keyed on `penId` + `fromTime` without `toTime`. Reported upstream in #29.
   (2026-08-20.)
+
+- **dlt hides the `detail` that says which limit you hit.** `http_show_error_body` defaults
+  to `False`, so a refusal reaches your logs as `400 Client Error: Bad Request` and nothing
+  more. Set `RUNTIME__HTTP_SHOW_ERROR_BODY=true` before debugging against this API.
 
 ### Identifiers
 

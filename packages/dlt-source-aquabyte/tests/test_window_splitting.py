@@ -1,9 +1,7 @@
-"""The API caps how wide a window may be, so the resources split their own requests.
+"""Splitting a window too wide for the API: `REFERENCE.md#windows-are-split-to-fit-the-apis-cap`.
 
-An over-wide window is refused, never truncated, and an open-ended one is measured to
-today — so without this a pipeline that misses more days than its cap allows can never
-catch up on its own. The caps themselves are in `MAX_WINDOW_DAYS`; what is asserted here
-is the arithmetic around them, which is what a moved cap must keep working.
+The caps themselves are data (`MAX_WINDOW_DAYS`). What is asserted here is the arithmetic
+around them, which a moved cap must keep working.
 """
 
 from datetime import UTC, datetime, timedelta
