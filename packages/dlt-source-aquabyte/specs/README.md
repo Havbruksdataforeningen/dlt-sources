@@ -51,6 +51,8 @@ you read it:
   `distribution` holds shares summing to 1, one per edge, and any bucket in the range — the
   first included — can be `0`. Both arrays can be empty. (2026-08-20.)
 
+One the source does paper over, because no consumer could size a window without knowing it:
+
 - **The window has a maximum width, per endpoint and per grain, and the spec names none of
   it.** A wider request is refused — `400 Requested time range is larger than N days` — not
   truncated. Measured live on 2026-08-27 by sending a deliberately oversized window, which
