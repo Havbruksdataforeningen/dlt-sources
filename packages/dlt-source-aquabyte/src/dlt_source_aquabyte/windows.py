@@ -45,6 +45,7 @@ def windows(
     """
     start = incremental.last_value if incremental is not None else None
     end = incremental.end_value if incremental is not None else None
+    grain = (extra or {}).get("period", period)  # `params` wins here as it does on the wire
     if extra and (start_param in extra or start_param.replace("from", "to") in extra):
         return [(start, end)]
     if not isinstance(start, str) or not isinstance(end, str | None):
@@ -53,7 +54,7 @@ def windows(
 
     first = _parse(start)
     last = _parse(end) if end is not None else _now_like(first)
-    step = timedelta(days=_cap_days(resource, period))
+    step = timedelta(days=_cap_days(resource, grain))
     end_text = end if end is not None else _spell(last, start)
 
     try:
@@ -64,13 +65,15 @@ def windows(
     if fits:
         return [(start, end_text)]
 
+    # `toDate` is inclusive where `toTime` is exclusive, so a date window covers one day
+    # more than its ends differ by. Trimming a day keeps sub-windows from overlapping, and
+    # holding the last one to `step - trim` keeps every window this invents inside the cap
+    # however the API counts a date range. A window the caller wrote goes out as written.
+    trim = timedelta(0) if isinstance(first, datetime) else timedelta(days=1)
     edges = [first]
-    while edges[-1] + step < last:
+    while last - edges[-1] > step - trim:
         edges.append(edges[-1] + step)
 
-    # `toDate` is inclusive where `toTime` is exclusive, so a date sub-window stops the day
-    # before the next one starts. Either way no day or bucket is asked for twice.
-    trim = timedelta(0) if isinstance(first, datetime) else timedelta(days=1)
     starts = [start, *(_spell(edge, start) for edge in edges[1:])]
     ends = [*(_spell(edge - trim, start) for edge in edges[1:]), end_text]
     return list(zip(starts, ends, strict=True))
@@ -85,7 +88,8 @@ def _cap_days(resource: str, period: str | None) -> int:
 
 def _parse(value: str) -> date:
     """A cursor value as the kind of point it is: a date, or a datetime for the time resources."""
-    return datetime.fromisoformat(value) if "T" in value else date.fromisoformat(value)
+    has_time = "T" in value or " " in value
+    return datetime.fromisoformat(value) if has_time else date.fromisoformat(value)
 
 
 def _now_like(sample: date) -> date:

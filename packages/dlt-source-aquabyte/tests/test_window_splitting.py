@@ -4,7 +4,7 @@ The caps themselves are data (`MAX_WINDOW_DAYS`). What is asserted here is the a
 around them, which a moved cap must keep working.
 """
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 
 import dlt
 import pytest
@@ -161,6 +161,51 @@ def test_a_window_sent_through_params_is_left_alone(mock_rest_client):
     )
 
     assert len(sent) == 1
+
+
+def test_no_sub_window_this_invents_can_exceed_the_cap(mock_rest_client):
+    """`toDate` is inclusive, so a date window covers a day more than its ends differ by.
+
+    Whether the API caps the difference or the days covered is not something #36 measured
+    for the date endpoints, so no window built here may exceed the cap either way it is
+    counted. Only a window the caller wrote goes out as written.
+    """
+    sent = _run(mock_rest_client, BIOMASS, "test_never_over_cap", **_window(BIOMASS, "2026-01-01", "2028-01-03"))
+
+    cap = MAX_WINDOW_DAYS[("biomass", None)]
+    for one in sent:
+        covered = (date.fromisoformat(one["toDate"]) - date.fromisoformat(one["fromDate"])).days + 1
+        assert covered <= cap, f"{one['fromDate']}..{one['toDate']} covers {covered} days"
+
+
+def test_a_period_sent_through_params_sizes_the_windows(mock_rest_client):
+    """`params` wins over the named `period` on the wire, so it must pick the cap too."""
+    sent = _run(
+        mock_rest_client,
+        ENVIRONMENTAL,
+        "test_params_period",
+        params={"period": "15min"},
+        **_window(ENVIRONMENTAL, "2026-01-01T00:00:00Z", "2026-03-01T00:00:00Z"),
+    )
+
+    assert all(one["period"] == "15min" for one in sent)
+    assert len(sent) == 9, "59 days at the 15min cap of 7, not the daily cap of 366"
+
+
+def test_a_cursor_spelled_with_a_space_is_still_a_time(mock_rest_client):
+    """`2026-01-01 00:00:00` is valid ISO 8601 and must not be read as a date."""
+    sent = _run(
+        mock_rest_client,
+        ENVIRONMENTAL,
+        "test_space_cursor",
+        period="15min",
+        **_window(ENVIRONMENTAL, "2026-01-01 00:00:00", "2026-01-09 00:00:00"),
+    )
+
+    assert [(one["fromTime"], one["toTime"]) for one in sent] == [
+        ("2026-01-01 00:00:00", "2026-01-08T00:00:00"),
+        ("2026-01-08T00:00:00", "2026-01-09 00:00:00"),
+    ]
 
 
 def test_a_start_and_an_end_of_different_kinds_are_passed_through(mock_rest_client):
