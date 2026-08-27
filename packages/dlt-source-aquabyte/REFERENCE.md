@@ -83,6 +83,8 @@ MAX_WINDOW_DAYS[("environmental", "15min")]   # 7
 
 The key is `(resource, period)`, with `None` for the resources that take no `period`. The numbers are [measured, not documented by the API](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/specs/README.md#api-quirks-worth-knowing), so treat them as observations.
 
+The table is deliberately writable. If a cap moves, assign the new value before your run and the source uses it — you do not have to wait for a release.
+
 Send a window param through `params` and you own the window: it goes out as one request, unsplit.
 
 ## What the source does not expose
@@ -99,19 +101,20 @@ Rate limit and result cap are in `specs/openapi.json`. The package does not thro
 
 ## Logging
 
-The package emits no log records of its own — it has nothing to say that dlt does not already log, and on failure it raises. There is no package logger to attach a handler to.
+The package emits one kind of log record: a warning, on the logger `dlt_source_aquabyte.windows`, when it cannot measure a window and sends it unsplit. That happens only for a cursor value it cannot read as a date or a time. It is worth hearing, because the request may be refused and dlt hides the reason (below). Everything else dlt already logs, and on failure this package raises.
 
 dlt logs, on the logger named `dlt` at INFO, the two lines an operator needs to verify a catch-up run or a backfill: the window each resource bound, and every request made. Both are off by default, because dlt's own level is `WARNING`.
 
-Three `[runtime]` settings cover routing, and they are dlt's, not ours:
+Four `[runtime]` settings cover routing, and they are dlt's, not ours:
 
 | Setting | What it buys |
 |---|---|
 | `log_level` | `"INFO"` turns both lines on |
 | `log_format` | `"JSON"` for a collector to parse, or your own `{}`-style format string |
 | `sentry_dsn` | logged errors and unhandled exceptions go to Sentry, once `sentry-sdk` is installed |
+| `http_show_error_body` | `true` shows the API's own `detail` on a `4xx` — which is the only thing that tells an over-wide window from a bad parameter |
 
-Each has an env var too (`RUNTIME__LOG_LEVEL` and so on). A service that ships records itself hands you a handler: attach it to the `dlt` logger before the run and dlt uses it. dlt documents all of this under [running in production](https://dlthub.com/docs/running-in-production/running#set-the-log-level-and-format), which is worth reading once — there is nothing package-specific to add.
+Each has an env var too (`RUNTIME__LOG_LEVEL` and so on). A service that ships records itself hands you a handler: attach it to the `dlt` logger before the run, and to `dlt_source_aquabyte` if you want this package's warning down the same pipe. dlt documents the rest under [running in production](https://dlthub.com/docs/running-in-production/running#set-the-log-level-and-format), which is worth reading once.
 
 ## Column types
 

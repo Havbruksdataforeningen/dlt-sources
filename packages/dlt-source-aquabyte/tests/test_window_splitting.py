@@ -4,7 +4,9 @@ The caps themselves are data (`MAX_WINDOW_DAYS`). What is asserted here is the a
 around them, which a moved cap must keep working.
 """
 
+import logging
 from datetime import UTC, date, datetime, timedelta
+from itertools import pairwise
 
 import dlt
 import pytest
@@ -73,8 +75,8 @@ def test_a_window_one_day_over_the_cap_is_two_contiguous_requests(mock_rest_clie
 def test_a_date_window_splits_the_same_way(mock_rest_client):
     """`fromDate`/`toDate` take the same arithmetic, at the date resources' 366-day cap.
 
-    `toDate` is inclusive where `toTime` is exclusive, so a date sub-window stops the day
-    before the next one starts: contiguous, and no day asked for twice.
+    `toDate` is inclusive where `toTime` is exclusive, so the next sub-window starts the day
+    after the last one ended: contiguous, and no date asked for twice.
     """
     sent = _run(
         mock_rest_client,
@@ -84,8 +86,8 @@ def test_a_date_window_splits_the_same_way(mock_rest_client):
     )
 
     assert [(one["fromDate"], one["toDate"]) for one in sent] == [
-        ("2026-01-01", "2027-01-01"),
-        ("2027-01-02", "2027-01-03"),
+        ("2026-01-01", "2027-01-02"),
+        ("2027-01-03", "2027-01-03"),
     ]
 
 
@@ -163,19 +165,23 @@ def test_a_window_sent_through_params_is_left_alone(mock_rest_client):
     assert len(sent) == 1
 
 
-def test_no_sub_window_this_invents_can_exceed_the_cap(mock_rest_client):
-    """`toDate` is inclusive, so a date window covers a day more than its ends differ by.
+def test_date_sub_windows_use_the_whole_cap_without_overlapping(mock_rest_client):
+    """The API measures `toDate - fromDate`, confirmed at the boundary on 2026-08-28.
 
-    Whether the API caps the difference or the days covered is not something #36 measured
-    for the date endpoints, so no window built here may exceed the cap either way it is
-    counted. Only a window the caller wrote goes out as written.
+    So a sub-window may be a full 366 wide. `toDate` is inclusive, so the next one starts
+    the day after — which costs a day of width nowhere, and asks for no date twice.
     """
-    sent = _run(mock_rest_client, BIOMASS, "test_never_over_cap", **_window(BIOMASS, "2026-01-01", "2028-01-03"))
+    sent = _run(mock_rest_client, BIOMASS, "test_whole_cap", **_window(BIOMASS, "2026-01-01", "2029-01-05"))
 
     cap = MAX_WINDOW_DAYS[("biomass", None)]
-    for one in sent:
-        covered = (date.fromisoformat(one["toDate"]) - date.fromisoformat(one["fromDate"])).days + 1
-        assert covered <= cap, f"{one['fromDate']}..{one['toDate']} covers {covered} days"
+    edges = [(date.fromisoformat(one["fromDate"]), date.fromisoformat(one["toDate"])) for one in sent]
+
+    assert len(sent) == 3, "1100 days at a 366-day cap is three requests, not four"
+    assert all((to - since).days <= cap for since, to in edges), "no request may exceed the cap"
+    assert max((to - since).days for since, to in edges) == cap, "and the cap must be used in full"
+    assert all(later[0] - earlier[1] == timedelta(days=1) for earlier, later in pairwise(edges)), (
+        "each sub-window starts the day after the last one ended"
+    )
 
 
 def test_a_period_sent_through_params_sizes_the_windows(mock_rest_client):
@@ -208,16 +214,30 @@ def test_a_cursor_spelled_with_a_space_is_still_a_time(mock_rest_client):
     ]
 
 
-def test_a_start_and_an_end_of_different_kinds_are_passed_through(mock_rest_client):
-    """A date against a timestamp cannot be measured, so the window goes out as it came."""
-    sent = _run(
-        mock_rest_client,
-        BIOMASS,
-        "test_mismatched_window",
-        **_window(BIOMASS, "2020-01-01", "2026-01-01T00:00:00Z"),
-    )
+def test_a_start_and_an_end_of_different_kinds_are_passed_through(mock_rest_client, caplog):
+    """A date against a timestamp cannot be measured, so the window goes out as it came.
+
+    With a warning: the API would refuse this one, and dlt hides the reason by default.
+    """
+    with caplog.at_level(logging.WARNING, logger="dlt_source_aquabyte.windows"):
+        sent = _run(
+            mock_rest_client,
+            BIOMASS,
+            "test_mismatched_window",
+            **_window(BIOMASS, "2020-01-01", "2026-01-01T00:00:00Z"),
+        )
 
     assert [(one["fromDate"], one["toDate"]) for one in sent] == [("2020-01-01", "2026-01-01T00:00:00Z")]
+    assert "biomass" in caplog.text
+    assert "366" in caplog.text, "the warning names the cap the request may break"
+
+
+def test_a_window_the_source_can_measure_logs_nothing(mock_rest_client, caplog):
+    """The warning is for the windows it gave up on, not for every run."""
+    with caplog.at_level(logging.WARNING, logger="dlt_source_aquabyte.windows"):
+        _run(mock_rest_client, BIOMASS, "test_quiet", **_window(BIOMASS, "2026-01-01", "2029-01-05"))
+
+    assert caplog.text == ""
 
 
 def test_the_caps_are_published_for_every_windowed_resource():

@@ -4,10 +4,13 @@ Why, and what it means for a load: `REFERENCE.md#windows-are-split-to-fit-the-ap
 Where the numbers come from: `specs/README.md#api-quirks-worth-knowing`.
 """
 
+import logging
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 import dlt
+
+logger = logging.getLogger(__name__)
 
 MAX_WINDOW_DAYS: dict[tuple[str, str | None], int] = {
     ("environmental", "15min"): 7,
@@ -21,7 +24,11 @@ MAX_WINDOW_DAYS: dict[tuple[str, str | None], int] = {
     ("welfare_scores", None): 366,
     ("harvest_report", None): 366,
 }
-"""Widest window per `(resource, period)`, in days. Public, for sizing chunks of your own."""
+"""Widest window per `(resource, period)`, in days.
+
+Public and writable on purpose: a consumer can size chunks of its own from it, or correct a
+cap that has moved without waiting for a release. `REFERENCE.md#windows-are-split-to-fit-the-apis-cap`.
+"""
 
 DEFAULT_PERIOD = "D"
 """The grain the API computes when `period` is omitted."""
@@ -48,9 +55,11 @@ def windows(
     grain = (extra or {}).get("period", period)  # `params` wins here as it does on the wire
     if extra and (start_param in extra or start_param.replace("from", "to") in extra):
         return [(start, end)]
-    if not isinstance(start, str) or not isinstance(end, str | None):
-        # Nothing to measure. Whether a missing start is fatal is the caller's check.
+    if start is None:
+        # No cursor value at all. Whether that is fatal is the caller's check.
         return [(start, end)]
+    if not isinstance(start, str) or not isinstance(end, str | None):
+        return _unmeasured(resource, grain, start, end, "they are not both strings")
 
     first = _parse(start)
     last = _parse(end) if end is not None else _now_like(first)
@@ -60,23 +69,40 @@ def windows(
     try:
         fits = last - first <= step
     except TypeError:
-        # A date measured against a timestamp, or a naive time against a zoned one.
-        return [(start, end)]
+        return _unmeasured(resource, grain, start, end, "they are different kinds of value")
     if fits:
         return [(start, end_text)]
 
-    # `toDate` is inclusive where `toTime` is exclusive, so a date window covers one day
-    # more than its ends differ by. Trimming a day keeps sub-windows from overlapping, and
-    # holding the last one to `step - trim` keeps every window this invents inside the cap
-    # however the API counts a date range. A window the caller wrote goes out as written.
+    # The API measures a window end to end, so every sub-window may be a full `step` wide.
+    # `toDate` is inclusive though, so the next one starts a day later than it ends, or the
+    # seam day is fetched twice. `toTime` is exclusive and needs no such gap.
     trim = timedelta(0) if isinstance(first, datetime) else timedelta(days=1)
     edges = [first]
-    while last - edges[-1] > step - trim:
-        edges.append(edges[-1] + step)
+    while last - edges[-1] > step:
+        edges.append(edges[-1] + step + trim)
 
     starts = [start, *(_spell(edge, start) for edge in edges[1:])]
     ends = [*(_spell(edge - trim, start) for edge in edges[1:]), end_text]
     return list(zip(starts, ends, strict=True))
+
+
+def _unmeasured(resource: str, grain: str | None, start: Any, end: Any, why: str) -> list[tuple[Any, Any]]:
+    """Send a window this cannot measure, and say so — the 400 it may cause explains nothing.
+
+    dlt hides the API's `detail` unless `RUNTIME__HTTP_SHOW_ERROR_BODY` is set, so a refusal
+    arrives as a bare `400 Client Error` with no way to tell an over-wide window from a bad
+    parameter. `REFERENCE.md#logging`.
+    """
+    logger.warning(
+        "%s: cannot measure the window %r to %r because %s, so it goes out as one request. "
+        "The API refuses one wider than %s days.",
+        resource,
+        start,
+        end,
+        why,
+        _cap_days(resource, grain),
+    )
+    return [(start, end)]
 
 
 def _cap_days(resource: str, period: str | None) -> int:

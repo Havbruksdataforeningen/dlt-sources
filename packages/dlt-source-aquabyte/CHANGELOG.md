@@ -11,7 +11,8 @@ All notable changes to `dlt-source-aquabyte`, written for people using the packa
 ### Added
 
 - Every request now carries an explicit end (`toDate`/`toTime`): `end_value` when one is bound, now when none is.
-- `MAX_WINDOW_DAYS`, the cap table keyed by `(resource, period)`, is importable for sizing chunks of your own. The caps are [measured, not documented by the API](specs/README.md#api-quirks-worth-knowing).
+- `MAX_WINDOW_DAYS`, the cap table keyed by `(resource, period)`, is importable for sizing chunks of your own. It is writable too, so a cap that moves does not need a release. The caps are [measured, not documented by the API](specs/README.md#api-quirks-worth-knowing).
+- A warning on the `dlt_source_aquabyte.windows` logger when a cursor value cannot be read as a date or a time, since the window then goes out unsplit and may be refused. The package had no logger before this.
 
 ## [0.1.0] - 2026-08-20
 

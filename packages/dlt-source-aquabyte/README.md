@@ -105,7 +105,7 @@ That is also why `behaviour_breathing_index` is keyed on `penId` + `fromTime` al
 
 `bucket_size` adds no rows. `weightDist` covers only the weights observed, so a pen of smolt returns a couple of buckets and a harvest-size pen at 250 g a few dozen — one JSON column either way ([what the arrays hold](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/specs/README.md#api-quirks-worth-knowing)).
 
-The package emits no log records of its own. dlt logs the window each run asked for and every request it made, on its own `dlt` logger, and routing them is dlt's `[runtime]` settings rather than anything here: [what to set](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/REFERENCE.md#logging), and dlt's own [logging documentation](https://dlthub.com/docs/running-in-production/running#set-the-log-level-and-format).
+The package logs one thing of its own: a warning when it cannot measure a window and sends it unsplit. Everything else is dlt's — it logs the window each run asked for and every request it made, on its own `dlt` logger, and routing them is dlt's `[runtime]` settings rather than anything here: [what to set](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/REFERENCE.md#logging), and dlt's own [logging documentation](https://dlthub.com/docs/running-in-production/running#set-the-log-level-and-format).
 
 ## Examples
 
