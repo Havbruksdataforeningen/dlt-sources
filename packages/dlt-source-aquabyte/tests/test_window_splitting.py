@@ -1,0 +1,188 @@
+"""The API caps how wide a window may be, so the resources split their own requests.
+
+An over-wide window is refused, never truncated, and an open-ended one is measured to
+today — so without this a pipeline that misses more days than its cap allows can never
+catch up on its own. The caps themselves are in `MAX_WINDOW_DAYS`; what is asserted here
+is the arithmetic around them, which is what a moved cap must keep working.
+"""
+
+from datetime import UTC, datetime, timedelta
+
+import dlt
+import pytest
+
+from dlt_source_aquabyte import MAX_WINDOW_DAYS, aquabyte_source
+from tests.conftest import (
+    SOURCE_CONFIG,
+    load_mock,
+    params_sent,
+    run_source,
+    serve,
+)
+
+# One time-based resource and one date-based one, which is the whole of the difference:
+# the same arithmetic on `fromTime`/`toTime` and on `fromDate`/`toDate`.
+ENVIRONMENTAL = ("environmental", "/environmental", "environmental.json", "data", "incremental_from_time", "fromTime")
+BIOMASS = ("biomass", "/biomass", "biomass.json", "biomass", "incremental_date", "fromDate")
+
+
+def _run(mock_rest_client, endpoint, name: str, **bound):
+    """Serve the endpoint's mock, run its resource, and return the params of every request."""
+    resource, path, mock_file, selector, _, _ = endpoint
+    mock_rest_client.paginate.reset_mock()
+    mock_rest_client.paginate.side_effect = serve({path: load_mock(mock_file)[selector]})
+    source = aquabyte_source(**SOURCE_CONFIG)
+    source.resources[resource].bind(**bound)
+    run_source(f"{name}_{resource}", source, [resource])
+    return params_sent(mock_rest_client, path)
+
+
+def _window(endpoint, start: str, end: str | None = None):
+    """The `incremental_*` binding that carries this window."""
+    _, _, _, _, argument, _ = endpoint
+    return {argument: dlt.sources.incremental(initial_value=start, end_value=end)}
+
+
+def test_a_window_at_exactly_the_cap_is_one_request(mock_rest_client):
+    """The caps are inclusive, so the widest legal window must not be split."""
+    sent = _run(
+        mock_rest_client,
+        ENVIRONMENTAL,
+        "test_at_cap",
+        period="15min",
+        **_window(ENVIRONMENTAL, "2026-01-01T00:00:00Z", "2026-01-08T00:00:00Z"),
+    )
+
+    assert [(one["fromTime"], one["toTime"]) for one in sent] == [("2026-01-01T00:00:00Z", "2026-01-08T00:00:00Z")]
+
+
+def test_a_window_one_day_over_the_cap_is_two_contiguous_requests(mock_rest_client):
+    """Oldest first, each ending where the next begins, and the caller's own edges kept."""
+    sent = _run(
+        mock_rest_client,
+        ENVIRONMENTAL,
+        "test_over_cap",
+        period="15min",
+        **_window(ENVIRONMENTAL, "2026-01-01T00:00:00Z", "2026-01-09T00:00:00Z"),
+    )
+
+    assert [(one["fromTime"], one["toTime"]) for one in sent] == [
+        ("2026-01-01T00:00:00Z", "2026-01-08T00:00:00Z"),
+        ("2026-01-08T00:00:00Z", "2026-01-09T00:00:00Z"),
+    ]
+
+
+def test_a_date_window_splits_the_same_way(mock_rest_client):
+    """`fromDate`/`toDate` take the same arithmetic, at the date resources' 366-day cap."""
+    sent = _run(
+        mock_rest_client,
+        BIOMASS,
+        "test_date_split",
+        **_window(BIOMASS, "2026-01-01", "2027-01-03"),
+    )
+
+    assert [(one["fromDate"], one["toDate"]) for one in sent] == [
+        ("2026-01-01", "2027-01-02"),
+        ("2027-01-02", "2027-01-03"),
+    ]
+
+
+def test_a_date_window_at_exactly_the_cap_is_one_request(mock_rest_client):
+    sent = _run(mock_rest_client, BIOMASS, "test_date_at_cap", **_window(BIOMASS, "2026-01-01", "2027-01-02"))
+
+    assert [(one["fromDate"], one["toDate"]) for one in sent] == [("2026-01-01", "2027-01-02")]
+
+
+@pytest.mark.parametrize(
+    ("period", "expected_windows"),
+    [("15min", 5), ("h", 2), ("D", 1), (None, 1)],
+)
+def test_the_period_decides_how_many_requests_a_window_becomes(mock_rest_client, period, expected_windows):
+    """The cap is a property of (resource, grain): 7 days at `15min`, 31 at `h`, 366 at `D`.
+
+    `period` unset resolves to the endpoint's own default grain, which is the daily one —
+    so omitting it buys the widest cap, not the narrowest.
+    """
+    bound = {"period": period} if period is not None else {}
+    sent = _run(
+        mock_rest_client,
+        ENVIRONMENTAL,
+        f"test_period_{period}",
+        **bound,
+        **_window(ENVIRONMENTAL, "2026-01-01T00:00:00Z", "2026-02-02T00:00:00Z"),
+    )
+
+    assert len(sent) == expected_windows
+    assert sent[0]["fromTime"] == "2026-01-01T00:00:00Z"
+    assert sent[-1]["toTime"] == "2026-02-02T00:00:00Z"
+
+
+def test_an_open_ended_incremental_still_sends_an_end(mock_rest_client):
+    """No `end_value` means "up to now", and now is sent rather than left to the API."""
+    start = (datetime.now(tz=UTC) - timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    sent = _run(mock_rest_client, ENVIRONMENTAL, "test_open_end", **_window(ENVIRONMENTAL, start))
+
+    (one,) = sent
+    assert one["fromTime"] == start
+    ended_at = datetime.fromisoformat(one["toTime"])
+    assert timedelta(0) <= datetime.now(tz=UTC) - ended_at < timedelta(minutes=5)
+
+
+def test_an_open_ended_date_incremental_ends_today(mock_rest_client):
+    """The date resources get today rather than a timestamp, in the spelling they cursor on."""
+    start = (datetime.now(tz=UTC) - timedelta(days=1)).strftime("%Y-%m-%d")
+    sent = _run(mock_rest_client, BIOMASS, "test_open_end_date", **_window(BIOMASS, start))
+
+    (one,) = sent
+    assert one["toDate"] == datetime.now(tz=UTC).strftime("%Y-%m-%d")
+
+
+def test_an_open_ended_catch_up_wider_than_the_cap_splits(mock_rest_client):
+    """The case that made this a correctness bug: a cursor left far behind still loads."""
+    start = (datetime.now(tz=UTC) - timedelta(days=20)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    sent = _run(mock_rest_client, ENVIRONMENTAL, "test_catch_up", period="15min", **_window(ENVIRONMENTAL, start))
+
+    assert len(sent) == 3, "20 days at a 7-day cap is three requests"
+    assert sent[0]["fromTime"] == start
+    assert [one["fromTime"] for one in sent] == sorted(one["fromTime"] for one in sent), "oldest first"
+    assert [one["toTime"] for one in sent[:-1]] == [one["fromTime"] for one in sent[1:]], "contiguous"
+
+
+def test_a_window_sent_through_params_is_left_alone(mock_rest_client):
+    """The passthrough wins over every named param, so a caller who sends a window owns it."""
+    sent = _run(
+        mock_rest_client,
+        ENVIRONMENTAL,
+        "test_params_window",
+        period="15min",
+        params={"fromTime": "2020-01-01T00:00:00Z", "toTime": "2026-01-01T00:00:00Z"},
+    )
+
+    assert len(sent) == 1
+
+
+def test_a_start_and_an_end_of_different_kinds_are_passed_through(mock_rest_client):
+    """A date against a timestamp cannot be measured, so the window goes out as it came."""
+    sent = _run(
+        mock_rest_client,
+        BIOMASS,
+        "test_mismatched_window",
+        **_window(BIOMASS, "2020-01-01", "2026-01-01T00:00:00Z"),
+    )
+
+    assert [(one["fromDate"], one["toDate"]) for one in sent] == [("2020-01-01", "2026-01-01T00:00:00Z")]
+
+
+def test_the_caps_are_published_for_every_windowed_resource():
+    """A consumer sizing its own chunks reads them from the package, not from a failed run."""
+    resources = {resource for resource, _ in MAX_WINDOW_DAYS}
+    assert resources == {
+        "environmental",
+        "behaviour_swim_speed",
+        "behaviour_breathing_index",
+        "biomass",
+        "lice_count",
+        "welfare_scores",
+        "harvest_report",
+    }
+    assert MAX_WINDOW_DAYS[("environmental", "15min")] == 7

@@ -1,7 +1,8 @@
 """Behaviour every data resource shares, asserted once per endpoint.
 
 These are the mechanics the source promises for all of them — the pen, the window params
-the incremental drives, the envelope key, the paginator, and the optional params.
+the incremental drives, the envelope key, the paginator, and the optional params. How a
+window too wide for the API becomes several requests is in `test_window_splitting.py`.
 Behaviour peculiar to one resource lives in that resource's own test module.
 """
 
@@ -133,21 +134,25 @@ def test_resource_loads_the_records_of_the_pen_it_was_bound_to(mock_rest_client,
     assert_row_count(pipeline, endpoint.resource, len(endpoint.records))
     assert_pen_ids(pipeline, endpoint.resource, ["pen-001"])
 
-    (call,) = calls_to(mock_rest_client, endpoint.path)
-    assert call["data_selector"] == endpoint.selector
-    # Only a single-page endpoint names a paginator; the rest take the client's own.
-    assert isinstance(call.get("paginator"), SinglePagePaginator) is endpoint.single_page
+    for call in calls_to(mock_rest_client, endpoint.path):
+        assert call["data_selector"] == endpoint.selector
+        # Only a single-page endpoint names a paginator; the rest take the client's own.
+        assert isinstance(call.get("paginator"), SinglePagePaginator) is endpoint.single_page
 
 
 @pytest.mark.parametrize("endpoint", ENDPOINTS, ids=lambda endpoint: endpoint.resource)
-def test_resource_defaults_to_every_pen_in_one_request(mock_rest_client, endpoint):
-    """`penId=all` is the default — one request covering every pen, not one request per pen."""
+def test_resource_defaults_to_every_pen(mock_rest_client, endpoint):
+    """`penId=all` is the default: every request covers every pen, never one request per pen.
+
+    A run makes one request per window rather than exactly one — see
+    `test_window_splitting.py` — but the pen is not what decides how many.
+    """
     pipeline, load_info = _run(mock_rest_client, endpoint, "test_all_pens")
 
     assert load_info is not None
     assert_row_count(pipeline, endpoint.resource, len(endpoint.records) * len(ACTIVE_PEN_IDS))
     assert_pen_ids(pipeline, endpoint.resource, ACTIVE_PEN_IDS)
-    assert [sent["penId"] for sent in params_sent(mock_rest_client, endpoint.path)] == ["all"]
+    assert {sent["penId"] for sent in params_sent(mock_rest_client, endpoint.path)} == {"all"}
 
 
 @pytest.mark.parametrize("endpoint", ENDPOINTS, ids=lambda endpoint: endpoint.resource)
