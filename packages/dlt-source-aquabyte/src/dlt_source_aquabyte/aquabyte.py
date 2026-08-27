@@ -33,7 +33,7 @@ from dlt_source_aquabyte.columns import (
     SWIM_SPEED_COLUMNS,
     WELFARE_SCORES_COLUMNS,
 )
-from dlt_source_aquabyte.windows import windows
+from dlt_source_aquabyte.windows import windows_to_request
 
 SCD2: TScd2StrategyDict = {"disposition": "merge", "strategy": "scd2"}
 """Registry tables are versioned, never replaced. Why, and how to take the other side:
@@ -52,7 +52,7 @@ def _windowed_queries(
     resource: str,
     start_param: str,
     incremental: dlt.sources.incremental[str] | None,
-    extra: dict[str, Any] | None,
+    params: dict[str, Any] | None,
     **named: Any,
 ) -> list[dict[str, Any]]:
     """The query params of every request a windowed resource makes, oldest window first.
@@ -61,8 +61,8 @@ def _windowed_queries(
     with a default window of its own, which nothing here chose.
     """
     end_param = start_param.replace("from", "to")
-    spans = windows(resource, start_param, incremental, extra, named.get("period"))
-    queries = [_query(extra, **named, **{start_param: start, end_param: end}) for start, end in spans]
+    spans = windows_to_request(resource, start_param, incremental, params, named.get("period"))
+    queries = [_query(params, **named, **{start_param: start, end_param: end}) for start, end in spans]
     if any(query.get(start_param) is None for query in queries):
         config_key = "initial_time" if start_param == "fromTime" else "initial_date"
         raise ValueError(

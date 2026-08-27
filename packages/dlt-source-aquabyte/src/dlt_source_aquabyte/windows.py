@@ -30,20 +30,23 @@ Public and writable on purpose: a consumer can size chunks of its own from it, o
 cap that has moved without waiting for a release. `REFERENCE.md#windows-are-split-to-fit-the-apis-cap`.
 """
 
+Window = tuple[Any, Any]
+"""One request's window: the value to send as the start param, and the one for the end."""
+
 DEFAULT_PERIOD = "D"
 """The grain the API computes when `period` is omitted."""
 
-_WIDEST_CAP_DAYS = 366
+_FALLBACK_MAX_WINDOW_DAYS = 366
 """What an unrecognised resource gets: the cap every endpoint has at its default grain."""
 
 
-def windows(
+def windows_to_request(
     resource: str,
     start_param: str,
     incremental: dlt.sources.incremental[str] | None,
-    extra: dict[str, Any] | None,
+    params: dict[str, Any] | None,
     period: str | None = None,
-) -> list[tuple[Any, Any]]:
+) -> list[Window]:
     """The window of every request `resource` must make, oldest first.
 
     One window when the span fits the cap, several when it does not, and always with an
@@ -52,41 +55,41 @@ def windows(
     """
     start = incremental.last_value if incremental is not None else None
     end = incremental.end_value if incremental is not None else None
-    grain = (extra or {}).get("period", period)  # `params` wins here as it does on the wire
-    if extra and (start_param in extra or start_param.replace("from", "to") in extra):
+    grain = (params or {}).get("period", period)  # `params` wins here as it does on the wire
+    if params and (start_param in params or start_param.replace("from", "to") in params):
         return [(start, end)]
     if start is None:
         # No cursor value at all. Whether that is fatal is the caller's check.
         return [(start, end)]
     if not isinstance(start, str) or not isinstance(end, str | None):
-        return _unmeasured(resource, grain, start, end, "they are not both strings")
+        return _unsplit_with_warning(resource, grain, start, end, "they are not both strings")
 
-    first = _parse(start)
-    last = _parse(end) if end is not None else _now_like(first)
-    step = timedelta(days=_cap_days(resource, grain))
-    end_text = end if end is not None else _spell(last, start)
+    span_start = _as_date_or_time(start)
+    span_end = _as_date_or_time(end) if end is not None else _today_or_now(span_start)
+    cap = timedelta(days=_max_window_days(resource, grain))
+    end_text = end if end is not None else _written_like(span_end, start)
 
     try:
-        fits = last - first <= step
+        fits = span_end - span_start <= cap
     except TypeError:
-        return _unmeasured(resource, grain, start, end, "they are different kinds of value")
+        return _unsplit_with_warning(resource, grain, start, end, "they are different kinds of value")
     if fits:
         return [(start, end_text)]
 
-    # The API measures a window end to end, so every sub-window may be a full `step` wide.
+    # The API measures a window end to end, so every sub-window may be a full `cap` wide.
     # `toDate` is inclusive though, so the next one starts a day later than it ends, or the
     # seam day is fetched twice. `toTime` is exclusive and needs no such gap.
-    trim = timedelta(0) if isinstance(first, datetime) else timedelta(days=1)
-    edges = [first]
-    while last - edges[-1] > step:
-        edges.append(edges[-1] + step + trim)
+    gap_between_windows = timedelta(0) if isinstance(span_start, datetime) else timedelta(days=1)
+    edges = [span_start]
+    while span_end - edges[-1] > cap:
+        edges.append(edges[-1] + cap + gap_between_windows)
 
-    starts = [start, *(_spell(edge, start) for edge in edges[1:])]
-    ends = [*(_spell(edge - trim, start) for edge in edges[1:]), end_text]
+    starts = [start, *(_written_like(edge, start) for edge in edges[1:])]
+    ends = [*(_written_like(edge - gap_between_windows, start) for edge in edges[1:]), end_text]
     return list(zip(starts, ends, strict=True))
 
 
-def _unmeasured(resource: str, grain: str | None, start: Any, end: Any, why: str) -> list[tuple[Any, Any]]:
+def _unsplit_with_warning(resource: str, grain: str | None, start: Any, end: Any, reason: str) -> list[Window]:
     """Send a window this cannot measure, and say so — the 400 it may cause explains nothing.
 
     dlt hides the API's `detail` unless `RUNTIME__HTTP_SHOW_ERROR_BODY` is set, so a refusal
@@ -99,34 +102,34 @@ def _unmeasured(resource: str, grain: str | None, start: Any, end: Any, why: str
         resource,
         start,
         end,
-        why,
-        _cap_days(resource, grain),
+        reason,
+        _max_window_days(resource, grain),
     )
     return [(start, end)]
 
 
-def _cap_days(resource: str, period: str | None) -> int:
-    """The cap for one resource at one grain; an unknown grain resolves to the default one."""
+def _max_window_days(resource: str, period: str | None) -> int:
+    """`MAX_WINDOW_DAYS` for one resource at one grain; an unknown grain resolves to the default one."""
     if (resource, period) in MAX_WINDOW_DAYS:
         return MAX_WINDOW_DAYS[(resource, period)]
-    return MAX_WINDOW_DAYS.get((resource, DEFAULT_PERIOD), _WIDEST_CAP_DAYS)
+    return MAX_WINDOW_DAYS.get((resource, DEFAULT_PERIOD), _FALLBACK_MAX_WINDOW_DAYS)
 
 
-def _parse(value: str) -> date:
+def _as_date_or_time(cursor: str) -> date:
     """A cursor value as the kind of point it is: a date, or a datetime for the time resources."""
-    has_time = "T" in value or " " in value
-    return datetime.fromisoformat(value) if has_time else date.fromisoformat(value)
+    has_time = "T" in cursor or " " in cursor
+    return datetime.fromisoformat(cursor) if has_time else date.fromisoformat(cursor)
 
 
-def _now_like(sample: date) -> date:
-    """Now, shaped like `sample`. A cursor with no zone is treated as UTC, as the API means it."""
+def _today_or_now(cursor: date) -> date:
+    """Now, shaped like `cursor`. A cursor with no zone is treated as UTC, as the API means it."""
     now = datetime.now(tz=UTC).replace(microsecond=0)
-    if not isinstance(sample, datetime):
+    if not isinstance(cursor, datetime):
         return now.date()
-    return now if sample.tzinfo is not None else now.replace(tzinfo=None)
+    return now if cursor.tzinfo is not None else now.replace(tzinfo=None)
 
 
-def _spell(value: date, sample: str) -> str:
-    """`value`, written the way `sample` writes it — `Z` rather than `+00:00` where it uses one."""
+def _written_like(value: date, cursor: str) -> str:
+    """`value`, written the way `cursor` writes it — `Z` rather than `+00:00` where it uses one."""
     text = value.isoformat()
-    return text.replace("+00:00", "Z") if sample.endswith("Z") else text
+    return text.replace("+00:00", "Z") if cursor.endswith("Z") else text
