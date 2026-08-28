@@ -112,14 +112,12 @@ def _unsplit_with_warning(resource: str, period: str | None, start: Any, end: An
 
 
 def _max_window_days(resource: str, period: str | None) -> int:
-    """`MAX_WINDOW_DAYS` for one resource at one period; an unknown period resolves to the default one."""
     if (resource, period) in MAX_WINDOW_DAYS:
         return MAX_WINDOW_DAYS[(resource, period)]
     return MAX_WINDOW_DAYS.get((resource, DEFAULT_PERIOD), _FALLBACK_MAX_WINDOW_DAYS)
 
 
 def _as_date_or_time(cursor: str) -> date:
-    """A cursor value as the kind of point it is: a date, or a datetime for the time resources."""
     has_time = "T" in cursor or " " in cursor
     return datetime.fromisoformat(cursor) if has_time else date.fromisoformat(cursor)
 
@@ -133,6 +131,6 @@ def _today_or_now(cursor: date) -> date:
 
 
 def _written_like(value: date, cursor: str) -> str:
-    """`value`, written the way `cursor` writes it: the same separator, `Z` rather than `+00:00`."""
+    """Keeps the cursor's spelling, so one load does not mix two."""
     text = value.isoformat(sep=" ") if isinstance(value, datetime) and " " in cursor else value.isoformat()
     return text.replace("+00:00", "Z") if cursor.endswith("Z") else text

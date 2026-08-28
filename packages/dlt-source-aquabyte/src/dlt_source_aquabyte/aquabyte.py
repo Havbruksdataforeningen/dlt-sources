@@ -41,7 +41,6 @@ SCD2: TScd2StrategyDict = {"disposition": "merge", "strategy": "scd2"}
 
 
 def _query(extra: dict[str, Any] | None = None, **named: Any) -> dict[str, Any]:
-    """Drop unset named params, then merge the caller's passthrough last so it wins."""
     params = {key: value for key, value in named.items() if value is not None}
     if extra:
         params.update(extra)
