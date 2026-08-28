@@ -16,6 +16,7 @@ from tests.conftest import (
     SOURCE_CONFIG,
     load_mock,
     params_sent,
+    resource_signature,
     run_source,
     serve,
 )
@@ -173,7 +174,7 @@ def test_date_sub_windows_use_the_whole_cap_without_overlapping(mock_rest_client
     """
     sent = _run(mock_rest_client, BIOMASS, "test_whole_cap", **_window(BIOMASS, "2026-01-01", "2029-01-05"))
 
-    cap = MAX_WINDOW_DAYS[("biomass", None)]
+    cap = 366
     edges = [(date.fromisoformat(one["fromDate"]), date.fromisoformat(one["toDate"])) for one in sent]
 
     assert len(sent) == 3, "1100 days at a 366-day cap is three requests, not four"
@@ -251,16 +252,18 @@ def test_a_window_the_source_can_measure_logs_nothing(mock_rest_client, caplog):
     assert caplog.text == ""
 
 
-def test_the_caps_are_published_for_every_windowed_resource():
-    """A consumer sizing its own chunks reads them from the package, not from a failed run."""
-    resources = {resource for resource, _ in MAX_WINDOW_DAYS}
-    assert resources == {
-        "environmental",
-        "behaviour_swim_speed",
-        "behaviour_breathing_index",
-        "biomass",
-        "lice_count",
-        "welfare_scores",
-        "harvest_report",
+def test_every_windowed_resource_has_a_published_cap():
+    """A consumer sizing its own chunks reads the cap from the package, not from a failed run.
+
+    So a resource that takes an `incremental_*` argument must have an entry, and every
+    entry must name such a resource.
+    """
+    source = aquabyte_source(**SOURCE_CONFIG)
+    windowed = {
+        name
+        for name in source.resources
+        if any(argument.startswith("incremental_") for argument in resource_signature(source, name).parameters)
     }
-    assert MAX_WINDOW_DAYS[("environmental", "15min")] == 7
+
+    assert windowed, "the source must have windowed resources for this test to mean anything"
+    assert {resource for resource, _ in MAX_WINDOW_DAYS} == windowed
