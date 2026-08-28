@@ -40,8 +40,8 @@ It is a default, not a lock:
 
 ```python
 source = aquabyte_source()
-source.max_table_nesting = 2          # every resource
-source.sites.max_table_nesting = 1    # or just one — gives you a sites__pens table
+source.max_table_nesting = 2  # every resource
+source.sites.max_table_nesting = 1  # or just one — gives you a sites__pens table
 ```
 
 Nothing outranks that setting. The source declares column hints for scalar fields only, so no hint names a nested field, and the destination shape of nested data stays your call.
@@ -78,7 +78,7 @@ You need none of this to use the package. The same caps are importable, for sizi
 ```python
 from dlt_source_aquabyte import MAX_WINDOW_DAYS
 
-MAX_WINDOW_DAYS[("environmental", "15min")]   # 7
+MAX_WINDOW_DAYS[("environmental", "15min")]  # 7
 ```
 
 The key is `(resource, period)`, with `None` for the resources that take no `period`. The numbers are [measured, not documented by the API](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/specs/README.md#api-quirks-worth-knowing), so treat them as observations.

@@ -40,7 +40,7 @@ from dlt_source_aquabyte import aquabyte_source
 
 pipeline = dlt.pipeline(
     pipeline_name="aquabyte",
-    destination="duckdb",     # any dlt destination
+    destination="duckdb",  # any dlt destination
     dataset_name="aquabyte_data",
 )
 print(pipeline.run(aquabyte_source()))
@@ -70,7 +70,7 @@ Each resource takes its endpoint's params in snake_case, except the window ones,
 
 ```python
 source = aquabyte_source()
-source.sites.bind(site_id="site-001")     # switches to GET /sites/{siteId}
+source.sites.bind(site_id="site-001")  # switches to GET /sites/{siteId}
 source.biomass.bind(pen_id="pen-abc", bucket_size=250)
 pipeline.run(source)
 ```

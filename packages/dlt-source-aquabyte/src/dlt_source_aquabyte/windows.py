@@ -64,8 +64,11 @@ def windows_to_request(
     if not isinstance(start, str) or not isinstance(end, str | None):
         return _unsplit_with_warning(resource, grain, start, end, "they are not both strings")
 
-    span_start = _as_date_or_time(start)
-    span_end = _as_date_or_time(end) if end is not None else _today_or_now(span_start)
+    try:
+        span_start = _as_date_or_time(start)
+        span_end = _as_date_or_time(end) if end is not None else _today_or_now(span_start)
+    except ValueError:
+        return _unsplit_with_warning(resource, grain, start, end, "one of them is not ISO 8601")
     cap = timedelta(days=_max_window_days(resource, grain))
     end_text = end if end is not None else _written_like(span_end, start)
 

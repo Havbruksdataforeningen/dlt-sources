@@ -232,6 +232,15 @@ def test_a_start_and_an_end_of_different_kinds_are_passed_through(mock_rest_clie
     assert "366" in caplog.text, "the warning names the cap the request may break"
 
 
+def test_a_cursor_that_is_not_a_date_is_passed_through(mock_rest_client, caplog):
+    """A start no reader can parse is the API's to refuse; the warning names the value."""
+    with caplog.at_level(logging.WARNING, logger="dlt_source_aquabyte.windows"):
+        sent = _run(mock_rest_client, BIOMASS, "test_unreadable_cursor", **_window(BIOMASS, "not-a-date"))
+
+    assert [(one["fromDate"], one.get("toDate")) for one in sent] == [("not-a-date", None)]
+    assert "not-a-date" in caplog.text
+
+
 def test_a_window_the_source_can_measure_logs_nothing(mock_rest_client, caplog):
     """The warning is for the windows it gave up on, not for every run."""
     with caplog.at_level(logging.WARNING, logger="dlt_source_aquabyte.windows"):
