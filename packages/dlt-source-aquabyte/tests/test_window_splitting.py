@@ -199,7 +199,9 @@ def test_a_period_sent_through_params_sizes_the_windows(mock_rest_client):
 
 
 def test_a_cursor_spelled_with_a_space_is_still_a_time(mock_rest_client):
-    """`2026-01-01 00:00:00` is valid ISO 8601 and must not be read as a date."""
+    """`2026-01-01 00:00:00` is valid ISO 8601 and must not be read as a date.
+
+    The seams keep the cursor's spelling, so one load does not mix two."""
     sent = _run(
         mock_rest_client,
         ENVIRONMENTAL,
@@ -209,8 +211,8 @@ def test_a_cursor_spelled_with_a_space_is_still_a_time(mock_rest_client):
     )
 
     assert [(one["fromTime"], one["toTime"]) for one in sent] == [
-        ("2026-01-01 00:00:00", "2026-01-08T00:00:00"),
-        ("2026-01-08T00:00:00", "2026-01-09 00:00:00"),
+        ("2026-01-01 00:00:00", "2026-01-08 00:00:00"),
+        ("2026-01-08 00:00:00", "2026-01-09 00:00:00"),
     ]
 
 

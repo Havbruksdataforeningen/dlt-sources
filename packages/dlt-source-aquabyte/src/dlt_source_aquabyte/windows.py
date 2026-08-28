@@ -133,6 +133,6 @@ def _today_or_now(cursor: date) -> date:
 
 
 def _written_like(value: date, cursor: str) -> str:
-    """`value`, written the way `cursor` writes it — `Z` rather than `+00:00` where it uses one."""
-    text = value.isoformat()
+    """`value`, written the way `cursor` writes it: the same separator, `Z` rather than `+00:00`."""
+    text = value.isoformat(sep=" ") if isinstance(value, datetime) and " " in cursor else value.isoformat()
     return text.replace("+00:00", "Z") if cursor.endswith("Z") else text
