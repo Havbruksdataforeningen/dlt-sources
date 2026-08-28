@@ -34,10 +34,10 @@ Window = tuple[Any, Any]
 """One request's window: the value to send as the start param, and the one for the end."""
 
 DEFAULT_PERIOD = "D"
-"""The grain the API computes when `period` is omitted."""
+"""The `period` the API computes when none is sent."""
 
 _FALLBACK_MAX_WINDOW_DAYS = 366
-"""What an unrecognised resource gets: the cap every endpoint has at its default grain."""
+"""What an unrecognised resource gets: the cap every endpoint has at its default period."""
 
 
 def windows_to_request(
@@ -55,27 +55,27 @@ def windows_to_request(
     """
     start = incremental.last_value if incremental is not None else None
     end = incremental.end_value if incremental is not None else None
-    grain = (params or {}).get("period", period)  # `params` wins here as it does on the wire
+    period = (params or {}).get("period", period)  # `params` wins here as it does on the wire
     if params and (start_param in params or start_param.replace("from", "to") in params):
         return [(start, end)]
     if start is None:
         # No cursor value at all. Whether that is fatal is the caller's check.
         return [(start, end)]
     if not isinstance(start, str) or not isinstance(end, str | None):
-        return _unsplit_with_warning(resource, grain, start, end, "they are not both strings")
+        return _unsplit_with_warning(resource, period, start, end, "they are not both strings")
 
     try:
         span_start = _as_date_or_time(start)
         span_end = _as_date_or_time(end) if end is not None else _today_or_now(span_start)
     except ValueError:
-        return _unsplit_with_warning(resource, grain, start, end, "one of them is not ISO 8601")
-    cap = timedelta(days=_max_window_days(resource, grain))
+        return _unsplit_with_warning(resource, period, start, end, "one of them is not ISO 8601")
+    cap = timedelta(days=_max_window_days(resource, period))
     end_text = end if end is not None else _written_like(span_end, start)
 
     try:
         fits = span_end - span_start <= cap
     except TypeError:
-        return _unsplit_with_warning(resource, grain, start, end, "they are different kinds of value")
+        return _unsplit_with_warning(resource, period, start, end, "they are different kinds of value")
     if fits:
         return [(start, end_text)]
 
@@ -92,7 +92,7 @@ def windows_to_request(
     return list(zip(starts, ends, strict=True))
 
 
-def _unsplit_with_warning(resource: str, grain: str | None, start: Any, end: Any, reason: str) -> list[Window]:
+def _unsplit_with_warning(resource: str, period: str | None, start: Any, end: Any, reason: str) -> list[Window]:
     """Send a window this cannot measure, and say so — the 400 it may cause explains nothing.
 
     dlt hides the API's `detail` unless `RUNTIME__HTTP_SHOW_ERROR_BODY` is set, so a refusal
@@ -106,13 +106,13 @@ def _unsplit_with_warning(resource: str, grain: str | None, start: Any, end: Any
         start,
         end,
         reason,
-        _max_window_days(resource, grain),
+        _max_window_days(resource, period),
     )
     return [(start, end)]
 
 
 def _max_window_days(resource: str, period: str | None) -> int:
-    """`MAX_WINDOW_DAYS` for one resource at one grain; an unknown grain resolves to the default one."""
+    """`MAX_WINDOW_DAYS` for one resource at one period; an unknown period resolves to the default one."""
     if (resource, period) in MAX_WINDOW_DAYS:
         return MAX_WINDOW_DAYS[(resource, period)]
     return MAX_WINDOW_DAYS.get((resource, DEFAULT_PERIOD), _FALLBACK_MAX_WINDOW_DAYS)

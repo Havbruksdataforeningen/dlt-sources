@@ -64,6 +64,20 @@ The camera-derived measures of how fish are acting, as opposed to how they measu
 **Breathing index**:
 Aquabyte's measure of respiration rate in a pen, used as a stress and gill-health indicator.
 
+### Requests
+
+**Window**:
+The span one request asks for, as a start and an end: `fromDate`–`toDate` on the date resources, `fromTime`–`toTime` on the time resources. `toDate` is inclusive; `toTime` is exclusive.
+_Avoid_: range, span, interval
+
+**Period**:
+The API's name for how coarse the rows are: `15min`, `h` or `D`. `D` when none is sent. Only `environmental` and `behaviour_swim_speed` take one.
+_Avoid_: grain, granularity, resolution (in code; the README uses "grain" to explain what `period` means)
+
+**Cap**:
+The widest window the API accepts, per resource and per period, in days. Measured, not documented; the table is `MAX_WINDOW_DAYS`. A wider window is refused, so the source splits it into several requests.
+_Avoid_: limit, max range
+
 ## Uncertain — confirm with a domain expert
 
 These are used in the API and mapped by this package, but the definitions above are inferred from field names and general aquaculture usage, not from Aquabyte documentation we have read:

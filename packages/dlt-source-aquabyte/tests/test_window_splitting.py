@@ -102,9 +102,9 @@ def test_a_date_window_at_exactly_the_cap_is_one_request(mock_rest_client):
     [("15min", 5), ("h", 2), ("D", 1), (None, 1)],
 )
 def test_the_period_decides_how_many_requests_a_window_becomes(mock_rest_client, period, expected_windows):
-    """The cap is a property of (resource, grain): 7 days at `15min`, 31 at `h`, 366 at `D`.
+    """The cap is a property of (resource, period): 7 days at `15min`, 31 at `h`, 366 at `D`.
 
-    `period` unset resolves to the endpoint's own default grain, which is the daily one —
+    `period` unset resolves to the endpoint's own default, which is the daily one —
     so omitting it buys the widest cap, not the narrowest.
     """
     bound = {"period": period} if period is not None else {}
