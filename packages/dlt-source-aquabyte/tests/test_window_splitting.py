@@ -14,7 +14,8 @@ import pytest
 from dlt_source_aquabyte import MAX_WINDOW_DAYS, aquabyte_source
 from tests.conftest import (
     SOURCE_CONFIG,
-    load_mock,
+    Endpoint,
+    endpoint,
     params_sent,
     resource_signature,
     run_source,
@@ -23,25 +24,23 @@ from tests.conftest import (
 
 # One time-based resource and one date-based one, which is the whole of the difference:
 # the same arithmetic on `fromTime`/`toTime` and on `fromDate`/`toDate`.
-ENVIRONMENTAL = ("environmental", "/environmental", "environmental.json", "data", "incremental_from_time", "fromTime")
-BIOMASS = ("biomass", "/biomass", "biomass.json", "biomass", "incremental_date", "fromDate")
+ENVIRONMENTAL = endpoint("environmental")
+BIOMASS = endpoint("biomass")
 
 
-def _run(mock_rest_client, endpoint, name: str, **bound):
+def _run(mock_rest_client, endpoint: Endpoint, name: str, **bound):
     """Serve the endpoint's mock, run its resource, and return the params of every request."""
-    resource, path, mock_file, selector, _, _ = endpoint
     mock_rest_client.paginate.reset_mock()
-    mock_rest_client.paginate.side_effect = serve({path: load_mock(mock_file)[selector]})
+    mock_rest_client.paginate.side_effect = serve({endpoint.path: endpoint.records})
     source = aquabyte_source(**SOURCE_CONFIG)
-    source.resources[resource].bind(**bound)
-    run_source(f"{name}_{resource}", source, [resource])
-    return params_sent(mock_rest_client, path)
+    source.resources[endpoint.resource].bind(**bound)
+    run_source(f"{name}_{endpoint.resource}", source, [endpoint.resource])
+    return params_sent(mock_rest_client, endpoint.path)
 
 
-def _window(endpoint, start: str, end: str | None = None):
+def _window(endpoint: Endpoint, start: str, end: str | None = None):
     """The `incremental_*` binding that carries this window."""
-    _, _, _, _, argument, _ = endpoint
-    return {argument: dlt.sources.incremental(initial_value=start, end_value=end)}
+    return {endpoint.incremental_argument: dlt.sources.incremental(initial_value=start, end_value=end)}
 
 
 def test_a_window_at_exactly_the_cap_is_one_request(mock_rest_client):

@@ -6,7 +6,6 @@ window too wide for the API becomes several requests is in `test_window_splittin
 Behaviour peculiar to one resource lives in that resource's own test module.
 """
 
-from dataclasses import dataclass
 from typing import Any
 
 import dlt
@@ -16,101 +15,17 @@ from dlt.sources.helpers.rest_client.paginators import SinglePagePaginator
 from dlt_source_aquabyte import aquabyte_source
 from tests.conftest import (
     ACTIVE_PEN_IDS,
-    DATE_WINDOW,
+    ENDPOINTS,
     SOURCE_CONFIG,
-    TIME_WINDOW,
+    Endpoint,
     assert_pen_ids,
     assert_row_count,
     calls_to,
     load_mock,
     params_sent,
-    resource_signature,
     run_source,
     serve,
 )
-
-
-@dataclass(frozen=True)
-class Endpoint:
-    """A data resource and the endpoint it reads."""
-
-    resource: str
-    path: str
-    mock_file: str
-    selector: str
-    """The API's envelope key, which is also dlt's `data_selector`."""
-    window_param: str
-    optional_param: tuple[str, str, Any] | None = None
-    """(resource argument, the query param it becomes, a value to send)."""
-    single_page: bool = False
-
-    @property
-    def records(self) -> list[dict]:
-        return load_mock(self.mock_file)[self.selector]
-
-    @property
-    def window(self) -> tuple[str, str]:
-        """A backfill window, as the `initial_value` and `end_value` to bind."""
-        return DATE_WINDOW if self.window_param == "fromDate" else TIME_WINDOW
-
-    @property
-    def end_param(self) -> str:
-        return self.window_param.replace("from", "to")
-
-    @property
-    def config_key(self) -> str:
-        return "initial_date" if self.window_param == "fromDate" else "initial_time"
-
-    @property
-    def configured_start(self) -> str:
-        return SOURCE_CONFIG[self.config_key]
-
-    @property
-    def incremental_argument(self) -> str:
-        """The `incremental_*` argument a window is bound on, named after the cursor field."""
-        signature = resource_signature(aquabyte_source(**SOURCE_CONFIG), self.resource)
-        return next(name for name in signature.parameters if name.startswith("incremental_"))
-
-
-ENDPOINTS = [
-    Endpoint(
-        "environmental",
-        "/environmental",
-        "environmental.json",
-        "data",
-        "fromTime",
-        optional_param=("period", "period", "15min"),
-    ),
-    Endpoint(
-        "biomass",
-        "/biomass",
-        "biomass.json",
-        "biomass",
-        "fromDate",
-        optional_param=("bucket_size", "bucketSize", 500),
-    ),
-    Endpoint(
-        "harvest_report",
-        "/biomass/harvestReport",
-        "harvest_report.json",
-        "reports",
-        "fromDate",
-        single_page=True,
-    ),
-    Endpoint("lice_count", "/liceCount", "lice_count.json", "liceCount", "fromDate"),
-    Endpoint(
-        "behaviour_swim_speed",
-        "/behaviour/swimSpeed",
-        "swim_speed.json",
-        "swimSpeed",
-        "fromTime",
-        optional_param=("period", "period", "h"),
-    ),
-    Endpoint(
-        "behaviour_breathing_index", "/behaviour/breathingIndex", "breathing_index.json", "breathingIndex", "fromTime"
-    ),
-    Endpoint("welfare_scores", "/welfareScores", "welfare_scores.json", "welfareScores", "fromDate"),
-]
 
 WITH_OPTIONAL = [endpoint for endpoint in ENDPOINTS if endpoint.optional_param]
 
