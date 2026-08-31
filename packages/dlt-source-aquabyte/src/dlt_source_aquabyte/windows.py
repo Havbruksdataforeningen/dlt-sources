@@ -38,21 +38,31 @@ Window = tuple[Any, Any]
 DEFAULT_PERIOD = "D"
 """The `period` the API computes when none is sent."""
 
+_WINDOWLESS_RESOURCES = frozenset({"sites", "environmental_latest"})
+"""Resources the source loads whole: no cursor, so no window and no window cap.
+
+Kept next to the table so `max_window_days` can tell a resource with no window from a name the
+source does not load. `tests/test_window_splitting.py` pins both sets to the source's resources.
+"""
+
 _FALLBACK_MAX_WINDOW_DAYS = 366
-"""What an unrecognised resource gets: the window cap every endpoint has at its default period."""
+"""What a resource with no window cap of its own gets: the one every endpoint has at its default period."""
 
 
 def max_window_days(resource: str, period: str | None = None) -> int:
     """The widest window `resource` accepts at `period`, in days — the width the source splits at.
 
     A `period` with no window cap of its own gets the one the API's default period carries, since
-    that is the period the API computes when a request sends none. A resource this does not know
-    gets the widest window cap and a warning, a name it has never seen being likelier a typo than
-    a new endpoint. `REFERENCE.md#windows-are-split-to-fit-the-window-cap`.
+    that is the period the API computes when a request sends none. A resource with no window,
+    `sites` or `environmental_latest`, takes none at all, so it answers the widest value quietly:
+    a number that must not narrow a chunk size, not a cap the resource has. A resource this does
+    not load gets the same answer and a warning, a name it has never seen
+    being likelier a typo than a new endpoint. `REFERENCE.md#windows-are-split-to-fit-the-window-cap`.
     """
     if (resource, period) in MAX_WINDOW_DAYS:
         return MAX_WINDOW_DAYS[(resource, period)]
-    if not any(known == resource for known, _ in MAX_WINDOW_DAYS):
+    is_loaded = resource in _WINDOWLESS_RESOURCES or any(known == resource for known, _ in MAX_WINDOW_DAYS)
+    if not is_loaded:
         logger.warning(
             "%r is not a resource this package loads, so its window cap is the widest one, %s days. "
             "Check the spelling: too wide a window is refused as a bare 400 that explains nothing.",
