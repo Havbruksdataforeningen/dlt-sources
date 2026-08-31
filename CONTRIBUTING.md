@@ -36,6 +36,12 @@ uv run pytest                    # offline; -m integration hits the live API
 
 CI runs all four against every package. The one required check is `CI OK`.
 
+Changing a version number, `scripts/`, or the release workflow? Those are checked by the repo-level suite instead, from the root:
+
+```bash
+uv run pytest tests
+```
+
 Easy to forget:
 
 - **A changelog entry** under `## [Unreleased]`, describing what a *consumer of the package* will notice. Skip it for changes they cannot see.

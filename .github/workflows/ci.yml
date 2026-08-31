@@ -4,7 +4,9 @@
 #
 # The checks run in parallel, each named for what it checks, so one push
 # reports every kind of failure at once. Every job loops over every package —
-# there are few enough that computing which ones changed is not worth it.
+# there are few enough that computing which ones changed is not worth it. The
+# exception is `Versions`, which checks what spans packages rather than what is
+# inside one.
 
 name: CI
 
@@ -128,6 +130,31 @@ jobs:
             echo "::endgroup::"
           done
 
+  # The version number lives in three places — pyproject.toml, CHANGELOG.md and the git
+  # tag — and only the tag is checked at release time, when it is already too late to fix
+  # cheaply. tests/ compares all three here instead, and covers validate_release.py itself.
+  versions:
+    name: Versions
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # One of the three places is a tag, and checkout fetches none by default —
+          # without this the tag comparisons would pass by having nothing to compare.
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          enable-cache: true
+      - run: uv sync --all-packages --all-groups --locked
+      - name: ruff
+        run: |
+          set -euo pipefail
+          uv run ruff format --check tests
+          uv run ruff check --output-format=github tests
+      - name: pytest
+        run: uv run pytest tests
+
   build:
     name: Build
     runs-on: ubuntu-latest
@@ -161,7 +188,7 @@ jobs:
   ci-ok:
     name: CI OK
     if: always()
-    needs: [format, lint, typecheck, test, build]
+    needs: [format, lint, typecheck, test, build, versions]
     runs-on: ubuntu-latest
     steps:
       - name: Fail if any dependency did not succeed
