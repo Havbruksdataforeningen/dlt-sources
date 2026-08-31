@@ -53,10 +53,11 @@ you read it:
   `distribution` holds shares summing to 1, one per edge, and any bucket in the range — the
   first included — can be `0`. Both arrays can be empty. (2026-08-20.)
 
-Two the source papers over, because a consumer could neither size a window nor tell how stale
-one is without knowing them. They still reach any request the source did not measure — one
-carrying a window you passed in `params`, and one whose cursor value it could not read, which
-it warns about and sends on unsplit:
+Two the source normally keeps away from you. It measures every window, splits one wider than
+the window cap, and always sends an end. Two requests escape that: one carries a window you
+put in `params`, which the source sends on unchanged, and one carries a cursor value the
+source cannot read as a date or a time, which it warns about and sends as a single request,
+with no end. Know both quirks for those:
 
 - **A window has a maximum width, per endpoint and per grain.** A wider request is refused
   (`400 ... is larger than N days`), not truncated — and a request that sends no end is
