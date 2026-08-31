@@ -8,6 +8,10 @@ All notable changes to `dlt-source-aquabyte`, written for people using the packa
 
 - **A window wider than the API allows is split into several requests instead of failing the load.** The window cap is 7 days at `period=15min`, 31 at `h` and 366 otherwise, and it applies to open-ended requests too — so a daily load that fell further behind than its window cap allowed could not catch up on its own. [What that means for a load](REFERENCE.md#windows-are-split-to-fit-the-window-cap).
 
+### Changed
+
+- **`examples/backfill.py` loads a history rather than one fixed month.** It takes the start you measured and runs to today, in one call — the source splits the span into requests the API accepts. It is now step 2 of the three-step path in the [README](README.md#how-to-start): discover, backfill, daily load.
+
 ### Added
 
 - **`examples/discover_history.py`** — measures what your account holds: the earliest date, the newest date and the row count of each resource, all of them yours rather than shipped. It loads the history at `period="D"` and queries the result rather than probing for boundaries, because one request covers up to 366 days either way. Run it before choosing `initial_date`, `initial_time` and a `period`.

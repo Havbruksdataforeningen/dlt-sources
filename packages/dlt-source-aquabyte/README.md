@@ -6,23 +6,15 @@ A [dlt](https://dlthub.com/) source for the [Aquabyte API v3](https://api.aquaby
 
 The package handles auth, pagination, envelope unwrapping, incremental cursors and window splitting. Its only dependency is dlt.
 
-## Start from the code
+## How to start
 
-| Example | What it shows |
-|---|---|
-| [`discover_history.py`](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/examples/discover_history.py) | What your account holds: earliest date, newest date and row count per resource |
-| [`quickstart.py`](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/examples/quickstart.py) | A daily load: every resource into DuckDB, resuming from the cursor each run — and, on the first run, the whole history |
-| [`backfill.py`](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/examples/backfill.py) | Re-load an explicit window, stored cursor untouched |
+Three examples, in this order. That is everything needed to get running, a page of code each.
 
-### How to start
+1. **Discover** — [`discover_history.py`](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/examples/discover_history.py). How far back your account goes and how much is there, per resource. Its output is the input to the next step.
+2. **Backfill** — [`backfill.py`](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/examples/backfill.py). Load that history in one run, from the earliest date you just measured. The stored cursor is left alone, so this can be re-run at any time without disturbing step 3.
+3. **Daily load** — [`quickstart.py`](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/examples/quickstart.py). The same script on a timer from then on, each run resuming from the cursor.
 
-1. **Measure** — `discover_history.py`. How far back your account goes and how much is there, per resource. The answer decides the two settings below it.
-2. **Backfill** — `quickstart.py`. Its *first* run loads the whole history from `initial_date`/`initial_time`, split into windows the API accepts. There is no separate backfill tool to reach for.
-3. **Daily load** — `quickstart.py` again, on a timer. Every later run resumes from the stored cursor.
-
-`backfill.py` is for later: re-loading one explicit window without disturbing the cursor, when data arrived late.
-
-A page of code each. From a checkout, run one with `python examples/<name>.py`.
+No step computes a window: the source splits a multi-year span into requests the API accepts. From a checkout, run one with `python examples/<name>.py`.
 
 ## Install
 
