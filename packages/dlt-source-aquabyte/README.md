@@ -8,7 +8,9 @@ The package handles auth, pagination, envelope unwrapping, incremental cursors a
 
 ## How to start
 
-Three examples, in this order. That is everything needed to get running, a page of code each.
+**Configure first.** `.dlt/config.toml` and `.dlt/secrets.toml`, beside your script — both are in [Quick start](#quick-start). Step 1 needs `initial_date` and `initial_time` set to before your data begins, and the date you signed the contract works: no camera reported anything before it. Step 2 replaces that with the dates you measured.
+
+Then three examples, in this order. That is everything needed to get running, a page of code each.
 
 1. **Discover** — [`discover_history.py`](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/examples/discover_history.py). How far back your account goes and how much is there, per resource. Its output is the input to the next step.
 2. **Backfill** — [`backfill.py`](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/examples/backfill.py). Load that history in one run, from the earliest date you just measured. The stored cursor is left alone, so this can be re-run at any time without disturbing step 3.
