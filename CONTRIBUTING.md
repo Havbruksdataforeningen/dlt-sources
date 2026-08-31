@@ -38,12 +38,12 @@ CI runs all four against every package. The one required check is `CI OK`.
 
 Easy to forget:
 
-- **A changelog entry** under `## [Unreleased]`, describing what a *user of the package* will notice. Skip it for changes they cannot see.
+- **A changelog entry** under `## [Unreleased]`, describing what a *consumer of the package* will notice. Skip it for changes they cannot see.
 - **The `## Compatibility` table** in the package README, if the change moves which API version the package targets.
 
 ## Adding a new source package
 
-A new supplier means a new package, and the recipe for one is its own document: [`docs/new-package.md`](docs/new-package.md) — copying the template folder, the metadata to rewrite, and registering the project on PyPI before the first release.
+A new supplier means a new package, and the recipe for one is its own document: [`docs/new-package.md`](docs/new-package.md).
 
 ## Pull requests
 

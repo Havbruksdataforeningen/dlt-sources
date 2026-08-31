@@ -2,7 +2,7 @@
 
 ## This file, and `CLAUDE.md`
 
-Instructions for agents live here. `CLAUDE.md` is one line pointing at this file and holds nothing of its own, because Claude Code does not read `AGENTS.md` on its own — verified 2026-08-30 against Claude Code 2.1.251, in a clone of this repo with no `CLAUDE.md`: the session auto-loaded the user's own `CLAUDE.md` and nothing from the repo. A pointer cannot drift out of step with this file, and does no harm if a later version reads it directly.
+Instructions for agents live here. `CLAUDE.md` is one line pointing at this file and holds nothing of its own, so it cannot drift out of step. It exists because Claude Code does not read `AGENTS.md` on its own: verified 2026-08-30 against version 2.1.251, in a clone of this repo with no `CLAUDE.md`, where the session auto-loaded nothing from the repo.
 
 ## Source guidelines
 

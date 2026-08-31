@@ -1,8 +1,6 @@
 # Adding a new source package
 
-How to add a new dlt source package to this repo, from copying the template folder to
-registering the project on PyPI. You need this only when the supplier is new; a change to a
-package that already exists is covered by [`CONTRIBUTING.md`](../CONTRIBUTING.md).
+How to add a new dlt source package to this repo, from copying the template folder to registering the project on PyPI. You need this only when the supplier is new; a change to a package that already exists is covered by [`CONTRIBUTING.md`](../CONTRIBUTING.md).
 
 `packages/dlt-source-aquabyte/` is the template. There is no CI to write and no repository to create: the workspace globs `packages/*` and every CI job loops over it, so a new folder is picked up on the next push.
 
@@ -48,7 +46,7 @@ Only the last one raises an error. The other three are wrong quietly, so check t
 | `src/`, `tests/`, `examples/` | Rewrite. Tests must pass with no credentials — CI has none |
 | `specs/` | Replace `openapi.json` with your supplier's spec, or drop the folder if they publish none |
 | `.dlt/config.toml.example`, `.dlt/secrets.toml.example` | Rewrite for your config keys. These two are the only `.dlt/` files that belong in git; the real `config.toml` and `secrets.toml` are gitignored |
-| `README.md` | Rewrite, keeping the `## Compatibility` table — it is how a user knows which API version the package targets |
+| `README.md` | Rewrite, keeping the `## Compatibility` table — it is how a consumer knows which API version the package targets |
 | `CHANGELOG.md` | Empty it down to an `## [Unreleased]` heading |
 | `CONTEXT.md` | Rewrite. See [`domain.md`](domain.md) for what belongs in it |
 | `REFERENCE.md` | Rewrite, or drop it until the package has operational detail worth separating from the README |
