@@ -1,12 +1,16 @@
 # dlt-sources
 
+## This file, and `CLAUDE.md`
+
+Instructions for agents live here. `CLAUDE.md` is one line pointing at this file and holds nothing of its own, so it cannot drift out of step. It exists because Claude Code does not read `AGENTS.md` on its own: verified 2026-08-30 against version 2.1.251, in a clone of this repo with no `CLAUDE.md`, where the session auto-loaded nothing from the repo.
+
 ## Source guidelines
 
 Before building or modifying source-package code, read `docs/source-guidelines.md` — the neutrality and logging rules every source follows.
 
 ## Contributing
 
-`CONTRIBUTING.md` is the human-facing entry point: setup, the checks to run before a pull request, and what a new source package must contain. Keep it true when you change any of those, and do not duplicate it into `docs/`.
+`CONTRIBUTING.md` is the human-facing entry point: setup and the checks to run before a pull request. Adding a package for a new supplier is `docs/new-package.md`, linked from there. Keep both true when you change what they describe, and do not duplicate `CONTRIBUTING.md` into `docs/`.
 
 ## Writing documentation
 

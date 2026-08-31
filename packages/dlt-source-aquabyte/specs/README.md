@@ -53,12 +53,17 @@ you read it:
   `distribution` holds shares summing to 1, one per edge, and any bucket in the range — the
   first included — can be `0`. Both arrays can be empty. (2026-08-20.)
 
-One the source does paper over, because no consumer could size a window without knowing it:
+Two the source normally keeps away from you. It measures every window, splits one wider than
+the window cap, and always sends an end. Two requests escape that: one carries a window you
+put in `params`, which the source sends on unchanged, and one carries a cursor value the
+source cannot read as a date or a time, which it warns about and sends as a single request,
+with no end. Know both quirks for those:
 
 - **A window has a maximum width, per endpoint and per grain.** A wider request is refused
-  (`400 ... is larger than N days`), not truncated — and an open-ended window is measured to
-  today, so this hits daily loads as well as backfills. The finer the grain, the shorter the
-  window cap. Nothing about it is in `openapi.json`.
+  (`400 ... is larger than N days`), not truncated — and a request that sends no end is
+  measured from its start to the start of the current UTC day, the quirk below, so this hits
+  daily loads as well as backfills. The finer the grain, the shorter the window cap. Nothing about it is in
+  `openapi.json`.
 
   | Endpoint | `period` | Max window |
   |---|---|---|
@@ -77,6 +82,23 @@ One the source does paper over, because no consumer could size a window without 
   so parse both if you read N out of it. And send a single `penId`: the window cap is checked before
   any data is fetched, so a refusal is instant, while a legal 366-day `/environmental` window
   at `penId=all` does not return inside 180 s. The pen does not change the verdict.
+
+- **A request that sends no `toTime`/`toDate` is served up to the start of the current UTC
+  day**, not up to the request time. Today's data is never in the answer, however late in the
+  day you ask. The API echoes the window it chose, which is the only thing that makes this
+  visible. Two requests three seconds apart, both sent at 11:29 UTC on 2026-08-27:
+
+  ```text
+  GET /v3/environmental?penId=all&fromTime=2026-08-26T00:00:00Z&period=15min
+  → "toTime":"2026-08-27T00:00:00Z"     newest bucket 2026-08-26T23:45Z
+
+  GET /v3/environmental?penId=all&fromTime=2026-08-26T00:00:00Z&toTime=2026-08-27T11:29:50Z&period=15min
+  → "toTime":"2026-08-27T11:29:50Z"     newest bucket 2026-08-27T11:15Z
+  ```
+
+  The lag depends on the UTC date the job runs on, not the local date its schedule is written
+  in: a 01:20 Europe/Oslo cron runs at 23:20 on the previous UTC date, so it loads data two
+  days old, with no error and no missing rows to show for it. (2026-08-27.)
 
 One the source leaves to you, because only you know how far back you meant to go:
 
