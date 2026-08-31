@@ -10,6 +10,7 @@ All notable changes to `dlt-source-aquabyte`, written for people using the packa
 
 ### Changed
 
+- **`examples/quickstart.py` is now `examples/daily_load.py`.** The three examples are the three steps of [How to start](README.md#how-to-start): discover, backfill, daily load. "Quickstart" named a role two of them shared.
 - **`examples/backfill.py` loads a history rather than one fixed month.** It takes the start you measured and runs to today, in one call — the source splits the span into requests the API accepts. It is now step 2 of the three-step path in the [README](README.md#how-to-start): discover, backfill, daily load.
 
 ### Added

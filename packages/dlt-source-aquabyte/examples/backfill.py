@@ -11,7 +11,7 @@ from dlt_source_aquabyte import aquabyte_source
 #
 # `end_value` is what makes this a backfill rather than a load: dlt then runs the resource
 # with transient state, so the stored cursor is neither consulted nor advanced and the daily
-# load is unaffected. Drop it and dlt stores a cursor instead, which is quickstart.py's job.
+# load is unaffected. Drop it and dlt stores a cursor instead, which is daily_load.py's job.
 # Which argument carries the window follows the endpoint's cursor field, like every other param.
 TODAY = datetime.now(tz=UTC).date().isoformat()
 DATE_WINDOW = ("2020-01-01", TODAY)

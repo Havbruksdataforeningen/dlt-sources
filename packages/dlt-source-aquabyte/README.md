@@ -15,7 +15,7 @@ Then four steps. That is everything needed to get running.
 1. **Discover** — [`discover_history.py`](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/examples/discover_history.py). How far back your account goes, how much is there, and how fresh each resource is. Its output decides steps 2 and 3.
 2. **Configure again**, now from measurements rather than a guess. `period` and `bucket_size` per resource for the grain you want ([Configuring a resource](#configuring-a-resource)). And move `initial_date`/`initial_time` forward to the day step 3 will end, because they are where the *daily* load starts: a backfill leaves no cursor behind, so a daily load still pointed at the contract date would re-request every year you are about to load.
 3. **Backfill** — [`backfill.py`](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/examples/backfill.py). Put the earliest dates from step 1 at the top of the file and run it once. The stored cursor is left alone, so this can be re-run at any time without disturbing step 4.
-4. **Daily load** — [`quickstart.py`](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/examples/quickstart.py). The same script on a timer from then on, each run resuming from the cursor.
+4. **Daily load** — [`daily_load.py`](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/examples/daily_load.py). The same script on a timer from then on, each run resuming from the cursor.
 
 No step computes a window: the source splits a multi-year span into requests the API accepts. From a checkout, run one with `python examples/<name>.py`.
 
