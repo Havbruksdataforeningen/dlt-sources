@@ -1,7 +1,9 @@
 """Measure what one account holds: each resource's earliest date, newest date and row count.
 
-Run this before choosing `initial_date`, `initial_time` and a `period`. Nothing in the API
-answers it and the answer differs per account, so every date printed is measured. It loads
+Run it with `initial_date` and `initial_time` already set to any date before your data begins
+— the contract date works, and a start earlier than your first record costs empty requests,
+not errors. What this prints is what those two settings, and `period`, should actually be.
+Nothing in the API answers that and the answer differs per account. It loads
 rather than probes: at `period="D"` one request covers up to 366 days either way, which makes
 the load itself the cheapest measurement.
 
