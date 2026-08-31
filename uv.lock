@@ -362,7 +362,7 @@ duckdb = [
 
 [[package]]
 name = "dlt-source-aquabyte"
-version = "0.2.0"
+version = "0.3.0"
 source = { editable = "packages/dlt-source-aquabyte" }
 dependencies = [
     { name = "dlt" },
