@@ -64,3 +64,7 @@ with pipeline.sql_client() as db:
         rows = db.execute_sql(span) if resource in loaded else None
         earliest, newest, count = rows[0] if rows else ("-", "-", 0)
         print(f"{resource:<27}{earliest!s:<22}{newest!s:<22}{count:>8}")
+
+# Without this the floor reads as a measurement, and a reader plans a backfill around a date
+# that only means "the API would not answer for earlier".
+print("\nwelfare_scores cannot report earlier than 2024-04-20: the API refuses any start before it.")

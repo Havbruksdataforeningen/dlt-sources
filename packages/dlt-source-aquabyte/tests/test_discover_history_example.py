@@ -9,6 +9,7 @@ given its own working directory and dlt home, because the example names the pipe
 consumer's own discovery run would name.
 """
 
+import itertools
 import runpy
 from datetime import datetime
 from pathlib import Path
@@ -70,7 +71,7 @@ def test_it_asks_environmental_in_windows_the_api_answers_in_time(example_run, m
 
 
 def _table_rows(printed: str) -> list[str]:
-    """The rows under the table's header, skipping the progress lines printed while loading."""
+    """The rows between the table's header and the blank line that ends it."""
     lines = printed.splitlines()
     header = next(i for i, line in enumerate(lines) if line.startswith("resource "))
-    return [line for line in lines[header + 1 :] if line.strip()]
+    return list(itertools.takewhile(lambda line: line.strip(), lines[header + 1 :]))
