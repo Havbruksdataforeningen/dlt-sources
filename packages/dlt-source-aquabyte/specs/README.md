@@ -53,13 +53,15 @@ you read it:
   `distribution` holds shares summing to 1, one per edge, and any bucket in the range — the
   first included — can be `0`. Both arrays can be empty. (2026-08-20.)
 
-Two the source papers over, because no consumer could size a window, or judge how fresh the
-answer is, without knowing them:
+Two the source papers over, because a consumer could neither size a window nor tell how stale
+one is without knowing them. They still reach any request the source did not measure — one
+carrying a window you passed in `params`, and one whose cursor value it could not read, which
+it warns about and sends on unsplit:
 
 - **A window has a maximum width, per endpoint and per grain.** A wider request is refused
   (`400 ... is larger than N days`), not truncated — and a request that sends no end is
-  measured to today's midnight UTC (the next quirk), so this hits daily loads as well as
-  backfills. The finer the grain, the shorter the window cap. Nothing about it is in
+  measured from its start to the start of the current UTC day, the quirk below, so this hits
+  daily loads as well as backfills. The finer the grain, the shorter the window cap. Nothing about it is in
   `openapi.json`.
 
   | Endpoint | `period` | Max window |
@@ -85,19 +87,17 @@ answer is, without knowing them:
   day you ask. The API echoes the window it chose, which is the only thing that makes this
   visible. Two requests three seconds apart, both sent at 11:29 UTC on 2026-08-27:
 
-  ```
-  ?penId=all&fromTime=2026-08-26T00:00:00Z&period=15min
-  → "toTime":"2026-08-27T00:00:00Z"            newest bucket 2026-08-26T23:45Z
+  ```text
+  GET /v3/environmental?penId=all&fromTime=2026-08-26T00:00:00Z&period=15min
+  → "toTime":"2026-08-27T00:00:00Z"     newest bucket 2026-08-26T23:45Z
 
-  ?penId=all&fromTime=2026-08-26T00:00:00Z&toTime=2026-08-27T11:29:50Z&period=15min
-  → "toTime":"2026-08-27T11:29:50Z"            newest bucket 2026-08-27T11:15Z
+  GET /v3/environmental?penId=all&fromTime=2026-08-26T00:00:00Z&toTime=2026-08-27T11:29:50Z&period=15min
+  → "toTime":"2026-08-27T11:29:50Z"     newest bucket 2026-08-27T11:15Z
   ```
 
-  The lag this sets depends on the UTC date the job runs on, which is not the local date a
-  schedule is written in: a 01:20 Europe/Oslo cron runs at 23:20 on the *previous* UTC date,
-  so its data is two days old. Nothing errors and no rows go missing — the cursor advances
-  and the table simply trails. The source sends an explicit end on every request, so this
-  reaches you only through a window you pass yourself in `params`. (2026-08-27.)
+  The lag depends on the UTC date the job runs on, not the local date its schedule is written
+  in: a 01:20 Europe/Oslo cron runs at 23:20 on the previous UTC date, so it loads data two
+  days old, with no error and no missing rows to show for it. (2026-08-27.)
 
 One the source leaves to you, because only you know how far back you meant to go:
 
