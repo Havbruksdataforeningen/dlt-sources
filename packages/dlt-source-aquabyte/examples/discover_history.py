@@ -1,11 +1,12 @@
 """Measure what one account holds: each resource's earliest date, newest date and row count.
 
-Run it with `initial_date` and `initial_time` already set to any date before your data begins
-— the contract date works, and a start earlier than your first record costs empty requests,
-not errors. What this prints is what those two settings, and `period`, should actually be.
-Nothing in the API answers that and the answer differs per account. It loads
-rather than probes: at `period="D"` one request covers up to 366 days either way, which makes
-the load itself the cheapest measurement.
+Run it with `initial_date` and `initial_time` already set: choose a date that predates when
+you first lowered an Aquabyte camera into the sea. A start earlier than your first record
+costs empty requests, not errors. What this prints is what those two settings, and `period`,
+should actually be — nothing in the API answers that, and the answer differs per account.
+
+It loads rather than probes: at `period="D"` one request covers up to 366 days either way,
+which makes the load itself the cheapest measurement.
 
 Resources do not all start on the same date, and do not all end on it. Read the newest dates
 before writing a freshness alert.

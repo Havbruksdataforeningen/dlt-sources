@@ -8,7 +8,7 @@ The package handles auth, pagination, envelope unwrapping, incremental cursors a
 
 ## How to start
 
-**Configure first.** `.dlt/config.toml` and `.dlt/secrets.toml`, beside your script — both are in [Quick start](#quick-start). Step 1 needs `initial_date` and `initial_time` set to before your data begins, and the date you signed the contract works: no camera reported anything before it.
+**Configure first.** `.dlt/config.toml` and `.dlt/secrets.toml`, beside your script — both are in [Quick start](#quick-start). Step 1 needs `initial_date` and `initial_time` set: choose a date that predates when you first lowered an Aquabyte camera into the sea. A start earlier than your first record costs empty requests, not errors.
 
 Then four steps. That is everything needed to get running.
 
