@@ -25,6 +25,8 @@ initial_date = "2020-01-01"             # first-run start for the date-based cur
 initial_time = "2020-01-01T00:00:00Z"   # first-run start for the time-based cursors
 ```
 
+Start as far back as you like — the source splits a long first run into requests the API accepts. One exception: `welfare_scores` refuses any window starting before **2024-04-20** outright, so with an `initial_date` older than that, six resources load and that one fails every run. Give it a later start of its own with `source.welfare_scores.bind(incremental_date=dlt.sources.incremental(initial_value="2024-04-20"))`.
+
 `.dlt/secrets.toml`:
 
 ```toml

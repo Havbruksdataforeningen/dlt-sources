@@ -76,6 +76,15 @@ One the source does paper over, because no consumer could size a window without 
   any data is fetched, so a refusal is instant, while a legal 366-day `/environmental` window
   at `penId=all` does not return inside 180 s. The pen does not change the verdict.
 
+One the source leaves to you, because only you know how far back you meant to go:
+
+- **`/welfareScores` refuses any window starting before 2024-04-20**, with
+  `400 Welfare data is not available for dates before April 20, 2024` — a refusal, not an
+  empty result. So an `initial_date` older than that fails `welfare_scores` on every run,
+  while the six other resources load normally, and no amount of window splitting helps: the
+  floor is on the start date itself. Set the resource's own `incremental_date` no earlier
+  than the floor. (2026-08-20.)
+
 And one that bites when you are debugging rather than reading:
 
 - **The API ignores a query parameter it does not recognise instead of rejecting it.**
