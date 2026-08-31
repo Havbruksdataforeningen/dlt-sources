@@ -46,7 +46,7 @@ The step-by-step guide, written for your first release, is [`docs/release.md`](d
 
 ## Contributing
 
-[`CONTRIBUTING.md`](CONTRIBUTING.md) — setup, what to run before a pull request, how to add a package. Open an issue first.
+[`CONTRIBUTING.md`](CONTRIBUTING.md) — setup and what to run before a pull request. Adding a package for a new supplier: [`docs/new-package.md`](docs/new-package.md). Open an issue first.
 
 Security problems go to [`SECURITY.md`](SECURITY.md), not the issue tracker.
 
