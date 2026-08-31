@@ -1,6 +1,6 @@
 # Writing documentation
 
-Style rules for every document in this repo — the files here, the README, the glossaries and the changelogs. Docs are read by developers who are new to this repo, at member companies including our own. Write for them, not for whoever already has the context. Optimise for a low barrier to entry.
+Style rules for every document in this repo — the files here, the README, the glossaries and the changelogs. Docs are read by developers at member companies who are new to this repo, contributors included. Write for them, not for whoever already has the context. Optimise for a low barrier to entry.
 
 - **Write for a junior developer who knows Python and dlt.** Assume the language and the framework; explain our decisions. Explain the why before the what, as if onboarding a new developer.
 - **Keep a document short enough that someone actually reads it.** If it outgrows one sitting, split it into a short main document, with detail in linked sub-files. Do not let a document grow past the point of being read.
