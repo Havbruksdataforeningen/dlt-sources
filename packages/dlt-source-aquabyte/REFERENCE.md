@@ -63,7 +63,7 @@ Windows overlap by design and dlt drops what it already has. A daily load re-ask
 
 ### Windows are split to fit the window cap
 
-The API refuses a window wider than the window cap rather than trimming it, and measures an open-ended one to today. Without splitting, a daily load that fell further behind than the cap allows would fail, and keep failing.
+The API refuses a window wider than the window cap rather than trimming it, and measures a request that sends no end to the start of the current UTC day — which also means such a request never returns today's data. Without splitting, a daily load that fell further behind than the cap allows would fail, and keep failing.
 
 So each resource sends an explicit end on every request, and splits a wider timespan into several, oldest first and contiguous. You still see one resource and one stream.
 
