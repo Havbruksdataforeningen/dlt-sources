@@ -1,27 +1,12 @@
 """Measure what one account holds: each resource's earliest date, newest date and row count.
 
-Run this first. The API answers none of those questions — `openapi.json` describes shapes,
-not what a contract holds, and the answer differs per account and per resource. Every date
-printed is measured; the dates written into this file are the API's own, not an account's.
+Run this before choosing `initial_date`, `initial_time` and a `period`. Nothing in the API
+answers it and the answer differs per account, so every date printed is measured. It loads
+rather than probes: at `period="D"` one request covers up to 366 days either way, which makes
+the load itself the cheapest measurement.
 
-It loads rather than probes. At `period="D"` one request covers up to 366 days, the window
-cap,
-so measuring a year costs the same as loading it: six years of every resource is around a
-hundred requests, inside the API's 1000 requests per hour. Set the config starts earlier
-than you think your data begins — a start before your first record costs empty requests,
-not errors — and re-run after an interruption, which the stored cursor and the resources'
-merge dispositions resume rather than duplicate.
-
-Two results read as faults and are not. Resources do not all start on the same date, and
-they do not all end on it: one can lag the others by a day or two, and a load that finds it
-empty is normal. Read the newest dates before writing a freshness alert.
-
-It prints a line per resource as it loads, then the table. Resources are loaded one at a
-time so a slow one is named on screen rather than looking like a hung script.
-
-Then set `period` and `bucket_size` per resource in config and load with `quickstart.py`.
-A finer `period` costs rows and requests: `environmental` at `15min` returns 96 times the
-rows below, in 7-day windows instead of 366-day ones.
+Resources do not all start on the same date, and do not all end on it. Read the newest dates
+before writing a freshness alert.
 """
 
 import time
@@ -30,10 +15,9 @@ import dlt
 
 from dlt_source_aquabyte import MAX_WINDOW_DAYS, aquabyte_source
 
-# Each resource's cursor field, spelled as dlt lands it in the destination.
-# `harvest_report` is left out on purpose: it answers 500 to any window containing
-# 2025-12-12, and returns fewer reports the wider you ask, so neither its range nor its
-# count would mean anything over a multi-year window (Havbruksdataforeningen/dlt-sources#32).
+# Each resource's cursor field, spelled as dlt lands it in the destination. `harvest_report`
+# is left out: over a multi-year window neither its range nor its count means anything
+# (Havbruksdataforeningen/dlt-sources#32).
 CURSOR_COLUMNS = {
     "biomass": "date",
     "lice_count": "date",
@@ -44,27 +28,24 @@ CURSOR_COLUMNS = {
 }
 
 # A legal 366-day `/environmental` window at `penId=all` does not return inside 180 s
-# (`specs/README.md#api-quirks-worth-knowing`), so this run asks that one resource in narrower
-# windows. Lowering the window cap is all it takes; the source still splits its own windows.
-# 31 is a starting point, not a measured boundary — if the line below sits there for minutes,
-# lower it again, or bind `pen_id` to one pen, since the pen count is what makes it slow.
+# (`specs/README.md#api-quirks-worth-knowing`). 31 is a starting point, not a measured
+# boundary: if that line sits there for minutes, lower it again or bind `pen_id` to one pen.
 MAX_WINDOW_DAYS[("environmental", "D")] = 31
 
-# The coarsest `period` the two resources that take one accept, whatever config says: this
-# run measures the history, it is not the load you keep.
+# The coarsest `period`, whatever config says: this run measures the history, it is not the
+# load you keep.
 source = aquabyte_source()
 source.resources["environmental"].bind(period="D")
 source.resources["behaviour_swim_speed"].bind(period="D")
 
-# `/welfareScores` refuses any start before this, whoever asks, so a run reaching further
-# back has to give that one resource a start of its own or lose it on every run.
+# `/welfareScores` refuses any start before this, so a run reaching further back has to give
+# that one resource a start of its own or lose it on every run.
 source.resources["welfare_scores"].bind(incremental_date=dlt.sources.incremental(initial_value="2024-04-20"))
 
 pipeline = dlt.pipeline(pipeline_name="aquabyte_discovery", destination="duckdb", dataset_name="aquabyte_history")
 
-# One resource per run, so the name is on screen while its requests are in flight. Loading the
-# whole source in one call is faster to write and impossible to watch: several years of one
-# slow resource looks exactly like a hung script.
+# One resource per run, so its name is on screen while its requests are in flight: loading the
+# whole source in one call makes a slow resource look like a hung script.
 print("loading")
 for resource in CURSOR_COLUMNS:
     print(f"  {resource:<27}", end="", flush=True)
