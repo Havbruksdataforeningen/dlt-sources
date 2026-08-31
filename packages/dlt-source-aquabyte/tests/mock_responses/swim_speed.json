@@ -2,8 +2,8 @@
   "swimSpeed": [
     {
       "penId": "pen-001",
-      "fromTime": "2026-01-10T00:00:00",
-      "toTime": "2026-01-11T00:00:00",
+      "fromTime": "2026-01-10T00:00:00Z",
+      "toTime": "2026-01-11T00:00:00Z",
       "swimSpeedsampleSize": 4210,
       "swimSpeed": 0.712,
       "swimTiltsampleSize": 1180,
@@ -11,8 +11,8 @@
     },
     {
       "penId": "pen-001",
-      "fromTime": "2026-01-11T00:00:00",
-      "toTime": "2026-01-12T00:00:00",
+      "fromTime": "2026-01-11T00:00:00Z",
+      "toTime": "2026-01-12T00:00:00Z",
       "swimSpeedsampleSize": 3987,
       "swimSpeed": 0.684,
       "swimTiltsampleSize": 1042,
@@ -20,8 +20,8 @@
     },
     {
       "penId": "pen-001",
-      "fromTime": "2026-01-12T00:00:00",
-      "toTime": "2026-01-13T00:00:00",
+      "fromTime": "2026-01-12T00:00:00Z",
+      "toTime": "2026-01-13T00:00:00Z",
       "swimSpeedsampleSize": 4455,
       "swimSpeed": 0.735,
       "swimTiltsampleSize": 0,

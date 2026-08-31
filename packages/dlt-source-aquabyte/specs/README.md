@@ -36,10 +36,12 @@ The API does a few things `openapi.json` does not describe. The source does not 
 them: records land as sent, so these reach whoever reads the data. The ones that change how
 you read it:
 
-- **`behaviour_swim_speed` and `behaviour_breathing_index` return timestamps with no time
-  zone** (`2026-01-10T00:00:00`), where `environmental` returns the same kind of field with
-  a `Z`. The source does not rewrite them — they land as sent. Treat them as UTC, which is
-  what the zoned endpoints use.
+- ~~**`behaviour_swim_speed` and `behaviour_breathing_index` return timestamps with no time
+  zone**~~ — **fixed by Aquabyte, verified live 2026-08-31.** Both now send `Z`
+  (`2026-08-30T00:00:00Z`), matching `environmental`. Kept here because consumers who
+  normalised around the old form should know it is gone, and because a stored cursor written
+  before the fix is a zoneless string sitting next to zoned ones. Drop this entry once no
+  live table still holds the old spelling.
 - **`lice_count` omits its five count fields entirely on a zero-sample record**, rather than
   sending nulls. Those columns are typed by the source's column hints and land as `NULL`, so `sampleSize = 0`
   is the condition to filter on, not `adultFemale IS NULL`.

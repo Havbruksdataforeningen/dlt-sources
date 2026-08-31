@@ -2,22 +2,22 @@
   "breathingIndex": [
     {
       "penId": "pen-001",
-      "fromTime": "2026-01-10T00:00:00",
-      "toTime": "2026-01-11T00:00:00",
+      "fromTime": "2026-01-10T00:00:00Z",
+      "toTime": "2026-01-11T00:00:00Z",
       "sampleSize": 612,
       "breathingIndex": 0.2841
     },
     {
       "penId": "pen-001",
-      "fromTime": "2026-01-11T00:00:00",
-      "toTime": "2026-01-12T00:00:00",
+      "fromTime": "2026-01-11T00:00:00Z",
+      "toTime": "2026-01-12T00:00:00Z",
       "sampleSize": 588,
       "breathingIndex": 0.3107
     },
     {
       "penId": "pen-001",
-      "fromTime": "2026-01-12T00:00:00",
-      "toTime": "2026-01-13T00:00:00",
+      "fromTime": "2026-01-12T00:00:00Z",
+      "toTime": "2026-01-13T00:00:00Z",
       "sampleSize": 645,
       "breathingIndex": 0.2976
     }
