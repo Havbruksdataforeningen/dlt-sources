@@ -1,10 +1,19 @@
 # dlt-source-aquabyte
 
-An installable [dlt](https://dlthub.com/) source package that loads aquaculture data from the [Aquabyte API v3](https://api.aquabyte.ai/v3/docs) into any dlt destination: sites, biomass, lice counts, welfare scores, behaviour and environmental readings.
+A [dlt](https://dlthub.com/) source for the [Aquabyte API v3](https://api.aquabyte.ai/v3/docs): sites, biomass, lice counts, welfare scores, behaviour and environmental readings, into any dlt destination.
 
-**Records land as the API returns them** — nothing renamed, nothing dropped, no invented child tables. What *is* added is named up front rather than discovered later: `_dlt_valid_from` and `_dlt_valid_to` on the versioned `sites` table. Column names are the API's own field names, in dlt's usual snake_case.
+**Records land as the API returns them** — nothing renamed, nothing dropped, no invented child tables. Column names are the API's own, in dlt's usual snake_case. Reshaping belongs in your transform layer, where you can change it without waiting for a release.
 
-Everything else is mechanics: auth, pagination, envelope unwrapping, incremental cursors, and overridable key and write-disposition defaults. Reshaping belongs in your transform layer, where you can change it without waiting for a release. Its only dependency is dlt itself — destination, orchestrator, secrets manager and log routing stay your choices.
+The package handles auth, pagination, envelope unwrapping, incremental cursors and window splitting. Its only dependency is dlt.
+
+## Start from the code
+
+| Example | What it shows |
+|---|---|
+| [`quickstart.py`](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/examples/quickstart.py) | A daily load: every resource into DuckDB, resuming from the cursor each run |
+| [`backfill.py`](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/examples/backfill.py) | Re-load an explicit window, stored cursor untouched |
+
+A dozen lines each. From a checkout, run one with `python examples/<name>.py`.
 
 ## Install
 
@@ -14,18 +23,16 @@ uv add dlt-source-aquabyte "dlt[duckdb]"   # any dlt destination works; DuckDB i
 
 ## Quick start
 
-Put the API base URL and your key in a `.dlt/` directory beside the script you are about to run.
+Two files in a `.dlt/` directory beside your script.
 
 `.dlt/config.toml`:
 
 ```toml
 [sources.aquabyte]
 base_url = "https://api.aquabyte.ai/v3/"
-initial_date = "2020-01-01"             # first-run start for the date-based cursors
-initial_time = "2020-01-01T00:00:00Z"   # first-run start for the time-based cursors
+initial_date = "2020-01-01"            # first-run start, date resources
+initial_time = "2020-01-01T00:00:00Z"  # first-run start, time resources
 ```
-
-Start as far back as you like — the source splits a long first run into requests the API accepts. One exception: `welfare_scores` refuses any window starting before **2024-04-20** outright, so with an `initial_date` older than that, six resources load and that one fails every run. Give it a later start of its own with `source.welfare_scores.bind(incremental_date=dlt.sources.incremental(initial_value="2024-04-20"))`.
 
 `.dlt/secrets.toml`:
 
@@ -48,7 +55,16 @@ pipeline = dlt.pipeline(
 print(pipeline.run(aquabyte_source()))
 ```
 
-The two `initial_*` values are the first-run start for the resources that keep an incremental cursor; a run of only `sites` or `environmental_latest` needs neither, and a cursor resource missing one fails with an error naming it. How far back your data goes differs per endpoint and per account, and setting a start earlier than that costs empty requests, not errors.
+Three things about those start values:
+
+- **Start as far back as you like.** A long first run is split into windows the API accepts. A start earlier than your data costs empty requests, not errors.
+- **`welfare_scores` is the exception.** It refuses any start before **2024-04-20**, so an older `initial_date` fails that one resource on every run. Give it a start of its own:
+
+  ```python
+  source.welfare_scores.bind(incremental_date=dlt.sources.incremental(initial_value="2024-04-20"))
+  ```
+
+- **`sites` and `environmental_latest` need neither value**, keeping no cursor. A cursor resource missing one fails with an error naming it.
 
 ## What it loads
 
@@ -64,11 +80,15 @@ The two `initial_*` values are the first-run start for the resources that keep a
 | `behaviour_breathing_index` | `GET /behaviour/breathingIndex` | merge | `penId`, `fromTime` |
 | `welfare_scores` | `GET /welfareScores` | merge | `penId`, `date` |
 
-`sites` reads every site, and each site record carries its pens the way the API nests them — every pen, active or not. There is no separate pens table, because the API serves no pens endpoint; [where pen history lives, and what the source does and does not promise about a pen or site that stops being reported](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/REFERENCE.md#pens-live-on-the-site-record). `sites` is **versioned rather than replaced**: a row is retired, never deleted, because a pen leaves `/sites` as soon as it is emptied ([what that means for your queries](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/REFERENCE.md#the-site-registry-is-versioned)). Nested objects land as one JSON column each, and `welfare_scores` is not unpivoted ([why, and how to override it](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/REFERENCE.md#nesting)).
+Three defaults worth knowing before your first query:
+
+- **There is no pens table.** The API serves no pens endpoint, so each site record carries its pens as the API nests them, active or not — [where pen history lives](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/REFERENCE.md#pens-live-on-the-site-record).
+- **`sites` is versioned, not replaced.** A pen leaves `/sites` as soon as it is emptied, so a row is retired rather than deleted — [what that means for your queries](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/REFERENCE.md#the-site-registry-is-versioned).
+- **Nested objects land as one JSON column each**, `welfare_scores` included — [why, and how to override it](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/REFERENCE.md#nesting).
 
 ## Configuring a resource
 
-Each resource takes its endpoint's params in snake_case, except the window ones, which the incremental cursor drives:
+Each resource takes its endpoint's params in snake_case. The window is the exception: the incremental cursor drives it, and a backfill binds it on the resource's `incremental_*` argument ([how](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/REFERENCE.md#windows-cursors-and-backfilling)).
 
 ```python
 source = aquabyte_source()
@@ -77,10 +97,11 @@ source.biomass.bind(pen_id="pen-abc", bucket_size=250)
 pipeline.run(source)
 ```
 
-- **`pen_id`** defaults to `"all"` — the API's own value for "every pen", in one request. Pass one id to read a single pen.
-- **`site_id`** is the one path param, not a query param: binding it moves `sites` to the per-site endpoint, and both write the same table.
-- **The window** is the incremental cursor's, not a parameter of its own: a daily run resumes where it left off, and a backfill binds the window on the resource's `incremental_*` argument — see [the reference](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/REFERENCE.md#windows-cursors-and-backfilling).
-- **`params`** is on every resource and merged into the query string last: the escape hatch for a query param the API grows later, no release needed. It wins over every named param, `penId` included.
+| Param | What to know |
+|---|---|
+| `pen_id` | Defaults to `"all"`, the API's own value for every pen in one request. Pass one id to read a single pen. |
+| `site_id` | The one path param. Binding it moves `sites` to the per-site endpoint; both write the same table. |
+| `params` | On every resource, merged into the query string last, so it wins over every named param. The escape hatch for a param the API grows later. |
 
 Params can also be set in config, per resource:
 
@@ -91,7 +112,7 @@ period = "15min"
 
 ### Two params decide the grain of the data itself
 
-`period` and `bucket_size` change what the API computes for you, not which rows you ask for. Both are worth deciding before the first load: a coarse setting is not wrong, but the detail under it never lands, and getting it later means re-loading that history the backfill way.
+`period` and `bucket_size` change what the API computes for you, not which rows you ask for. Decide both before the first load: a coarse setting is not wrong, but the detail under it never lands, and getting it later means re-loading that history the backfill way.
 
 | Param | Resource | Values | API default | What it decides |
 |---|---|---|---|---|
@@ -99,25 +120,11 @@ period = "15min"
 | `period` | `behaviour_swim_speed` | `h`, `D` | `D` | As above. `15min` here is a `422` — only `environmental` takes it |
 | `bucket_size` | `biomass` | integer grams | `1000` | Bucket width of the nested `weightDist` histogram — no extra rows |
 
-`period` also sets the widest window the API accepts: 7 days at `15min`, 31 at `h`, 366 at `D`. The source splits its requests to fit, so a long catch-up works at any grain ([detail](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/REFERENCE.md#windows-are-split-to-fit-the-window-cap)).
+⚠️ **Changing `period` later leaves both grains in the table.** The key is `penId` + `fromTime` + `toTime`, so hourly rows do not merge over the daily ones they cover. Keep one period per resource, or re-load the history behind the change. That is also why `behaviour_breathing_index` drops `toTime` from its key: it is daily-only, so its grain cannot change.
 
-⚠️ **Changing `period` later leaves both grains in the table.** The key is `penId` + `fromTime` + `toTime`, so hourly rows do not merge over the daily ones they cover — both sit there. Pick a period per resource and keep it, or re-load the history behind the change.
+`period` also sets the widest window the API accepts — 7 days at `15min`, 31 at `h`, 366 at `D` — and the source splits its requests to fit, so a long catch-up works at any grain ([detail](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/REFERENCE.md#windows-are-split-to-fit-the-window-cap)).
 
-That is also why `behaviour_breathing_index` is keyed on `penId` + `fromTime` alone: `toTime` earns its place in a key only where the grain can change, and that endpoint is daily-only (`period=h` returns a `400`).
-
-`bucket_size` adds no rows. `weightDist` covers only the weights observed, so a pen of smolt returns a couple of buckets and a harvest-size pen at 250 g a few dozen — one JSON column either way ([what the arrays hold](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/specs/README.md#api-quirks-worth-knowing)).
-
-The package logs one thing of its own: a warning when it cannot measure a window and sends it unsplit. Everything else is dlt's — it logs the window each run asked for and every request it made, on its own `dlt` logger, and routing them is dlt's `[runtime]` settings rather than anything here: [what to set](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/REFERENCE.md#logging), and dlt's own [logging documentation](https://dlthub.com/docs/running-in-production/running#set-the-log-level-and-format).
-
-## Examples
-
-One concept each, readable on GitHub. From a checkout, run one with `python examples/<name>.py`.
-
-| Example | The one concept |
-|---|---|
-| [`quickstart.py`](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/examples/quickstart.py) | Load every resource into DuckDB |
-| [`daily_load.py`](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/examples/daily_load.py) | Re-running resumes from the stored cursor |
-| [`backfill.py`](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/examples/backfill.py) | Re-load a window, stored cursor untouched |
+`weightDist` covers only the weights observed, so a smolt pen returns two buckets and a harvest-size pen at 250 g a few dozen ([what the arrays hold](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/specs/README.md#api-quirks-worth-knowing)).
 
 ## Compatibility
 
@@ -125,14 +132,14 @@ One concept each, readable on GitHub. From a checkout, run one with `python exam
 |---|---|
 | 0.1.x | v3.1 |
 
-The two numbers are unrelated — the package version is ordinary [SemVer](https://semver.org/) and never mirrors the API's. Built against that version's [`specs/openapi.json`](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/specs/README.md) and run against the live API (last on 2026-08-20). A later backwards-compatible version is expected to work and is not verified here; run the suite first.
+The two numbers are unrelated: the package version is ordinary [SemVer](https://semver.org/). Built against that API version's [`specs/openapi.json`](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/specs/README.md) and run live against it, last on 2026-08-31. A later backwards-compatible API version should work, but run the suite first.
 
 ## Read next
 
-- [**Reference**](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/REFERENCE.md) — the versioned site registry, nesting, backfilling, column types, and what the source deliberately does not expose.
-- [**API quirks worth knowing**](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/specs/README.md#api-quirks-worth-knowing) — where the live API departs from its own OpenAPI document, including which identifiers to join on. Some of them change what a correct query looks like, so read it before your first one.
+- [**API quirks worth knowing**](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/specs/README.md#api-quirks-worth-knowing) — where the live API departs from its OpenAPI document, and which identifiers to join on. Some change what a correct query looks like, so read it before your first one.
+- [**Reference**](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/REFERENCE.md) — site versioning, nesting, backfilling, window splitting, logging and column types.
 - [**Changelog**](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/CHANGELOG.md) and [**contributing**](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/CONTRIBUTING.md).
 
 ## License
 
-[Apache-2.0](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/LICENSE). `specs/openapi.json` is Aquabyte's own OpenAPI document, included as the spec this package is built against; it is their material, and the licence does not extend to it.
+[Apache-2.0](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/LICENSE). `specs/openapi.json` is Aquabyte's own OpenAPI document, included as the spec this package is built against. It is their material, and the licence does not extend to it.
