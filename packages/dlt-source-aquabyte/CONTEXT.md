@@ -79,7 +79,7 @@ The most records one result set carries, 10 000, after which `nextToken` pages t
 _Avoid_: result cap, page size
 
 **Window cap**:
-The widest window the API accepts, per resource and per period, in days. Measured, not documented; the table is `MAX_WINDOW_DAYS`. A wider window is refused, so the source splits it into several requests.
+The widest window the API accepts, per resource and per period, in days. Measured, not documented; `max_window_days` resolves one and the table behind it is `MAX_WINDOW_DAYS`. A wider window is refused, so the source splits it into several requests.
 _Avoid_: limit, max range, and **cap** on its own — the API has a record cap and a rate limit too, so the word alone says which limit only by luck
 
 ## Uncertain — confirm with a domain expert

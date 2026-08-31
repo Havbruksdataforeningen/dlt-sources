@@ -2,6 +2,13 @@
 
 All notable changes to `dlt-source-aquabyte`, written for people using the package. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); how to write an entry is in [`docs/release.md`](../../docs/release.md).
 
+## [Unreleased]
+
+### Added
+
+- **`max_window_days(resource, period=None)`** — the window cap the source will split at, resolved the way the source resolves it. `MAX_WINDOW_DAYS` on its own does not answer for a `period` it is not keyed on: `MAX_WINDOW_DAYS[("environmental", None)]` raises where the source returns 366, the window cap of the period the API computes when a request sends none. Sizing chunks of your own from the table meant reimplementing that fallback by hand. The table stays public and writable for [correcting a window cap that has moved](REFERENCE.md#windows-are-split-to-fit-the-window-cap), and `max_window_days` reads what you assign to it.
+- A warning on the `dlt_source_aquabyte.windows` logger when `max_window_days` is asked for a resource the package does not load. It still answers, with the widest window cap, because the table is writable and a missing window cap is not fatal — but a mistyped name would otherwise become a chunk the API refuses.
+
 ## [0.2.0] - 2026-08-31
 
 ### Fixed
