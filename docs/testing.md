@@ -14,9 +14,11 @@ So this document is short on purpose. Instead of rules, look at [`packages/dlt-s
 packages/<name>/tests/
 ```
 
-Inside the package, next to the code it tests. There is no repo-level test suite and no repo-level `conftest.py`.
+Inside the package, next to the code it tests, with no repo-level `conftest.py`.
 
 Each package configures pytest itself, in its own `pyproject.toml`. That is what keeps packages independent: you can change markers, plugins or settings in your package without affecting anyone else's.
+
+One suite sits at the repo root, in `tests/`, and it is the only thing that belongs there. It checks what is no single package's business: that the version number agrees across the three places it appears — `pyproject.toml`, `CHANGELOG.md` and the git tag — and that [`scripts/validate_release.py`](../scripts/validate_release.py), which enforces that when a tag is pushed, still works. A test about a package goes in the package.
 
 ## How they run
 
@@ -24,6 +26,12 @@ Each package configures pytest itself, in its own `pyproject.toml`. That is what
 
 ```bash
 uv run pytest
+```
+
+and, for the version checks, from the repo root:
+
+```bash
+uv run pytest tests
 ```
 
 **In CI**, on every pull request, the same command runs in every package directory. Every package's suite runs on every PR — not only the ones you changed. That is deliberate: it is simple, it needs no configuration, and it catches a change in one package that breaks another. If CI ever gets slow enough to be annoying, that is the moment to make it smarter, not before.
@@ -37,6 +45,8 @@ Coverage is measured and printed, never enforced. There is no minimum percentage
 If your package has tests that need real credentials or a real API, keep them out of the default `pytest` run — for example in a separate directory that your `addopts` ignores — and run them by hand. There is no scheduled job that runs them for you, and nothing stops you adding one for a specific package later if it earns its place.
 
 **CI runs format, lint and type checks as separate jobs**, alongside the tests, so one push tells you about all of them at once. See [`.github/workflows/ci.yml`](../.github/workflows/ci.yml).
+
+The root suite runs in its own `Versions` job rather than with the package tests, because it is the only one that needs the git tags — `actions/checkout` fetches none by default, and without them the tag comparisons would pass by having nothing to compare.
 
 ## Two things to keep to
 

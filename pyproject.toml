@@ -1,2 +1,23 @@
 [tool.uv.workspace]
 members = ["packages/*"]
+
+# Configuration for the repo-level suite in `tests/`, which checks what spans packages —
+# the version number in `pyproject.toml`, `CHANGELOG.md` and the git tag. Each package
+# configures its own tools; nothing here reaches inside one. See `docs/testing.md`.
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "B", "C4", "UP", "SIM", "RUF", "S"]
+ignore = ["E501", "B008"]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests use assert (S101), and read the tag list by running `git` (S603, S607). The
+# argument list is literal and `git` is resolved from PATH on purpose: a developer's
+# checkout and CI's put it in different places.
+"tests/**" = ["S101", "S603", "S607"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
