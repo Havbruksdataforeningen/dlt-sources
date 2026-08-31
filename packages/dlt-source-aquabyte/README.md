@@ -10,10 +10,13 @@ The package handles auth, pagination, envelope unwrapping, incremental cursors a
 
 | Example | What it shows |
 |---|---|
-| [`quickstart.py`](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/examples/quickstart.py) | A daily load: every resource into DuckDB, resuming from the cursor each run |
+| [`discover_history.py`](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/examples/discover_history.py) | What your account holds: earliest date, newest date and row count per resource |
+| [`quickstart.py`](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/examples/quickstart.py) | A daily load: every resource into DuckDB, resuming from the cursor each run — and, on the first run, the whole history |
 | [`backfill.py`](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/examples/backfill.py) | Re-load an explicit window, stored cursor untouched |
 
-A dozen lines each. From a checkout, run one with `python examples/<name>.py`.
+In that order, they are the getting-started path: measure your history, then load it, then
+re-load a window when you need to. A page of code each. From a checkout, run one with
+`python examples/<name>.py`.
 
 ## Install
 
@@ -58,6 +61,7 @@ print(pipeline.run(aquabyte_source()))
 Three things about those start values:
 
 - **Start as far back as you like.** A long first run is split into windows the API accepts. A start earlier than your data costs empty requests, not errors.
+  How far back your account actually goes is worth measuring first: [`discover_history.py`](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/examples/discover_history.py).
 - **`welfare_scores` is the exception.** It refuses any start before **2024-04-20**, so an older `initial_date` fails that one resource on every run. Give it a start of its own:
 
   ```python

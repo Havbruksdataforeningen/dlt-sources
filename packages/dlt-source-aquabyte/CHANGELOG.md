@@ -10,6 +10,7 @@ All notable changes to `dlt-source-aquabyte`, written for people using the packa
 
 ### Added
 
+- **`examples/discover_history.py`** — measures what your account holds: the earliest date, the newest date and the row count of each resource, all of them yours rather than shipped. It loads the history at `period="D"` and queries the result rather than probing for boundaries, because one request covers up to 366 days either way. Run it before choosing `initial_date`, `initial_time` and a `period`.
 - Every request now carries an explicit end (`toDate`/`toTime`): `end_value` when one is bound, now when none is.
 - `MAX_WINDOW_DAYS`, the window cap table keyed by `(resource, period)`, is importable for sizing chunks of your own. It is writable too, so a window cap that moves does not need a release. The window caps are [measured, not documented by the API](specs/README.md#api-quirks-worth-knowing).
 - A warning on the `dlt_source_aquabyte.windows` logger when a cursor value cannot be read as a date or a time, since the window then goes out unsplit and may be refused. The package had no logger before this.
