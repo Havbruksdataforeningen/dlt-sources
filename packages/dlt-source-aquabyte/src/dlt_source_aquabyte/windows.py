@@ -1,6 +1,6 @@
 """The API caps how wide a window may be, so a resource splits its own requests.
 
-Why, and what it means for a load: `REFERENCE.md#windows-are-split-to-fit-the-apis-cap`.
+Why, and what it means for a load: `REFERENCE.md#windows-are-split-to-fit-the-window-cap`.
 Where the numbers come from: `specs/README.md#api-quirks-worth-knowing`.
 """
 
@@ -27,7 +27,7 @@ MAX_WINDOW_DAYS: dict[tuple[str, str | None], int] = {
 """Widest window per `(resource, period)`, in days.
 
 Public and writable on purpose: a consumer can size chunks of its own from it, or correct a
-cap that has moved without waiting for a release. `REFERENCE.md#windows-are-split-to-fit-the-apis-cap`.
+window cap that has moved without waiting for a release. `REFERENCE.md#windows-are-split-to-fit-the-window-cap`.
 """
 
 Window = tuple[Any, Any]
@@ -37,7 +37,7 @@ DEFAULT_PERIOD = "D"
 """The `period` the API computes when none is sent."""
 
 _FALLBACK_MAX_WINDOW_DAYS = 366
-"""What an unrecognised resource gets: the cap every endpoint has at its default period."""
+"""What an unrecognised resource gets: the window cap every endpoint has at its default period."""
 
 
 def windows_to_request(
@@ -49,7 +49,7 @@ def windows_to_request(
 ) -> list[Window]:
     """The window of every request `resource` must make, oldest first.
 
-    One window when the span fits the cap, several when it does not, and always with an
+    One window when the timespan fits the window cap, several when it does not, and always with an
     end: `end_value` if the incremental carries one, otherwise now. A caller who sends a
     window param through `params` owns the window and gets it back unmeasured.
     """
@@ -69,23 +69,23 @@ def windows_to_request(
         span_end = _as_date_or_time(end) if end is not None else _today_or_now(span_start)
     except ValueError:
         return _unsplit_with_warning(resource, period, start, end, "one of them is not ISO 8601")
-    cap = timedelta(days=_max_window_days(resource, period))
+    window_cap = timedelta(days=_max_window_days(resource, period))
     end_text = end if end is not None else _written_like(span_end, start)
 
     try:
-        fits = span_end - span_start <= cap
+        fits = span_end - span_start <= window_cap
     except TypeError:
         return _unsplit_with_warning(resource, period, start, end, "they are different kinds of value")
     if fits:
         return [(start, end_text)]
 
-    # The API measures a window end to end, so every sub-window may be a full `cap` wide.
+    # The API measures a window end to end, so every sub-window may be a full `window_cap` wide.
     # `toDate` is inclusive though, so the next one starts a day later than it ends, or the
     # seam day is fetched twice. `toTime` is exclusive and needs no such gap.
     gap_between_windows = timedelta(0) if isinstance(span_start, datetime) else timedelta(days=1)
     edges = [span_start]
-    while span_end - edges[-1] > cap:
-        edges.append(edges[-1] + cap + gap_between_windows)
+    while span_end - edges[-1] > window_cap:
+        edges.append(edges[-1] + window_cap + gap_between_windows)
 
     starts = [start, *(_written_like(edge, start) for edge in edges[1:])]
     ends = [*(_written_like(edge - gap_between_windows, start) for edge in edges[1:]), end_text]
@@ -101,7 +101,7 @@ def _unsplit_with_warning(resource: str, period: str | None, start: Any, end: An
     """
     logger.warning(
         "%s: cannot measure the window %r to %r because %s, so it goes out as one request. "
-        "The API refuses one wider than %s days.",
+        "The API refuses one wider than the %s-day window cap.",
         resource,
         start,
         end,

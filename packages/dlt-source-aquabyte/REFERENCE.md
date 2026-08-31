@@ -60,9 +60,9 @@ A window overlaps by design, and dlt drops what it already has. A daily load ask
 
 ⚠️ **The cursor is per resource, not per pen.** One cursor covers every pen the resource loads (`penId=all` included), advancing to the newest row *any* pen reported. Data arriving late — a pen whose camera was offline, a re-issued `harvest_report` revision for an old slaughter — falls behind the cursor and is not requested again. When that matters, periodically re-load a recent window the backfill way; merge dispositions make re-loading idempotent.
 
-### Windows are split to fit the API's cap
+### Windows are split to fit the window cap
 
-The API refuses a window wider than its cap rather than trimming it, and measures an open-ended one to today. So a daily load that falls further behind than the cap allows fails, and keeps failing.
+The API refuses a window wider than the window cap rather than trimming it, and measures an open-ended one to today. So a daily load that falls further behind than the window cap allows fails, and keeps failing.
 
 Each resource therefore sends an explicit end on every request, and splits a wider span into several requests, oldest first and contiguous. You still see one resource and one stream.
 
@@ -73,7 +73,7 @@ Each resource therefore sends an explicit end on every request, and splits a wid
 | `behaviour_swim_speed` | `h` | 31 days |
 | everything else | — | 366 days |
 
-You need none of this to use the package. The same caps are importable, for sizing chunks of your own:
+You need none of this to use the package. The same window caps are importable, for sizing chunks of your own:
 
 ```python
 from dlt_source_aquabyte import MAX_WINDOW_DAYS
@@ -83,7 +83,7 @@ MAX_WINDOW_DAYS[("environmental", "15min")]  # 7
 
 The key is `(resource, period)`, with `None` for the resources that take no `period`. The numbers are [measured, not documented by the API](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/specs/README.md#api-quirks-worth-knowing), so treat them as observations.
 
-The table is deliberately writable. If a cap moves, assign the new value before your run and the source uses it — you do not have to wait for a release.
+The table is deliberately writable. If a window cap moves, assign the new value before your run and the source uses it — you do not have to wait for a release.
 
 Send a window param through `params` and you own the window: it goes out as one request, unsplit.
 
@@ -97,7 +97,7 @@ Send a window param through `params` and you own the window: it goes out as one 
 
 **`POST /superiorRate`** — marked "(Experimental API) … subject to change", and a POST computation rather than a read endpoint. Worth revisiting once it leaves preview.
 
-Rate limit and result cap are in `specs/openapi.json`. The package does not throttle; each resource makes one request per page, for every pen at once.
+Rate limit and record cap are in `specs/openapi.json`. The package does not throttle; each resource makes one request per page, for every pen at once.
 
 ## Logging
 

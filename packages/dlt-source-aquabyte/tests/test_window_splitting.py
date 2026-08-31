@@ -1,7 +1,7 @@
-"""Splitting a window too wide for the API: `REFERENCE.md#windows-are-split-to-fit-the-apis-cap`.
+"""Splitting a window too wide for the API: `REFERENCE.md#windows-are-split-to-fit-the-window-cap`.
 
-The caps themselves are data (`MAX_WINDOW_DAYS`). What is asserted here is the arithmetic
-around them, which a moved cap must keep working.
+The window caps themselves are data (`MAX_WINDOW_DAYS`). What is asserted here is the
+arithmetic around them, which a moved window cap must keep working.
 """
 
 import logging
@@ -44,7 +44,7 @@ def _window(endpoint: Endpoint, start: str, end: str | None = None):
 
 
 def test_a_window_at_exactly_the_cap_is_one_request(mock_rest_client):
-    """The caps are inclusive, so the widest legal window must not be split."""
+    """The window caps are inclusive, so the widest legal window must not be split."""
     sent = _run(
         mock_rest_client,
         ENVIRONMENTAL,
@@ -73,7 +73,7 @@ def test_a_window_one_day_over_the_cap_is_two_contiguous_requests(mock_rest_clie
 
 
 def test_a_date_window_splits_the_same_way(mock_rest_client):
-    """`fromDate`/`toDate` take the same arithmetic, at the date resources' 366-day cap.
+    """`fromDate`/`toDate` take the same arithmetic, at the date resources' 366-day window cap.
 
     `toDate` is inclusive where `toTime` is exclusive, so the next sub-window starts the day
     after the last one ended: contiguous, and no date asked for twice.
@@ -102,10 +102,10 @@ def test_a_date_window_at_exactly_the_cap_is_one_request(mock_rest_client):
     [("15min", 5), ("h", 2), ("D", 1), (None, 1)],
 )
 def test_the_period_decides_how_many_requests_a_window_becomes(mock_rest_client, period, expected_windows):
-    """The cap is a property of (resource, period): 7 days at `15min`, 31 at `h`, 366 at `D`.
+    """The window cap is a property of (resource, period): 7 days at `15min`, 31 at `h`, 366 at `D`.
 
     `period` unset resolves to the endpoint's own default, which is the daily one —
-    so omitting it buys the widest cap, not the narrowest.
+    so omitting it buys the widest window cap, not the narrowest.
     """
     bound = {"period": period} if period is not None else {}
     sent = _run(
@@ -146,7 +146,7 @@ def test_an_open_ended_catch_up_wider_than_the_cap_splits(mock_rest_client):
     start = (datetime.now(tz=UTC) - timedelta(days=20)).strftime("%Y-%m-%dT%H:%M:%SZ")
     sent = _run(mock_rest_client, ENVIRONMENTAL, "test_catch_up", period="15min", **_window(ENVIRONMENTAL, start))
 
-    assert len(sent) == 3, "20 days at a 7-day cap is three requests"
+    assert len(sent) == 3, "20 days at a 7-day window cap is three requests"
     assert sent[0]["fromTime"] == start
     assert [one["fromTime"] for one in sent] == sorted(one["fromTime"] for one in sent), "oldest first"
     assert [one["toTime"] for one in sent[:-1]] == [one["fromTime"] for one in sent[1:]], "contiguous"
@@ -173,19 +173,19 @@ def test_date_sub_windows_use_the_whole_cap_without_overlapping(mock_rest_client
     """
     sent = _run(mock_rest_client, BIOMASS, "test_whole_cap", **_window(BIOMASS, "2026-01-01", "2029-01-05"))
 
-    cap = 366
+    window_cap = 366
     edges = [(date.fromisoformat(one["fromDate"]), date.fromisoformat(one["toDate"])) for one in sent]
 
-    assert len(sent) == 3, "1100 days at a 366-day cap is three requests, not four"
-    assert all((to - since).days <= cap for since, to in edges), "no request may exceed the cap"
-    assert max((to - since).days for since, to in edges) == cap, "and the cap must be used in full"
+    assert len(sent) == 3, "1100 days at a 366-day window cap is three requests, not four"
+    assert all((to - since).days <= window_cap for since, to in edges), "no request may exceed the window cap"
+    assert max((to - since).days for since, to in edges) == window_cap, "and the window cap must be used in full"
     assert all(later[0] - earlier[1] == timedelta(days=1) for earlier, later in pairwise(edges)), (
         "each sub-window starts the day after the last one ended"
     )
 
 
 def test_a_period_sent_through_params_sizes_the_windows(mock_rest_client):
-    """`params` wins over the named `period` on the wire, so it must pick the cap too."""
+    """`params` wins over the named `period` on the wire, so it must pick the window cap too."""
     sent = _run(
         mock_rest_client,
         ENVIRONMENTAL,
@@ -195,7 +195,7 @@ def test_a_period_sent_through_params_sizes_the_windows(mock_rest_client):
     )
 
     assert all(one["period"] == "15min" for one in sent)
-    assert len(sent) == 9, "59 days at the 15min cap of 7, not the daily cap of 366"
+    assert len(sent) == 9, "59 days at the 15min window cap of 7, not the daily one of 366"
 
 
 def test_a_cursor_spelled_with_a_space_is_still_a_time(mock_rest_client):
@@ -231,7 +231,7 @@ def test_a_start_and_an_end_of_different_kinds_are_passed_through(mock_rest_clie
 
     assert [(one["fromDate"], one["toDate"]) for one in sent] == [("2020-01-01", "2026-01-01T00:00:00Z")]
     assert "biomass" in caplog.text
-    assert "366" in caplog.text, "the warning names the cap the request may break"
+    assert "366" in caplog.text, "the warning names the window cap the request may break"
 
 
 def test_a_cursor_that_is_not_a_date_is_passed_through(mock_rest_client, caplog):
@@ -252,7 +252,7 @@ def test_a_window_the_source_can_measure_logs_nothing(mock_rest_client, caplog):
 
 
 def test_every_windowed_resource_has_a_published_cap():
-    """A consumer sizing its own chunks reads the cap from the package, not from a failed run.
+    """A consumer sizing its own chunks reads the window cap from the package, not from a failed run.
 
     So a resource that takes an `incremental_*` argument must have an entry, and every
     entry must name such a resource.

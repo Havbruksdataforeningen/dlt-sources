@@ -67,16 +67,20 @@ Aquabyte's measure of respiration rate in a pen, used as a stress and gill-healt
 ### Requests
 
 **Window**:
-The span one request asks for, as a start and an end: `fromDate`–`toDate` on the date resources, `fromTime`–`toTime` on the time resources. `toDate` is inclusive; `toTime` is exclusive.
+The timespan one request asks for, as a start and an end: `fromDate`–`toDate` on the date resources, `fromTime`–`toTime` on the time resources. `toDate` is inclusive; `toTime` is exclusive.
 _Avoid_: range, span, interval
 
 **Period**:
 The API's name for how coarse the rows are: `15min`, `h` or `D`. `D` when none is sent. Only `environmental` and `behaviour_swim_speed` take one.
 _Avoid_: grain, granularity, resolution (in code; the README uses "grain" to explain what `period` means)
 
-**Cap**:
+**Record cap**:
+The most records one result set carries, 10 000, after which `nextToken` pages the rest. Documented in `openapi.json`, unlike the window cap — and independent of it: a window the API accepts can still page.
+_Avoid_: result cap, page size
+
+**Window cap**:
 The widest window the API accepts, per resource and per period, in days. Measured, not documented; the table is `MAX_WINDOW_DAYS`. A wider window is refused, so the source splits it into several requests.
-_Avoid_: limit, max range
+_Avoid_: limit, max range, and **cap** on its own — the API has a record cap and a rate limit too, so the word alone says which limit only by luck
 
 ## Uncertain — confirm with a domain expert
 

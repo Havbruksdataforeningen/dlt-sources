@@ -58,7 +58,7 @@ One the source does paper over, because no consumer could size a window without 
 - **A window has a maximum width, per endpoint and per grain.** A wider request is refused
   (`400 ... is larger than N days`), not truncated — and an open-ended window is measured to
   today, so this hits daily loads as well as backfills. The finer the grain, the shorter the
-  cap. Nothing about it is in `openapi.json`.
+  window cap. Nothing about it is in `openapi.json`.
 
   | Endpoint | `period` | Max window |
   |---|---|---|
@@ -67,14 +67,14 @@ One the source does paper over, because no consumer could size a window without 
   | `/behaviour/swimSpeed` | `h` | **31 days** |
   | every endpoint at `D` or omitted | | 366 days |
 
-  **The cap is on `to - from`, not on the dates covered.** So a legal `toDate` window covers
-  one more calendar date than its cap, and a `toTime` window covers exactly its cap, `toTime`
-  being exclusive. All ten (endpoint, grain) pairs bisected live on 2026-08-28: N returns
+  **The window cap is on `to - from`, not on the dates covered.** So a legal `toDate` window
+  covers one more calendar date than the cap allows days, and a `toTime` window covers
+  exactly as many, `toTime` being exclusive. All ten (endpoint, grain) pairs bisected live on 2026-08-28: N returns
   `200` and N+1 returns `400`, every time. The source splits its own windows to fit.
 
   Two things for anyone re-probing this. The error text differs by endpoint — `Requested
   **date** range` on the date endpoints, `Requested **time** range` on the `fromTime` ones —
-  so parse both if you read N out of it. And send a single `penId`: the cap is checked before
+  so parse both if you read N out of it. And send a single `penId`: the window cap is checked before
   any data is fetched, so a refusal is instant, while a legal 366-day `/environmental` window
   at `penId=all` does not return inside 180 s. The pen does not change the verdict.
 

@@ -87,7 +87,7 @@ def test_resource_always_sends_a_window_start(mock_rest_client, endpoint):
 def test_resource_requests_the_window_a_backfill_incremental_carries(mock_rest_client, endpoint):
     """A bound backfill incremental drives both window params — start from its
     `initial_value`, end from its `end_value` — so the API is asked for exactly the
-    rows dlt will keep. A window inside the cap is one request."""
+    rows dlt will keep. A window inside the window cap is one request."""
     start, end = endpoint.window
     window = dlt.sources.incremental(initial_value=start, end_value=end)
     _, load_info = _run(mock_rest_client, endpoint, "test_backfill", **{endpoint.incremental_argument: window})
