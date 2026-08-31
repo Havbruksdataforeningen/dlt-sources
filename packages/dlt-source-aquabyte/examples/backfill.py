@@ -1,14 +1,26 @@
-"""Re-load an explicit historical window, leaving the stored cursor untouched."""
+"""Load a history into the destination, leaving the stored cursor untouched."""
+
+from datetime import UTC, datetime
 
 import dlt
 
 from dlt_source_aquabyte import aquabyte_source
 
-# Backfill the dlt way: bind an incremental carrying the window. dlt runs it with
-# transient state, so the window is requested from the API, enforced by dlt's own
-# incremental filter, and the stored cursor is neither consulted nor advanced — the
-# next regular run resumes exactly where it left off. Which argument carries it
-# follows the endpoint's cursor field, like every other param.
+# Step 2 of the README's "How to start": the earliest dates discover_history.py measured go
+# here. No window arithmetic — the source splits the span into windows the API accepts.
+#
+# `end_value` is what makes this a backfill rather than a load: dlt then runs the resource
+# with transient state, so the stored cursor is neither consulted nor advanced and the daily
+# load is unaffected. Drop it and dlt stores a cursor instead, which is daily_load.py's job.
+# Which argument carries the window follows the endpoint's cursor field, like every other param.
+TODAY = datetime.now(tz=UTC).date().isoformat()
+DATE_WINDOW = ("2020-01-01", TODAY)
+TIME_WINDOW = ("2020-01-01T00:00:00Z", f"{TODAY}T00:00:00Z")
+
+# `/welfareScores` refuses any start before this and fails the resource on every run that asks
+# earlier, so it never starts before the floor however far back the rest of the backfill goes.
+WELFARE_SCORES_FLOOR = "2024-04-20"
+
 DATE_BASED = {
     "biomass": "incremental_date",
     "harvest_report": "incremental_slaughter_start_date",
@@ -23,11 +35,13 @@ TIME_BASED = {
 
 source = aquabyte_source()
 for name, argument in DATE_BASED.items():
-    window = dlt.sources.incremental(initial_value="2026-01-01", end_value="2026-02-01")
-    source.resources[name].bind(**{argument: window})
+    initial_value, end_value = DATE_WINDOW
+    if name == "welfare_scores":
+        initial_value = max(initial_value, WELFARE_SCORES_FLOOR)
+    source.resources[name].bind(**{argument: dlt.sources.incremental(initial_value=initial_value, end_value=end_value)})
 for name, argument in TIME_BASED.items():
-    window = dlt.sources.incremental(initial_value="2026-01-01T00:00:00Z", end_value="2026-02-01T00:00:00Z")
-    source.resources[name].bind(**{argument: window})
+    initial_value, end_value = TIME_WINDOW
+    source.resources[name].bind(**{argument: dlt.sources.incremental(initial_value=initial_value, end_value=end_value)})
 
 pipeline = dlt.pipeline(pipeline_name="aquabyte_backfill", destination="duckdb", dataset_name="aquabyte_data")
 

@@ -2,7 +2,7 @@
 
 The detail behind the [README](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/README.md), for adopting the package rather than evaluating it. Nothing here is needed to get a first load running.
 
-Most of it is shorter as code: [`quickstart.py`](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/examples/quickstart.py) and [`backfill.py`](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/examples/backfill.py).
+Most of it is shorter as code: [`discover_history.py`](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/examples/discover_history.py), [`daily_load.py`](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/examples/daily_load.py) and [`backfill.py`](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/examples/backfill.py).
 
 ## The site registry is versioned
 
@@ -50,7 +50,7 @@ Nothing outranks that setting. The source declares column hints for scalar field
 
 ## Windows, cursors and backfilling
 
-Runnable version of this section: [`quickstart.py`](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/examples/quickstart.py) for the daily load, [`backfill.py`](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/examples/backfill.py) for a window.
+Runnable version of this section: [`daily_load.py`](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/examples/daily_load.py) for the daily load, [`backfill.py`](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/examples/backfill.py) for a window.
 
 The incremental cursor is the only window mechanism, and its value is **always sent** as `fromDate`/`fromTime`:
 

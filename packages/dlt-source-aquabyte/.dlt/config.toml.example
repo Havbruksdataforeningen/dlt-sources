@@ -26,13 +26,13 @@ initial_time = "2020-01-01T00:00:00Z"
 # README under "Configuring a resource" — kept there so there is one place to update.
 # The full param list is the spec: specs/openapi.json, or https://api.aquabyte.ai/v3/docs.
 #
-# period and bucket_size decide the grain of the data itself, so they are worth deciding
+# period and bucket_size decide the granularity of the data itself, so they are worth deciding
 # before the first load rather than after it. Read that section before setting them.
 
-# The values below are the finest grain each resource offers, which is the useful
+# The values below are the finest granularity each resource offers, which is the useful
 # default for a raw layer: you can always aggregate later, but detail you never loaded
 # is gone. The cost is rows and requests — 15min is 96x the rows of D, and a finer
-# grain also buys a narrower window cap (7 days at 15min, 31 at h, 366 at D), so a
+# granularity also buys a narrower window cap (7 days at 15min, 31 at h, 366 at D), so a
 # backfill is split into more requests against a 1000/hour limit.
 # behaviour_breathing_index takes no period: that endpoint is daily-only.
 
