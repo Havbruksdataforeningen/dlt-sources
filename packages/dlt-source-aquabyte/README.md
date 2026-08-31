@@ -13,7 +13,7 @@ The package handles auth, pagination, envelope unwrapping, incremental cursors a
 Then four steps. That is everything needed to get running.
 
 1. **Discover** — [`discover_history.py`](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/examples/discover_history.py). How far back your account goes, how much is there, and how fresh each resource is. Its output decides steps 2 and 3.
-2. **Configure again**, now from measurements rather than a guess. `period` and `bucket_size` per resource for the grain you want ([Configuring a resource](#configuring-a-resource)). And move `initial_date`/`initial_time` forward to the day step 3 will end, because they are where the *daily* load starts: a backfill leaves no cursor behind, so a daily load still pointed at the contract date would re-request every year you are about to load.
+2. **Configure again**, now from measurements rather than a guess. `period` and `bucket_size` per resource for the granularity you want ([Configuring a resource](#configuring-a-resource)). And move `initial_date`/`initial_time` forward to the day step 3 will end, because they are where the *daily* load starts: a backfill leaves no cursor behind, so a daily load still pointed at the contract date would re-request every year you are about to load.
 3. **Backfill** — [`backfill.py`](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/examples/backfill.py). Put the earliest dates from step 1 at the top of the file and run it once. The stored cursor is left alone, so this can be re-run at any time without disturbing step 4.
 4. **Daily load** — [`daily_load.py`](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/examples/daily_load.py). The same script on a timer from then on, each run resuming from the cursor.
 
@@ -115,19 +115,19 @@ Params can also be set in config, per resource:
 period = "15min"
 ```
 
-### Two params decide the grain of the data itself
+### Two params decide the granularity of the data itself
 
 `period` and `bucket_size` change what the API computes for you, not which rows you ask for. Decide both before the first load: a coarse setting is not wrong, but the detail under it never lands, and getting it later means re-loading that history the backfill way.
 
 | Param | Resource | Values | API default | What it decides |
 |---|---|---|---|---|
-| `period` | `environmental` | `h`, `D`, `15min` | `D` | Row grain: `h` is 24× the rows of `D`, `15min` is 96× |
+| `period` | `environmental` | `h`, `D`, `15min` | `D` | Row granularity: `h` is 24× the rows of `D`, `15min` is 96× |
 | `period` | `behaviour_swim_speed` | `h`, `D` | `D` | As above. `15min` here is a `422` — only `environmental` takes it |
 | `bucket_size` | `biomass` | integer grams | `1000` | Bucket width of the nested `weightDist` histogram — no extra rows |
 
-⚠️ **Changing `period` later leaves both grains in the table.** The key is `penId` + `fromTime` + `toTime`, so hourly rows do not merge over the daily ones they cover. Keep one period per resource, or re-load the history behind the change. That is also why `behaviour_breathing_index` drops `toTime` from its key: it is daily-only, so its grain cannot change.
+⚠️ **Changing `period` later leaves both granularities in the table.** The key is `penId` + `fromTime` + `toTime`, so hourly rows do not merge over the daily ones they cover. Keep one period per resource, or re-load the history behind the change. That is also why `behaviour_breathing_index` drops `toTime` from its key: it is daily-only, so its granularity cannot change.
 
-`period` also sets the widest window the API accepts — 7 days at `15min`, 31 at `h`, 366 at `D` — and the source splits its requests to fit, so a long catch-up works at any grain ([detail](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/REFERENCE.md#windows-are-split-to-fit-the-window-cap)).
+`period` also sets the widest window the API accepts — 7 days at `15min`, 31 at `h`, 366 at `D` — and the source splits its requests to fit, so a long catch-up works at any granularity ([detail](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/REFERENCE.md#windows-are-split-to-fit-the-window-cap)).
 
 `weightDist` covers only the weights observed, so a smolt pen returns two buckets and a harvest-size pen at 250 g a few dozen ([what the arrays hold](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/specs/README.md#api-quirks-worth-knowing)).
 

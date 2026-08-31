@@ -59,10 +59,10 @@ put in `params`, which the source sends on unchanged, and one carries a cursor v
 source cannot read as a date or a time, which it warns about and sends as a single request,
 with no end. Know both quirks for those:
 
-- **A window has a maximum width, per endpoint and per grain.** A wider request is refused
+- **A window has a maximum width, per endpoint and per granularity.** A wider request is refused
   (`400 ... is larger than N days`), not truncated — and a request that sends no end is
   measured from its start to the start of the current UTC day, the quirk below, so this hits
-  daily loads as well as backfills. The finer the grain, the shorter the window cap. Nothing about it is in
+  daily loads as well as backfills. The finer the granularity, the shorter the window cap. Nothing about it is in
   `openapi.json`.
 
   | Endpoint | `period` | Max window |
@@ -74,7 +74,7 @@ with no end. Know both quirks for those:
 
   **The window cap is on `to - from`, not on the dates covered.** So a legal `toDate` window
   covers one more calendar date than the cap allows days, and a `toTime` window covers
-  exactly as many, `toTime` being exclusive. All ten (endpoint, grain) pairs bisected live on 2026-08-28: N returns
+  exactly as many, `toTime` being exclusive. All ten (endpoint, `period`) pairs bisected live on 2026-08-28: N returns
   `200` and N+1 returns `400`, every time. The source splits its own windows to fit.
 
   Two things for anyone re-probing this. The error text differs by endpoint — `Requested
@@ -122,7 +122,7 @@ And one that bites when you are debugging rather than reading:
 - **`/behaviour/breathingIndex` takes a `period` its OpenAPI document does not list, and
   allows only the daily one.** `period=h` returns `400 period must be daily` and
   `period=15min` a `422` naming the `h`/`D` enum — so the parameter is recognised and acted
-  on, not ignored as an unknown name would be. The grain is therefore fixed, which is why
+  on, not ignored as an unknown name would be. The granularity is therefore fixed, which is why
   the resource is keyed on `penId` + `fromTime` without `toTime`. Reported upstream in #29.
   (2026-08-20.)
 

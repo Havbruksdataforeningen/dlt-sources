@@ -72,7 +72,7 @@ _Avoid_: range, span, interval
 
 **Period**:
 The API's name for how coarse the rows are: `15min`, `h` or `D`. `D` when none is sent. Only `environmental` and `behaviour_swim_speed` take one.
-_Avoid_: grain, granularity, resolution (in code; the README uses "grain" to explain what `period` means)
+_Avoid_: grain, resolution. In prose, "granularity" is the word for what `period` controls; in code it is `period`.
 
 **Record cap**:
 The most records one result set carries, 10 000, after which `nextToken` pages the rest. Documented in `openapi.json`, unlike the window cap — and independent of it: a window the API accepts can still page.
