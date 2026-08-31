@@ -41,7 +41,7 @@ def example_run(mock_rest_client, tmp_path: Path, monkeypatch: pytest.MonkeyPatc
 
 def test_it_reports_a_date_range_and_a_row_count_for_every_resource(example_run):
     printed = example_run["printed"]
-    reported = dict(line.split(maxsplit=1) for line in printed.splitlines() if line.strip())
+    reported = dict(line.split(maxsplit=1) for line in _table_rows(printed))
 
     for resource in example_run["CURSOR_COLUMNS"]:
         assert resource in reported, f"{resource} is missing from the table the example printed:\n{printed}"
@@ -67,3 +67,10 @@ def test_it_asks_environmental_in_windows_the_api_answers_in_time(example_run, m
     ]
     assert spans, "the example asked /environmental for nothing"
     assert max(spans).days <= 31, f"widest /environmental window was {max(spans).days} days"
+
+
+def _table_rows(printed: str) -> list[str]:
+    """The rows under the table's header, skipping the progress lines printed while loading."""
+    lines = printed.splitlines()
+    header = next(i for i, line in enumerate(lines) if line.startswith("resource "))
+    return [line for line in lines[header + 1 :] if line.strip()]

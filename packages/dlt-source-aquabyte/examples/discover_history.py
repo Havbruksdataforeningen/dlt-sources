@@ -16,10 +16,15 @@ Two results read as faults and are not. Resources do not all start on the same d
 they do not all end on it: one can lag the others by a day or two, and a load that finds it
 empty is normal. Read the newest dates before writing a freshness alert.
 
+It prints a line per resource as it loads, then the table. Resources are loaded one at a
+time so a slow one is named on screen rather than looking like a hung script.
+
 Then set `period` and `bucket_size` per resource in config and load with `quickstart.py`.
 A finer `period` costs rows and requests: `environmental` at `15min` returns 96 times the
 rows below, in 7-day windows instead of 366-day ones.
 """
+
+import time
 
 import dlt
 
@@ -39,9 +44,10 @@ CURSOR_COLUMNS = {
 }
 
 # A legal 366-day `/environmental` window at `penId=all` does not return inside 180 s
-# (`specs/README.md#api-quirks-worth-knowing`), so this run asks that one resource a month at
-# a time. Lowering the window cap is all it takes — the source still splits its own windows,
-# and 31 days is a width the API is known to serve, not a measured boundary.
+# (`specs/README.md#api-quirks-worth-knowing`), so this run asks that one resource in narrower
+# windows. Lowering the window cap is all it takes; the source still splits its own windows.
+# 31 is a starting point, not a measured boundary — if the line below sits there for minutes,
+# lower it again, or bind `pen_id` to one pen, since the pen count is what makes it slow.
 MAX_WINDOW_DAYS[("environmental", "D")] = 31
 
 # The coarsest `period` the two resources that take one accept, whatever config says: this
@@ -55,7 +61,16 @@ source.resources["behaviour_swim_speed"].bind(period="D")
 source.resources["welfare_scores"].bind(incremental_date=dlt.sources.incremental(initial_value="2024-04-20"))
 
 pipeline = dlt.pipeline(pipeline_name="aquabyte_discovery", destination="duckdb", dataset_name="aquabyte_history")
-pipeline.run(source.with_resources(*CURSOR_COLUMNS))
+
+# One resource per run, so the name is on screen while its requests are in flight. Loading the
+# whole source in one call is faster to write and impossible to watch: several years of one
+# slow resource looks exactly like a hung script.
+print("loading")
+for resource in CURSOR_COLUMNS:
+    print(f"  {resource:<27}", end="", flush=True)
+    started = time.monotonic()
+    pipeline.run(source.with_resources(resource))
+    print(f"{time.monotonic() - started:>6.0f}s")
 
 # A resource that returned nothing has no table to query, so it is reported as zero rows.
 loaded = set(pipeline.default_schema.data_table_names())
