@@ -14,9 +14,15 @@ The package handles auth, pagination, envelope unwrapping, incremental cursors a
 | [`quickstart.py`](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/examples/quickstart.py) | A daily load: every resource into DuckDB, resuming from the cursor each run — and, on the first run, the whole history |
 | [`backfill.py`](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/examples/backfill.py) | Re-load an explicit window, stored cursor untouched |
 
-In that order, they are the getting-started path: measure your history, then load it, then
-re-load a window when you need to. A page of code each. From a checkout, run one with
-`python examples/<name>.py`.
+### How to start
+
+1. **Measure** — `discover_history.py`. How far back your account goes and how much is there, per resource. The answer decides the two settings below it.
+2. **Backfill** — `quickstart.py`. Its *first* run loads the whole history from `initial_date`/`initial_time`, split into windows the API accepts. There is no separate backfill tool to reach for.
+3. **Daily load** — `quickstart.py` again, on a timer. Every later run resumes from the stored cursor.
+
+`backfill.py` is for later: re-loading one explicit window without disturbing the cursor, when data arrived late.
+
+A page of code each. From a checkout, run one with `python examples/<name>.py`.
 
 ## Install
 
