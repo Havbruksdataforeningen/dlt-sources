@@ -11,7 +11,7 @@ from itertools import pairwise
 import dlt
 import pytest
 
-from dlt_source_aquabyte import MAX_WINDOW_DAYS, aquabyte_source
+from dlt_source_aquabyte import MAX_WINDOW_DAYS, aquabyte_source, max_window_days
 from tests.conftest import (
     SOURCE_CONFIG,
     Endpoint,
@@ -247,6 +247,67 @@ def test_a_window_the_source_can_measure_logs_nothing(mock_rest_client, caplog):
     """The warning is for the windows it gave up on, not for every run."""
     with caplog.at_level(logging.WARNING, logger="dlt_source_aquabyte.windows"):
         _run(mock_rest_client, BIOMASS, "test_quiet", **_window(BIOMASS, "2026-01-01", "2029-01-05"))
+
+    assert caplog.text == ""
+
+
+def test_the_published_window_cap_is_the_one_the_source_splits_at(mock_rest_client):
+    """A consumer sizes chunks of its own from `max_window_days`, so it must answer what we do.
+
+    `period` unset is the case that separates the function from the table: nothing is keyed on
+    it, so reading the table directly raises where the source resolves the default period's cap.
+    """
+    published = max_window_days("environmental", None)
+    sent = _run(
+        mock_rest_client,
+        ENVIRONMENTAL,
+        "test_published_cap",
+        **_window(ENVIRONMENTAL, "2026-01-01T00:00:00Z", "2027-06-01T00:00:00Z"),
+    )
+
+    widths = [datetime.fromisoformat(one["toTime"]) - datetime.fromisoformat(one["fromTime"]) for one in sent]
+
+    assert ("environmental", None) not in MAX_WINDOW_DAYS, "otherwise this asserts a plain lookup"
+    assert max(widths) == timedelta(days=published)
+
+
+def test_a_corrected_window_cap_moves_the_splitting_and_the_published_answer_together(mock_rest_client, monkeypatch):
+    """The table is writable so a window cap that has moved needs no release, and
+    `examples/discover_history.py` lowers one that way. A consumer chunking its own load reads
+    the same window cap, so a correction has to reach both or it applies to half the run.
+    """
+    monkeypatch.setitem(MAX_WINDOW_DAYS, ("environmental", "D"), 31)
+
+    sent = _run(
+        mock_rest_client,
+        ENVIRONMENTAL,
+        "test_corrected_cap",
+        **_window(ENVIRONMENTAL, "2026-01-01T00:00:00Z", "2026-03-01T00:00:00Z"),
+    )
+
+    widths = [datetime.fromisoformat(one["toTime"]) - datetime.fromisoformat(one["fromTime"]) for one in sent]
+
+    assert max_window_days("environmental", None) == 31, "the correction is at the default period"
+    assert max(widths) == timedelta(days=31)
+
+
+def test_an_unknown_resource_gets_the_widest_window_cap_and_says_so(caplog):
+    """A consumer's entry point takes a name it typed, so a typo must not pass for an answer.
+
+    It still answers, since the table is writable and a window cap missing from it is not fatal.
+    But answering silently is how a mistyped name becomes a chunk the API refuses.
+    """
+    with caplog.at_level(logging.WARNING, logger="dlt_source_aquabyte.windows"):
+        widest = max_window_days("enviromental", "15min")
+
+    assert widest == 366, "the widest window cap, not the 7 the correct spelling would have given"
+    assert "enviromental" in caplog.text
+
+
+def test_a_period_a_resource_does_not_take_is_not_a_typo(caplog):
+    """`biomass` is keyed on `None` alone, so an unexpected `period` resolves quietly and right."""
+    with caplog.at_level(logging.WARNING, logger="dlt_source_aquabyte.windows"):
+        assert max_window_days("biomass", "h") == MAX_WINDOW_DAYS[("biomass", None)]
 
     assert caplog.text == ""
 

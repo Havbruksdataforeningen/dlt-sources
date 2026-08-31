@@ -77,13 +77,14 @@ So each resource sends an explicit end on every request, and splits a wider time
 You need none of this to use the package. The same window caps are importable, for sizing chunks of your own:
 
 ```python
-from dlt_source_aquabyte import MAX_WINDOW_DAYS
+from dlt_source_aquabyte import max_window_days
 
-MAX_WINDOW_DAYS[("environmental", "15min")]  # 7
+max_window_days("environmental", "15min")  # 7
+max_window_days("biomass")  # 366
 ```
 
-- The key is `(resource, period)`, with `None` for the resources that take no `period`.
-- The numbers are [measured, not documented by the API](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/specs/README.md#api-quirks-worth-knowing), so treat them as observations. The table is writable for that reason: if a window cap moves, assign the new value before your run instead of waiting for a release.
+- **Read a window cap through `max_window_days`.** It resolves the way the source does, so your chunks are the width the source would split at. A resource loaded with no `period` gets the cap of the period the API computes when a request sends none, `D` — so `max_window_days("environmental")` is 366 rather than an error.
+- **Write to `MAX_WINDOW_DAYS` to correct one.** The numbers are [measured, not documented by the API](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/specs/README.md#api-quirks-worth-knowing), so treat them as observations: if a window cap moves, assign the new value before your run instead of waiting for a release. The key is `(resource, period)`, with `None` for the resources that take no `period`, and `max_window_days` reads what you assign.
 - Send a window param through `params` and you own the window — it goes out as one request, unsplit.
 
 ## What the source does not expose
@@ -100,7 +101,7 @@ Rate limit and record cap are in `specs/openapi.json`. The package does not thro
 
 ## Logging
 
-The package logs one thing of its own: a warning on `dlt_source_aquabyte.windows` when it cannot read a cursor value as a date or a time, and so sends the window unsplit. Worth hearing, because that request may be refused and dlt hides the reason. Everything else it does, it raises.
+The package logs two things of its own, both warnings on `dlt_source_aquabyte.windows`: when it cannot read a cursor value as a date or a time, and so sends the window unsplit, and when `max_window_days` is asked for a resource it does not load, and so answers with the widest window cap. Both are worth hearing, because the request that follows may be refused and dlt hides the reason. Everything else the package does, it raises.
 
 dlt logs two lines an operator needs to verify a catch-up run or a backfill — the window each resource bound, and every request made — on the logger named `dlt` at INFO. Both are off by default, dlt's own level being `WARNING`.
 

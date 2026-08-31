@@ -26,8 +26,10 @@ MAX_WINDOW_DAYS: dict[tuple[str, str | None], int] = {
 }
 """Widest window per `(resource, period)`, in days.
 
-Public and writable on purpose: a consumer can size chunks of its own from it, or correct a
-window cap that has moved without waiting for a release. `REFERENCE.md#windows-are-split-to-fit-the-window-cap`.
+Writable on purpose: a window cap that has moved can be corrected without waiting for a
+release, and `max_window_days` reads the correction. Read a window cap through that rather than
+from here — a `period` this is not keyed on still has one.
+`REFERENCE.md#windows-are-split-to-fit-the-window-cap`.
 """
 
 Window = tuple[Any, Any]
@@ -38,6 +40,26 @@ DEFAULT_PERIOD = "D"
 
 _FALLBACK_MAX_WINDOW_DAYS = 366
 """What an unrecognised resource gets: the window cap every endpoint has at its default period."""
+
+
+def max_window_days(resource: str, period: str | None = None) -> int:
+    """The widest window `resource` accepts at `period`, in days — the width the source splits at.
+
+    A `period` with no window cap of its own gets the one the API's default period carries, since
+    that is the period the API computes when a request sends none. A resource this does not know
+    gets the widest window cap and a warning, a name it has never seen being likelier a typo than
+    a new endpoint. `REFERENCE.md#windows-are-split-to-fit-the-window-cap`.
+    """
+    if (resource, period) in MAX_WINDOW_DAYS:
+        return MAX_WINDOW_DAYS[(resource, period)]
+    if not any(known == resource for known, _ in MAX_WINDOW_DAYS):
+        logger.warning(
+            "%r is not a resource this package loads, so its window cap is the widest one, %s days. "
+            "Check the spelling: too wide a window is refused as a bare 400 that explains nothing.",
+            resource,
+            _FALLBACK_MAX_WINDOW_DAYS,
+        )
+    return MAX_WINDOW_DAYS.get((resource, DEFAULT_PERIOD), _FALLBACK_MAX_WINDOW_DAYS)
 
 
 def windows_to_request(
@@ -69,7 +91,7 @@ def windows_to_request(
         span_end = _as_date_or_time(end) if end is not None else _today_or_now(span_start)
     except ValueError:
         return _unsplit_with_warning(resource, period, start, end, "one of them is not ISO 8601")
-    window_cap = timedelta(days=_max_window_days(resource, period))
+    window_cap = timedelta(days=max_window_days(resource, period))
     end_text = end if end is not None else _written_like(span_end, start)
 
     try:
@@ -106,15 +128,9 @@ def _unsplit_with_warning(resource: str, period: str | None, start: Any, end: An
         start,
         end,
         reason,
-        _max_window_days(resource, period),
+        max_window_days(resource, period),
     )
     return [(start, end)]
-
-
-def _max_window_days(resource: str, period: str | None) -> int:
-    if (resource, period) in MAX_WINDOW_DAYS:
-        return MAX_WINDOW_DAYS[(resource, period)]
-    return MAX_WINDOW_DAYS.get((resource, DEFAULT_PERIOD), _FALLBACK_MAX_WINDOW_DAYS)
 
 
 def _as_date_or_time(cursor: str) -> date:
