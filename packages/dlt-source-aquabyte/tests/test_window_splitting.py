@@ -12,6 +12,7 @@ import dlt
 import pytest
 
 from dlt_source_aquabyte import MAX_WINDOW_DAYS, aquabyte_source, max_window_days
+from dlt_source_aquabyte.windows import _WINDOWLESS_RESOURCES
 from tests.conftest import (
     SOURCE_CONFIG,
     Endpoint,
@@ -312,11 +313,23 @@ def test_a_period_a_resource_does_not_take_is_not_a_typo(caplog):
     assert caplog.text == ""
 
 
-def test_every_windowed_resource_has_a_published_cap():
+def test_a_resource_with_no_window_is_not_a_typo(caplog):
+    """`sites` is loaded, it just has no cursor. A consumer sizing chunks for a resource set asks
+    about it on every run, and a warning that fires on every run is one they learn to ignore —
+    which is how the typo it exists to catch gets through.
+    """
+    with caplog.at_level(logging.WARNING, logger="dlt_source_aquabyte.windows"):
+        assert max_window_days("sites", None) == 366, "takes no window, so must not narrow a chunk size"
+
+    assert caplog.text == ""
+
+
+def test_every_windowed_resource_has_a_published_cap_and_the_rest_are_known_to_have_none():
     """A consumer sizing its own chunks reads the window cap from the package, not from a failed run.
 
     So a resource that takes an `incremental_*` argument must have an entry, and every
-    entry must name such a resource.
+    entry must name such a resource. The resources with no such argument must be the ones
+    `max_window_days` knows as windowless, or it warns about a resource the source loads.
     """
     source = aquabyte_source(**SOURCE_CONFIG)
     windowed = {
@@ -327,3 +340,4 @@ def test_every_windowed_resource_has_a_published_cap():
 
     assert windowed, "the source must have windowed resources for this test to mean anything"
     assert {resource for resource, _ in MAX_WINDOW_DAYS} == windowed
+    assert set(source.resources) - windowed == _WINDOWLESS_RESOURCES

@@ -83,7 +83,7 @@ max_window_days("environmental", "15min")  # 7
 max_window_days("biomass")  # 366
 ```
 
-- **Read a window cap through `max_window_days`.** It resolves the way the source does, so your chunks are the width the source would split at. A resource loaded with no `period` gets the cap of the period the API computes when a request sends none, `D` — so `max_window_days("environmental")` is 366 rather than an error.
+- **Read a window cap through `max_window_days`.** It resolves the way the source does, so your chunks are the width the source would split at. A resource loaded with no `period` gets the cap of the period the API computes when a request sends none, `D` — so `max_window_days("environmental")` is 366 rather than an error. A resource with no window, `sites` or `environmental_latest`, takes no window at all, so its answer must not narrow a chunk size: it is the widest, 366, and quiet. A name the source does not load gets the same 366 with a warning.
 - **Write to `MAX_WINDOW_DAYS` to correct one.** The numbers are [measured, not documented by the API](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/specs/README.md#api-quirks-worth-knowing), so treat them as observations: if a window cap moves, assign the new value before your run instead of waiting for a release. The key is `(resource, period)`, with `None` for the resources that take no `period`, and `max_window_days` reads what you assign.
 - Send a window param through `params` and you own the window — it goes out as one request, unsplit.
 

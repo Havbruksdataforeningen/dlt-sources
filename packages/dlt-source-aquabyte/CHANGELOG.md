@@ -2,6 +2,12 @@
 
 All notable changes to `dlt-source-aquabyte`, written for people using the package. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); how to write an entry is in [`docs/release.md`](../../docs/release.md).
 
+## [Unreleased]
+
+### Fixed
+
+- **`max_window_days` no longer warns about `sites` and `environmental_latest`.** Both are resources the package loads; they have no cursor, so no window and no entry in `MAX_WINDOW_DAYS`, and 0.3.0 read that absence as a name it does not load. A consumer sizing chunks for a resource set heard the warning on every run that included `sites`. A resource with no window now answers the widest value quietly — it takes no window, so the answer must not narrow a chunk size — and the warning stays for names the source does not yield.
+
 ## [0.3.0] - 2026-08-31
 
 ### Added
