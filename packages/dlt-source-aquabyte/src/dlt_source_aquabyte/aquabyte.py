@@ -7,12 +7,14 @@ Each resource takes its endpoint's params in snake_case, plus a `params` escape 
 merged into the query string last. Bind them per resource or set them in config under
 `[sources.aquabyte.<resource>]`; see the README. The window params are the exception:
 they come from the resource's incremental, which is where a caller sets a window.
+
+Column hints live in `columns.py`, and the window arithmetic in `windows.py`.
 """
 
 from typing import Any
 
 import dlt
-from dlt.common.schema.typing import TScd2StrategyDict, TTableSchemaColumns
+from dlt.common.schema.typing import TScd2StrategyDict
 from dlt.sources.helpers.rest_client.auth import APIKeyAuth
 from dlt.sources.helpers.rest_client.client import RESTClient
 from dlt.sources.helpers.rest_client.paginators import (
@@ -20,137 +22,54 @@ from dlt.sources.helpers.rest_client.paginators import (
     SinglePagePaginator,
 )
 
+from dlt_source_aquabyte.columns import (
+    BIOMASS_COLUMNS,
+    BREATHING_INDEX_COLUMNS,
+    ENVIRONMENTAL_COLUMNS,
+    ENVIRONMENTAL_LATEST_COLUMNS,
+    HARVEST_REPORT_COLUMNS,
+    LICE_COUNT_COLUMNS,
+    SITE_COLUMNS,
+    SWIM_SPEED_COLUMNS,
+    WELFARE_SCORES_COLUMNS,
+)
+from dlt_source_aquabyte.windows import windows_to_request
+
 SCD2: TScd2StrategyDict = {"disposition": "merge", "strategy": "scd2"}
-"""Registry tables are versioned, never replaced: a row is retired, never deleted.
-
-Always paired with `merge_key="id"`, which scopes retirement to the ids a load carried,
-so reading one site does not retire the others. The trade-off, and how to take the other
-side, are in `REFERENCE.md`. https://dlthub.com/docs/general-usage/merge-loading#scd2-strategy
-"""
-
-
-# Column hints, one mapping per resource: the API's own field names, typed per
-# `specs/openapi.json` and checked against it by `tests/test_mock_fidelity.py`.
-#
-# They buy one thing — a column keeps its type when the first page is all nulls, or the
-# field is missing entirely. A field with no entry still lands, typed from the data, and
-# nested fields have none, so `max_table_nesting` alone decides their shape.
-# `nullable: False` marks the fields the spec requires and forbids to be null.
-
-SITE_COLUMNS: TTableSchemaColumns = {
-    "id": {"data_type": "text", "nullable": False},
-    "name": {"data_type": "text", "nullable": False},
-    "governmentSiteNumber": {"data_type": "bigint"},
-    "external_site_id": {"data_type": "text"},
-}
-
-ENVIRONMENTAL_COLUMNS: TTableSchemaColumns = {
-    "penId": {"data_type": "text", "nullable": False},
-    "fromTime": {"data_type": "text", "nullable": False},
-    "toTime": {"data_type": "text", "nullable": False},
-    "temperatureAvg": {"data_type": "double"},
-    "cameraDepthAvg": {"data_type": "double"},
-    "cameraDepthMin": {"data_type": "double"},
-    "cameraDepthMax": {"data_type": "double"},
-    "oxygenPct": {"data_type": "double"},
-    "salinity": {"data_type": "double"},
-    "fishDensity": {"data_type": "double"},
-}
-
-ENVIRONMENTAL_LATEST_COLUMNS: TTableSchemaColumns = {
-    "penId": {"data_type": "text"},
-    "time": {"data_type": "text", "nullable": False},
-    "temperature": {"data_type": "double"},
-    "cameraDepth": {"data_type": "double"},
-    "oxygenPct": {"data_type": "double"},
-    "salinity": {"data_type": "double"},
-}
-
-BIOMASS_COLUMNS: TTableSchemaColumns = {
-    "penId": {"data_type": "text", "nullable": False},
-    "date": {"data_type": "text", "nullable": False},
-    "sampleSize": {"data_type": "double"},
-    "avgWeight": {"data_type": "double"},
-    "kFactor": {"data_type": "double"},
-    "cv": {"data_type": "double"},
-}
-
-HARVEST_REPORT_COLUMNS: TTableSchemaColumns = {
-    "penId": {"data_type": "text", "nullable": False},
-    "mainReport": {"data_type": "bool", "nullable": False},
-    "asOfDate": {"data_type": "text", "nullable": False},
-    "lastFeedingDate": {"data_type": "text", "nullable": False},
-    "slaughterStartDate": {"data_type": "text", "nullable": False},
-    "slaughterEndDate": {"data_type": "text", "nullable": False},
-    "temperature": {"data_type": "double", "nullable": False},
-    "lossFactor": {"data_type": "double", "nullable": False},
-    "packingMethod": {"data_type": "text"},
-    "fishType": {"data_type": "text"},
-    "measurementCount": {"data_type": "bigint", "nullable": False},
-    "coefficientOfVariation": {"data_type": "double", "nullable": False},
-    "avgPackedWeightGrams": {"data_type": "double", "nullable": False},
-    "avgRoundWeightGrams": {"data_type": "double", "nullable": False},
-    "superiorRate": {"data_type": "double", "nullable": False},
-    "createdAt": {"data_type": "text", "nullable": False},
-}
-
-LICE_COUNT_COLUMNS: TTableSchemaColumns = {
-    "penId": {"data_type": "text", "nullable": False},
-    "date": {"data_type": "text", "nullable": False},
-    "sampleSize": {"data_type": "double", "nullable": False},
-    "adultFemale": {"data_type": "double"},
-    "adultFemaleConverted": {"data_type": "double"},
-    "mobile": {"data_type": "double"},
-    "mobileConverted": {"data_type": "double"},
-    "caligus": {"data_type": "double"},
-}
-
-SWIM_SPEED_COLUMNS: TTableSchemaColumns = {
-    "penId": {"data_type": "text", "nullable": False},
-    "fromTime": {"data_type": "text", "nullable": False},
-    "toTime": {"data_type": "text", "nullable": False},
-    "swimSpeedsampleSize": {"data_type": "double", "nullable": False},
-    "swimSpeed": {"data_type": "double"},
-    "swimTiltsampleSize": {"data_type": "double", "nullable": False},
-    "swimTilt": {"data_type": "double"},
-}
-
-BREATHING_INDEX_COLUMNS: TTableSchemaColumns = {
-    "penId": {"data_type": "text", "nullable": False},
-    "fromTime": {"data_type": "text", "nullable": False},
-    "toTime": {"data_type": "text", "nullable": False},
-    "sampleSize": {"data_type": "double", "nullable": False},
-    "breathingIndex": {"data_type": "double"},
-}
-
-WELFARE_SCORES_COLUMNS: TTableSchemaColumns = {
-    "penId": {"data_type": "text", "nullable": False},
-    "date": {"data_type": "text", "nullable": False},
-}
+"""Registry tables are versioned, never replaced. Why, and how to take the other side:
+`REFERENCE.md#the-site-registry-is-versioned`."""
 
 
 def _query(extra: dict[str, Any] | None = None, **named: Any) -> dict[str, Any]:
-    """Drop unset named params, then merge the caller's passthrough last so it wins."""
     params = {key: value for key, value in named.items() if value is not None}
     if extra:
         params.update(extra)
     return params
 
 
-def _windowed_query(resource: str, start_param: str, extra: dict[str, Any] | None, **named: Any) -> dict[str, Any]:
-    """`_query`, plus the one guarantee the windowed resources keep: a window start is sent.
+def _windowed_queries(
+    resource: str,
+    start_param: str,
+    incremental: dlt.sources.incremental[str] | None,
+    params: dict[str, Any] | None,
+    **named: Any,
+) -> list[dict[str, Any]]:
+    """The query params of every request a windowed resource makes, oldest window first.
 
-    Without one the API serves its own default window, which nothing here chose.
+    A window start is the one thing a request may not go out without: the API would answer
+    with a default window of its own, which nothing here chose.
     """
-    query = _query(extra, **named)
-    if query.get(start_param) is None:
+    end_param = start_param.replace("from", "to")
+    spans = windows_to_request(resource, start_param, incremental, params, named.get("period"))
+    queries = [_query(params, **named, **{start_param: start, end_param: end}) for start, end in spans]
+    if any(query.get(start_param) is None for query in queries):
         config_key = "initial_time" if start_param == "fromTime" else "initial_date"
         raise ValueError(
             f"{resource}: the request carries no {start_param}. Set {config_key} under [sources.aquabyte] "
             f"to start the cursor, bind a window on the resource's incremental_* argument to backfill "
             f"(see REFERENCE.md), or send {start_param} yourself through params."
         )
-    return query
+    return queries
 
 
 @dlt.source(max_table_nesting=0)
@@ -199,15 +118,10 @@ def aquabyte_source(
         ),
     ):
         """Environmental readings from `GET /environmental`."""
-        start = incremental_from_time.last_value if incremental_from_time is not None else None
-        end = incremental_from_time.end_value if incremental_from_time is not None else None
-        yield from client.paginate(
-            "/environmental",
-            params=_windowed_query(
-                "environmental", "fromTime", params, penId=pen_id, fromTime=start, toTime=end, period=period
-            ),
-            data_selector="data",
-        )
+        for query in _windowed_queries(
+            "environmental", "fromTime", incremental_from_time, params, penId=pen_id, period=period
+        ):
+            yield from client.paginate("/environmental", params=query, data_selector="data")
 
     @dlt.resource(write_disposition="replace", columns=ENVIRONMENTAL_LATEST_COLUMNS)
     def environmental_latest(pen_id: str = "all", params: dict[str, Any] | None = None):
@@ -229,15 +143,10 @@ def aquabyte_source(
         ),
     ):
         """Daily biomass from `GET /biomass`."""
-        start = incremental_date.last_value if incremental_date is not None else None
-        end = incremental_date.end_value if incremental_date is not None else None
-        yield from client.paginate(
-            "/biomass",
-            params=_windowed_query(
-                "biomass", "fromDate", params, penId=pen_id, fromDate=start, toDate=end, bucketSize=bucket_size
-            ),
-            data_selector="biomass",
-        )
+        for query in _windowed_queries(
+            "biomass", "fromDate", incremental_date, params, penId=pen_id, bucketSize=bucket_size
+        ):
+            yield from client.paginate("/biomass", params=query, data_selector="biomass")
 
     @dlt.resource(
         write_disposition="merge",
@@ -252,14 +161,15 @@ def aquabyte_source(
         ),
     ):
         """Harvest reports from `GET /biomass/harvestReport`."""
-        start = incremental_slaughter_start_date.last_value if incremental_slaughter_start_date is not None else None
-        end = incremental_slaughter_start_date.end_value if incremental_slaughter_start_date is not None else None
-        yield from client.paginate(
-            "/biomass/harvestReport",
-            params=_windowed_query("harvest_report", "fromDate", params, penId=pen_id, fromDate=start, toDate=end),
-            data_selector="reports",
-            paginator=SinglePagePaginator(),
-        )
+        for query in _windowed_queries(
+            "harvest_report", "fromDate", incremental_slaughter_start_date, params, penId=pen_id
+        ):
+            yield from client.paginate(
+                "/biomass/harvestReport",
+                params=query,
+                data_selector="reports",
+                paginator=SinglePagePaginator(),
+            )
 
     @dlt.resource(write_disposition="merge", primary_key=["penId", "date"], columns=LICE_COUNT_COLUMNS)
     def lice_count(
@@ -270,13 +180,8 @@ def aquabyte_source(
         ),
     ):
         """Lice counts from `GET /liceCount`."""
-        start = incremental_date.last_value if incremental_date is not None else None
-        end = incremental_date.end_value if incremental_date is not None else None
-        yield from client.paginate(
-            "/liceCount",
-            params=_windowed_query("lice_count", "fromDate", params, penId=pen_id, fromDate=start, toDate=end),
-            data_selector="liceCount",
-        )
+        for query in _windowed_queries("lice_count", "fromDate", incremental_date, params, penId=pen_id):
+            yield from client.paginate("/liceCount", params=query, data_selector="liceCount")
 
     @dlt.resource(write_disposition="merge", primary_key=["penId", "fromTime", "toTime"], columns=SWIM_SPEED_COLUMNS)
     def behaviour_swim_speed(
@@ -288,15 +193,10 @@ def aquabyte_source(
         ),
     ):
         """Swim speed and tilt from `GET /behaviour/swimSpeed`."""
-        start = incremental_from_time.last_value if incremental_from_time is not None else None
-        end = incremental_from_time.end_value if incremental_from_time is not None else None
-        yield from client.paginate(
-            "/behaviour/swimSpeed",
-            params=_windowed_query(
-                "behaviour_swim_speed", "fromTime", params, penId=pen_id, fromTime=start, toTime=end, period=period
-            ),
-            data_selector="swimSpeed",
-        )
+        for query in _windowed_queries(
+            "behaviour_swim_speed", "fromTime", incremental_from_time, params, penId=pen_id, period=period
+        ):
+            yield from client.paginate("/behaviour/swimSpeed", params=query, data_selector="swimSpeed")
 
     @dlt.resource(write_disposition="merge", primary_key=["penId", "fromTime"], columns=BREATHING_INDEX_COLUMNS)
     def behaviour_breathing_index(
@@ -307,15 +207,10 @@ def aquabyte_source(
         ),
     ):
         """Breathing index from `GET /behaviour/breathingIndex`, which documents no `period`."""
-        start = incremental_from_time.last_value if incremental_from_time is not None else None
-        end = incremental_from_time.end_value if incremental_from_time is not None else None
-        yield from client.paginate(
-            "/behaviour/breathingIndex",
-            params=_windowed_query(
-                "behaviour_breathing_index", "fromTime", params, penId=pen_id, fromTime=start, toTime=end
-            ),
-            data_selector="breathingIndex",
-        )
+        for query in _windowed_queries(
+            "behaviour_breathing_index", "fromTime", incremental_from_time, params, penId=pen_id
+        ):
+            yield from client.paginate("/behaviour/breathingIndex", params=query, data_selector="breathingIndex")
 
     @dlt.resource(write_disposition="merge", primary_key=["penId", "date"], columns=WELFARE_SCORES_COLUMNS)
     def welfare_scores(
@@ -326,13 +221,8 @@ def aquabyte_source(
         ),
     ):
         """Welfare scores from `GET /welfareScores` — one row per pen and date, categories nested."""
-        start = incremental_date.last_value if incremental_date is not None else None
-        end = incremental_date.end_value if incremental_date is not None else None
-        yield from client.paginate(
-            "/welfareScores",
-            params=_windowed_query("welfare_scores", "fromDate", params, penId=pen_id, fromDate=start, toDate=end),
-            data_selector="welfareScores",
-        )
+        for query in _windowed_queries("welfare_scores", "fromDate", incremental_date, params, penId=pen_id):
+            yield from client.paginate("/welfareScores", params=query, data_selector="welfareScores")
 
     return (
         sites,

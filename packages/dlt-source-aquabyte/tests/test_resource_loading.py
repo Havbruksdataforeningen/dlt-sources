@@ -1,11 +1,11 @@
 """Behaviour every data resource shares, asserted once per endpoint.
 
 These are the mechanics the source promises for all of them — the pen, the window params
-the incremental drives, the envelope key, the paginator, and the optional params.
+the incremental drives, the envelope key, the paginator, and the optional params. How a
+window too wide for the API becomes several requests is in `test_window_splitting.py`.
 Behaviour peculiar to one resource lives in that resource's own test module.
 """
 
-from dataclasses import dataclass
 from typing import Any
 
 import dlt
@@ -15,101 +15,17 @@ from dlt.sources.helpers.rest_client.paginators import SinglePagePaginator
 from dlt_source_aquabyte import aquabyte_source
 from tests.conftest import (
     ACTIVE_PEN_IDS,
-    DATE_WINDOW,
+    ENDPOINTS,
     SOURCE_CONFIG,
-    TIME_WINDOW,
+    Endpoint,
     assert_pen_ids,
     assert_row_count,
     calls_to,
     load_mock,
     params_sent,
-    resource_signature,
     run_source,
     serve,
 )
-
-
-@dataclass(frozen=True)
-class Endpoint:
-    """A data resource and the endpoint it reads."""
-
-    resource: str
-    path: str
-    mock_file: str
-    selector: str
-    """The API's envelope key, which is also dlt's `data_selector`."""
-    window_param: str
-    optional_param: tuple[str, str, Any] | None = None
-    """(resource argument, the query param it becomes, a value to send)."""
-    single_page: bool = False
-
-    @property
-    def records(self) -> list[dict]:
-        return load_mock(self.mock_file)[self.selector]
-
-    @property
-    def window(self) -> tuple[str, str]:
-        """A backfill window, as the `initial_value` and `end_value` to bind."""
-        return DATE_WINDOW if self.window_param == "fromDate" else TIME_WINDOW
-
-    @property
-    def end_param(self) -> str:
-        return self.window_param.replace("from", "to")
-
-    @property
-    def config_key(self) -> str:
-        return "initial_date" if self.window_param == "fromDate" else "initial_time"
-
-    @property
-    def configured_start(self) -> str:
-        return SOURCE_CONFIG[self.config_key]
-
-    @property
-    def incremental_argument(self) -> str:
-        """The `incremental_*` argument a window is bound on, named after the cursor field."""
-        signature = resource_signature(aquabyte_source(**SOURCE_CONFIG), self.resource)
-        return next(name for name in signature.parameters if name.startswith("incremental_"))
-
-
-ENDPOINTS = [
-    Endpoint(
-        "environmental",
-        "/environmental",
-        "environmental.json",
-        "data",
-        "fromTime",
-        optional_param=("period", "period", "15min"),
-    ),
-    Endpoint(
-        "biomass",
-        "/biomass",
-        "biomass.json",
-        "biomass",
-        "fromDate",
-        optional_param=("bucket_size", "bucketSize", 500),
-    ),
-    Endpoint(
-        "harvest_report",
-        "/biomass/harvestReport",
-        "harvest_report.json",
-        "reports",
-        "fromDate",
-        single_page=True,
-    ),
-    Endpoint("lice_count", "/liceCount", "lice_count.json", "liceCount", "fromDate"),
-    Endpoint(
-        "behaviour_swim_speed",
-        "/behaviour/swimSpeed",
-        "swim_speed.json",
-        "swimSpeed",
-        "fromTime",
-        optional_param=("period", "period", "h"),
-    ),
-    Endpoint(
-        "behaviour_breathing_index", "/behaviour/breathingIndex", "breathing_index.json", "breathingIndex", "fromTime"
-    ),
-    Endpoint("welfare_scores", "/welfareScores", "welfare_scores.json", "welfareScores", "fromDate"),
-]
 
 WITH_OPTIONAL = [endpoint for endpoint in ENDPOINTS if endpoint.optional_param]
 
@@ -133,21 +49,29 @@ def test_resource_loads_the_records_of_the_pen_it_was_bound_to(mock_rest_client,
     assert_row_count(pipeline, endpoint.resource, len(endpoint.records))
     assert_pen_ids(pipeline, endpoint.resource, ["pen-001"])
 
-    (call,) = calls_to(mock_rest_client, endpoint.path)
-    assert call["data_selector"] == endpoint.selector
-    # Only a single-page endpoint names a paginator; the rest take the client's own.
-    assert isinstance(call.get("paginator"), SinglePagePaginator) is endpoint.single_page
+    calls = calls_to(mock_rest_client, endpoint.path)
+    assert calls, "the resource must reach its endpoint"
+    for call in calls:
+        assert call["data_selector"] == endpoint.selector
+        # Only a single-page endpoint names a paginator; the rest take the client's own.
+        assert isinstance(call.get("paginator"), SinglePagePaginator) is endpoint.single_page
 
 
 @pytest.mark.parametrize("endpoint", ENDPOINTS, ids=lambda endpoint: endpoint.resource)
-def test_resource_defaults_to_every_pen_in_one_request(mock_rest_client, endpoint):
-    """`penId=all` is the default — one request covering every pen, not one request per pen."""
+def test_resource_defaults_to_every_pen(mock_rest_client, endpoint):
+    """`penId=all` is the default: every request covers every pen, never one request per pen.
+
+    A run makes one request per window rather than exactly one — see
+    `test_window_splitting.py` — but the pen is not what decides how many.
+    """
     pipeline, load_info = _run(mock_rest_client, endpoint, "test_all_pens")
 
     assert load_info is not None
     assert_row_count(pipeline, endpoint.resource, len(endpoint.records) * len(ACTIVE_PEN_IDS))
     assert_pen_ids(pipeline, endpoint.resource, ACTIVE_PEN_IDS)
-    assert [sent["penId"] for sent in params_sent(mock_rest_client, endpoint.path)] == ["all"]
+    sent = params_sent(mock_rest_client, endpoint.path)
+    assert sent, "the resource must reach its endpoint"
+    assert {one["penId"] for one in sent} == {"all"}
 
 
 @pytest.mark.parametrize("endpoint", ENDPOINTS, ids=lambda endpoint: endpoint.resource)
@@ -163,13 +87,13 @@ def test_resource_always_sends_a_window_start(mock_rest_client, endpoint):
 def test_resource_requests_the_window_a_backfill_incremental_carries(mock_rest_client, endpoint):
     """A bound backfill incremental drives both window params — start from its
     `initial_value`, end from its `end_value` — so the API is asked for exactly the
-    rows dlt will keep."""
+    rows dlt will keep. A window inside the window cap is one request."""
     start, end = endpoint.window
     window = dlt.sources.incremental(initial_value=start, end_value=end)
     _, load_info = _run(mock_rest_client, endpoint, "test_backfill", **{endpoint.incremental_argument: window})
 
     assert load_info is not None
-    sent = params_sent(mock_rest_client, endpoint.path)[0]
+    (sent,) = params_sent(mock_rest_client, endpoint.path)
     assert sent[endpoint.window_param] == start
     assert sent[endpoint.end_param] == end
 

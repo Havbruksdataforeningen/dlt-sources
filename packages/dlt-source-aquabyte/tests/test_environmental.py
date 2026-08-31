@@ -18,7 +18,7 @@ DATA = load_mock("environmental.json")["data"]
 
 
 def test_environmental_pagination_with_next_token(mock_rest_client):
-    """Every page the cursor paginator yields is loaded, not just the first."""
+    """Every page `paginate` yields is loaded, not just the first."""
     page1 = make_per_pen_data(DATA[:1], "pen-001")
     page2 = make_per_pen_data(DATA[1:], "pen-001")
 

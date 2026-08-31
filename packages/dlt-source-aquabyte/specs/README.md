@@ -36,10 +36,12 @@ The API does a few things `openapi.json` does not describe. The source does not 
 them: records land as sent, so these reach whoever reads the data. The ones that change how
 you read it:
 
-- **`behaviour_swim_speed` and `behaviour_breathing_index` return timestamps with no time
-  zone** (`2026-01-10T00:00:00`), where `environmental` returns the same kind of field with
-  a `Z`. The source does not rewrite them — they land as sent. Treat them as UTC, which is
-  what the zoned endpoints use.
+- ~~**`behaviour_swim_speed` and `behaviour_breathing_index` return timestamps with no time
+  zone**~~ — **fixed by Aquabyte, verified live 2026-08-31.** Both now send `Z`
+  (`2026-08-30T00:00:00Z`), matching `environmental`. Kept here because consumers who
+  normalised around the old form should know it is gone, and because a stored cursor written
+  before the fix is a zoneless string sitting next to zoned ones. Drop this entry once no
+  live table still holds the old spelling.
 - **`lice_count` omits its five count fields entirely on a zero-sample record**, rather than
   sending nulls. Those columns are typed by the source's column hints and land as `NULL`, so `sampleSize = 0`
   is the condition to filter on, not `adultFemale IS NULL`.
@@ -50,6 +52,40 @@ you read it:
   two buckets; a pen averaging 4.7 kg at `bucketSize=250` returns thirty-seven.
   `distribution` holds shares summing to 1, one per edge, and any bucket in the range — the
   first included — can be `0`. Both arrays can be empty. (2026-08-20.)
+
+One the source does paper over, because no consumer could size a window without knowing it:
+
+- **A window has a maximum width, per endpoint and per grain.** A wider request is refused
+  (`400 ... is larger than N days`), not truncated — and an open-ended window is measured to
+  today, so this hits daily loads as well as backfills. The finer the grain, the shorter the
+  window cap. Nothing about it is in `openapi.json`.
+
+  | Endpoint | `period` | Max window |
+  |---|---|---|
+  | `/environmental` | `15min` | **7 days** |
+  | `/environmental` | `h` | **31 days** |
+  | `/behaviour/swimSpeed` | `h` | **31 days** |
+  | every endpoint at `D` or omitted | | 366 days |
+
+  **The window cap is on `to - from`, not on the dates covered.** So a legal `toDate` window
+  covers one more calendar date than the cap allows days, and a `toTime` window covers
+  exactly as many, `toTime` being exclusive. All ten (endpoint, grain) pairs bisected live on 2026-08-28: N returns
+  `200` and N+1 returns `400`, every time. The source splits its own windows to fit.
+
+  Two things for anyone re-probing this. The error text differs by endpoint — `Requested
+  **date** range` on the date endpoints, `Requested **time** range` on the `fromTime` ones —
+  so parse both if you read N out of it. And send a single `penId`: the window cap is checked before
+  any data is fetched, so a refusal is instant, while a legal 366-day `/environmental` window
+  at `penId=all` does not return inside 180 s. The pen does not change the verdict.
+
+One the source leaves to you, because only you know how far back you meant to go:
+
+- **`/welfareScores` refuses any window starting before 2024-04-20**, with
+  `400 Welfare data is not available for dates before April 20, 2024` — a refusal, not an
+  empty result. So an `initial_date` older than that fails `welfare_scores` on every run,
+  while the six other resources load normally, and no amount of window splitting helps: the
+  floor is on the start date itself. Set the resource's own `incremental_date` no earlier
+  than the floor. (2026-08-20.)
 
 And one that bites when you are debugging rather than reading:
 
@@ -67,6 +103,10 @@ And one that bites when you are debugging rather than reading:
   on, not ignored as an unknown name would be. The grain is therefore fixed, which is why
   the resource is keyed on `penId` + `fromTime` without `toTime`. Reported upstream in #29.
   (2026-08-20.)
+
+- **dlt hides the `detail` that says which limit you hit.** `http_show_error_body` defaults
+  to `False`, so a refusal reaches your logs as `400 Client Error: Bad Request` and nothing
+  more. Set `RUNTIME__HTTP_SHOW_ERROR_BODY=true` before debugging against this API.
 
 ### Identifiers
 

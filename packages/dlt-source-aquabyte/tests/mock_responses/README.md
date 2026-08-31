@@ -11,9 +11,9 @@ government site number or measurement was carried across.
 ## Before you "fix" an odd-looking shape
 
 Several fixtures carry shapes that look like mistakes and are not: a record missing
-fields its neighbours have, a timestamp without a time zone, a nested key that is absent
-rather than null. They are what the API does, and a fixture that smooths one over makes
-the whole offline suite blind to it.
+fields its neighbours have, an array that stops short rather than padding to a fixed
+length, a nested key that is absent rather than null. They are what the API does, and a
+fixture that smooths one over makes the whole offline suite blind to it.
 
 Which shapes those are is deliberately **not** listed here, so that the API's behaviour
 has one place to be updated rather than two: they are in

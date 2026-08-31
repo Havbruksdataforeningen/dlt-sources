@@ -7,6 +7,7 @@ import os
 import shutil
 import time
 from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
 from unittest.mock import MagicMock, patch
@@ -15,6 +16,8 @@ import dlt
 import pytest
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.specs.pluggable_run_context import PluggableRunContext
+
+from dlt_source_aquabyte import aquabyte_source
 
 MOCK_DIR = Path(__file__).parent / "mock_responses"
 
@@ -70,7 +73,6 @@ def _pipeline_state_dirs() -> list[Path]:
 
 
 def _touched_since(path: Path, cutoff: float) -> bool:
-    """True if `path`, or anything beneath it, was written at or after `cutoff`."""
     candidates = [path, *path.rglob("*")] if path.is_dir() else [path]
     return any(p.stat().st_mtime >= cutoff for p in candidates if p.exists())
 
@@ -96,12 +98,10 @@ def pytest_sessionfinish(session, exitstatus):
 
 
 def load_mock(filename: str) -> dict:
-    """Load a JSON mock response file."""
     return json.loads((MOCK_DIR / filename).read_text())
 
 
 def make_per_pen_data(template: list[dict], pen_id: str) -> list[dict]:
-    """Clone template records and stamp them with the given pen_id."""
     return [{**copy.deepcopy(r), "penId": pen_id} for r in template]
 
 
@@ -126,7 +126,6 @@ def without_configured_starts(tmp_path, monkeypatch):
 
 @pytest.fixture
 def mock_rest_client():
-    """Patch RESTClient and yield the mock instance."""
     with patch("dlt_source_aquabyte.aquabyte.RESTClient") as mock_cls:
         mock_client = MagicMock()
         mock_cls.return_value = mock_client
@@ -168,12 +167,10 @@ def resource_signature(source: Any, resource_name: str) -> inspect.Signature:
 
 
 def calls_to(mock_client: Any, path: str) -> list[dict[str, Any]]:
-    """Every `paginate` call made against `path`, as kwargs dicts."""
     return [call.kwargs for call in mock_client.paginate.call_args_list if call.args and call.args[0] == path]
 
 
 def params_sent(mock_client: Any, path: str) -> list[dict[str, Any]]:
-    """The query params of every `paginate` call made against `path`."""
     return [kwargs.get("params", {}) for kwargs in calls_to(mock_client, path)]
 
 
@@ -192,14 +189,12 @@ def run_source(
     source: Any,
     resources: list[str],
 ) -> tuple[Any, Any]:
-    """Run a dlt source into DuckDB and return (pipeline, load_info)."""
     pipeline = make_pipeline(pipeline_name)
     load_info = pipeline.run(source.with_resources(*resources))
     return pipeline, load_info
 
 
 def query(pipeline: Any, sql: str) -> list[tuple]:
-    """Run a SQL query against the pipeline's destination and return its rows."""
     with pipeline.sql_client() as client:
         result = client.execute_sql(sql)
         assert result is not None
@@ -207,17 +202,104 @@ def query(pipeline: Any, sql: str) -> list[tuple]:
 
 
 def assert_row_count(pipeline: Any, table: str, expected: int) -> None:
-    """Assert the row count of a table matches expected."""
     rows = query(pipeline, f"SELECT COUNT(*) FROM {table}")
     assert rows[0][0] == expected, f"Expected {expected} rows in {table}, got {rows[0][0]}"
 
 
 def assert_pen_ids(pipeline: Any, table: str, expected_pens: list[str], column: str = "pen_id") -> None:
-    """Assert the distinct pen IDs in a table match expected."""
     rows = query(pipeline, f"SELECT DISTINCT {column} FROM {table} ORDER BY {column}")
     assert sorted(row[0] for row in rows) == sorted(expected_pens)
 
 
 def assert_all_active_pens(pipeline: Any, table: str) -> None:
-    """Assert all 4 active pens have data in a table."""
     assert_pen_ids(pipeline, table, ACTIVE_PEN_IDS)
+
+
+# --- Endpoints ----------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class Endpoint:
+    """A data resource and the endpoint it reads."""
+
+    resource: str
+    path: str
+    mock_file: str
+    selector: str
+    """The API's envelope key, which is also dlt's `data_selector`."""
+    window_param: str
+    optional_param: tuple[str, str, Any] | None = None
+    """(resource argument, the query param it becomes, a value to send)."""
+    single_page: bool = False
+
+    @property
+    def records(self) -> list[dict]:
+        return load_mock(self.mock_file)[self.selector]
+
+    @property
+    def window(self) -> tuple[str, str]:
+        """A backfill window, as the `initial_value` and `end_value` to bind."""
+        return DATE_WINDOW if self.window_param == "fromDate" else TIME_WINDOW
+
+    @property
+    def end_param(self) -> str:
+        return self.window_param.replace("from", "to")
+
+    @property
+    def config_key(self) -> str:
+        return "initial_date" if self.window_param == "fromDate" else "initial_time"
+
+    @property
+    def configured_start(self) -> str:
+        return SOURCE_CONFIG[self.config_key]
+
+    @property
+    def incremental_argument(self) -> str:
+        """The `incremental_*` argument a window is bound on, named after the cursor field."""
+        signature = resource_signature(aquabyte_source(**SOURCE_CONFIG), self.resource)
+        return next(name for name in signature.parameters if name.startswith("incremental_"))
+
+
+ENDPOINTS = [
+    Endpoint(
+        "environmental",
+        "/environmental",
+        "environmental.json",
+        "data",
+        "fromTime",
+        optional_param=("period", "period", "15min"),
+    ),
+    Endpoint(
+        "biomass",
+        "/biomass",
+        "biomass.json",
+        "biomass",
+        "fromDate",
+        optional_param=("bucket_size", "bucketSize", 500),
+    ),
+    Endpoint(
+        "harvest_report",
+        "/biomass/harvestReport",
+        "harvest_report.json",
+        "reports",
+        "fromDate",
+        single_page=True,
+    ),
+    Endpoint("lice_count", "/liceCount", "lice_count.json", "liceCount", "fromDate"),
+    Endpoint(
+        "behaviour_swim_speed",
+        "/behaviour/swimSpeed",
+        "swim_speed.json",
+        "swimSpeed",
+        "fromTime",
+        optional_param=("period", "period", "h"),
+    ),
+    Endpoint(
+        "behaviour_breathing_index", "/behaviour/breathingIndex", "breathing_index.json", "breathingIndex", "fromTime"
+    ),
+    Endpoint("welfare_scores", "/welfareScores", "welfare_scores.json", "welfareScores", "fromDate"),
+]
+
+
+def endpoint(resource: str) -> Endpoint:
+    return next(one for one in ENDPOINTS if one.resource == resource)
