@@ -4,7 +4,7 @@ How to add a new dlt source package to this repo, from copying the template fold
 
 `packages/dlt-source-aquabyte/` is the template. There is no CI to write and no repository to create: the workspace globs `packages/*` and every CI job loops over it, so a new folder is picked up on the next push.
 
-Throughout, `<sourcename>` is your supplier in lowercase — `aquabyte`, `fishtalk`. A supplier with several separate APIs gets one package per API, with the API in the name: `barentswatch-fishhealth`, not `barentswatch`. Two spellings of it matter and they are not interchangeable:
+Throughout, `<sourcename>` is your supplier in lowercase — `aquabyte`, `fishtalk`, `barentswatch`. **A supplier with several APIs gets one package, not one per API**: each API becomes its own module under `src/`, named after it, exporting its own source and carrying its own OpenAPI document in `specs/`. They belong together because what a source package actually owns — the OAuth client, the base URL, the retry and rate-limiting discipline, the logging — is the supplier's, not the endpoint's; `dlt-source-barentswatch` holds `fishhealth.py` for that reason. Splitting is for a genuinely separate supplier, and the pipeline decides which sources it selects. Two spellings of the name matter and they are not interchangeable:
 
 | | Looks like | Used for |
 |---|---|---|
@@ -43,8 +43,8 @@ Only the last one raises an error. The other three are wrong quietly, so check t
 
 | Path | What to do |
 |---|---|
-| `src/`, `tests/`, `examples/` | Rewrite. Tests must pass with no credentials — CI has none |
-| `specs/` | Replace `openapi.json` with your supplier's spec, or drop the folder if they publish none |
+| `src/`, `tests/`, `examples/` | Rewrite. One module per API, named after it, each exporting its own source. Tests must pass with no credentials — CI has none |
+| `specs/` | Replace `openapi.json` with your supplier's spec, one file per API named after it (`fishhealth.json`), or drop the folder if they publish none |
 | `.dlt/config.toml.example`, `.dlt/secrets.toml.example` | Rewrite for your config keys. These two are the only `.dlt/` files that belong in git; the real `config.toml` and `secrets.toml` are gitignored |
 | `README.md` | Rewrite, keeping the `## Compatibility` table — it is how a consumer knows which API version the package targets |
 | `CHANGELOG.md` | Empty it down to an `## [Unreleased]` heading |

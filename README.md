@@ -9,7 +9,7 @@ Shared [dlt](https://dlthub.com/) source packages for Havbruksdataforeningen mem
 | Source package | Description |
 |---|---|
 | [`dlt-source-aquabyte`](packages/dlt-source-aquabyte/) | Aquabyte — camera-based monitoring of farmed salmon (sites, pens, biomass, lice, welfare, environment) |
-| [`dlt-source-barentswatch-fishhealth`](packages/dlt-source-barentswatch-fishhealth/) | BarentsWatch Fish Health API — the weekly lice, treatment, disease and licence report per aquaculture locality, in detail or summarised across a production area, as reported to the Norwegian Food Safety Authority |
+| [`dlt-source-barentswatch`](packages/dlt-source-barentswatch/) | BarentsWatch — one source per API, `fishhealth_source` so far: the weekly lice, treatment, disease and licence report per aquaculture locality, in detail or summarised across a production area, as reported to the Norwegian Food Safety Authority |
 
 ## Layout
 
@@ -24,7 +24,7 @@ dlt-sources/
     │   ├── src/dlt_source_aquabyte/  ← what a consumer installs
     │   ├── tests/
     │   └── examples/
-    └── dlt-source-barentswatch-fishhealth/
+    └── dlt-source-barentswatch/
         └── … the same layout
 ```
 

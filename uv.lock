@@ -11,7 +11,7 @@ resolution-markers = [
 [manifest]
 members = [
     "dlt-source-aquabyte",
-    "dlt-source-barentswatch-fishhealth",
+    "dlt-source-barentswatch",
 ]
 
 [[package]]
@@ -393,9 +393,9 @@ dev = [
 ]
 
 [[package]]
-name = "dlt-source-barentswatch-fishhealth"
+name = "dlt-source-barentswatch"
 version = "0.1.0"
-source = { editable = "packages/dlt-source-barentswatch-fishhealth" }
+source = { editable = "packages/dlt-source-barentswatch" }
 dependencies = [
     { name = "dlt" },
 ]

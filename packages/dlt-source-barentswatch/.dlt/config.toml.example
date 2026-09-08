@@ -1,0 +1,14 @@
+# BarentsWatch — dlt pipeline configuration
+# Copy this file to config.toml and adjust as needed:
+#   cp .dlt/config.toml.example .dlt/config.toml
+#
+# Nothing in here is required: the APIs share one server and one token endpoint, and both
+# are fixed in the package. CI never reads this file: the default test run is offline and
+# needs no credentials. Both files are yours to create locally.
+
+# A resource argument can be set here instead of bound in code, under the resource's own
+# section. The summary's request body — `LocalityReportQueryV2` in specs/fishhealth.json — is
+# one such argument; a week range is not, it is bound in code (see the README).
+
+# [sources.fishhealth.locality_week_summary.body]
+# productionArea = 7
