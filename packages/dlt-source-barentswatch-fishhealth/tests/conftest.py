@@ -1,7 +1,7 @@
 """Shared fixtures and helpers for BarentsWatch Fish Health pipeline tests.
 
 The offline suite talks HTTP to a `requests_mock` server that answers the token endpoint and
-whichever of the two API routes a test registers. Nothing inside the package is patched, so
+whichever of the three API routes a test registers. Nothing inside the package is patched, so
 the OAuth2 flow, dlt's retry session and the source's own status handling all run for real.
 """
 
@@ -26,6 +26,7 @@ from dlt_source_barentswatch_fishhealth.barentswatch_fishhealth import (
     BASE_URL,
     LOCALITIES_PATH,
     LOCALITY_WEEK_PATH,
+    LOCALITY_WEEK_SUMMARY_PATH,
     TOKEN_URL,
 )
 
@@ -162,11 +163,15 @@ def week_url(locality_no: int, year: int, week: int) -> str:
     return BASE_URL + LOCALITY_WEEK_PATH.format(locality_no=locality_no, year=year, week=week)
 
 
+def summary_url(year: int, week: int) -> str:
+    return BASE_URL + LOCALITY_WEEK_SUMMARY_PATH.format(year=year, week=week)
+
+
 class MockApi:
-    """The BarentsWatch API as `requests_mock` serves it: a token endpoint and the two routes.
+    """The BarentsWatch API as `requests_mock` serves it: a token endpoint and the three routes.
 
     The token endpoint is registered on construction, because every request needs it. The
-    two data routes are registered by the test, so a request for a route the test did not
+    three data routes are registered by the test, so a request for a route the test did not
     expect fails as `NoMockAddress` rather than being answered with something plausible.
     """
 
@@ -202,6 +207,38 @@ class MockApi:
             for year, week in week_range.weeks():
                 self.week(locality_no, year, week, **kwargs)
 
+    def summary(
+        self,
+        year: int,
+        week: int,
+        rows: list[dict[str, Any]] | None = None,
+        *,
+        body: dict[str, Any] | None = None,
+        **kwargs: Any,
+    ) -> Any:
+        """Answer the weekly summary `POST` with `rows`, by default the fixture; `kwargs` go to `requests_mock`.
+
+        With `body`, only a request whose JSON body equals it is answered, so a test can serve
+        different rows per filter value and be sure the source asked for each. Without it, any
+        body gets the same answer; the bodies actually sent are on `bodies_posted()`.
+        """
+        if rows is not None:
+            kwargs.setdefault("json", rows)
+        elif not kwargs:
+            kwargs["json"] = load_mock("locality_week_summary.json")
+        if body is not None:
+            kwargs["additional_matcher"] = lambda request: request.json() == body
+        return self.mocker.post(summary_url(year, week), **kwargs)
+
+    def summaries(self, week_range: WeekRange, **kwargs: Any) -> None:
+        """Answer the weekly summary for every week in the range, whatever the body."""
+        for year, week in week_range.weeks():
+            self.summary(year, week, **kwargs)
+
+    def bodies_posted(self, year: int, week: int) -> list[dict[str, Any]]:
+        """The JSON bodies of every summary request for one week, in order."""
+        return [request.json() for request in self.requests_to(summary_url(year, week))]
+
     @property
     def requests(self) -> list[Any]:
         """Every request received, token requests included, in order."""
@@ -221,13 +258,34 @@ def mock_api() -> Iterator[MockApi]:
         yield MockApi(mocker)
 
 
-def make_source(locality_nos: list[int] | None = None, week_range: WeekRange | None = None) -> Any:
-    """A source with test credentials, and the two resource arguments bound when given."""
+def make_source(
+    locality_nos: list[int] | None = None,
+    week_range: WeekRange | None = None,
+    *,
+    production_areas: list[int] | None = None,
+    organizations: list[str] | None = None,
+    filters: dict[str, Any] | None = None,
+) -> Any:
+    """A source with test credentials, and the resource arguments bound when given.
+
+    `week_range` binds to both weekly resources: a load asks for the same weeks from each.
+    The keyword-only arguments are `locality_week_summary`'s filters. dlt lets a resource be
+    bound once, so everything for the summary goes in one call.
+    """
     source = barentswatch_fishhealth_source(**SOURCE_CONFIG)
     if locality_nos is not None:
         source.locality.bind(locality_nos=locality_nos)
     if week_range is not None:
         source.locality_week.bind(week_range=week_range)
+    summary_args = {
+        "week_range": week_range,
+        "production_areas": production_areas,
+        "organizations": organizations,
+        "filters": filters,
+    }
+    bound = {name: value for name, value in summary_args.items() if value is not None}
+    if bound:
+        source.locality_week_summary.bind(**bound)
     return source
 
 

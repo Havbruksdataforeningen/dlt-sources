@@ -1,4 +1,8 @@
-"""End-to-end: both resources of barentswatch_fishhealth_source, through a DuckDB pipeline."""
+"""End-to-end: the resources of barentswatch_fishhealth_source, through a DuckDB pipeline.
+
+`locality` and `locality_week` are a pair — the transformer reads the resource — and most
+tests run those two. `locality_week_summary` stands alone, and one test runs all three.
+"""
 
 import json
 
@@ -18,6 +22,9 @@ from tests.conftest import (
 # A subset of the fixture's localities, so the filtered path is what the default run exercises.
 LOCALITY_NOS = [90001, 90002]
 
+# The locality list and the detailed weekly report, which is a transformer over it.
+PAIR = ("locality", "locality_week")
+
 
 def _serve_three_weeks(mock_api) -> int:
     """Two localities, three weeks, one of them unreported for the second locality. Returns the rows expected."""
@@ -25,7 +32,7 @@ def _serve_three_weeks(mock_api) -> int:
     mock_api.weeks(LOCALITY_NOS, THREE_WEEKS)
     mock_api.week(90002, 2024, 2, json=load_mock("locality_week_fallow.json"))
     mock_api.no_report(90002, 2024, 3)
-    return len(LOCALITY_NOS) * len(THREE_WEEKS) - 1
+    return len(LOCALITY_NOS) * THREE_WEEKS.n_weeks - 1
 
 
 def test_end_to_end_loads_both_tables(mock_api):
@@ -33,7 +40,7 @@ def test_end_to_end_loads_both_tables(mock_api):
     expected_weeks = _serve_three_weeks(mock_api)
 
     pipeline = make_pipeline("test_e2e")
-    load_info = pipeline.run(make_source(locality_nos=LOCALITY_NOS, week_range=THREE_WEEKS))
+    load_info = pipeline.run(make_source(locality_nos=LOCALITY_NOS, week_range=THREE_WEEKS).with_resources(*PAIR))
     load_info.raise_on_failed_jobs()
 
     assert_row_count(pipeline, "locality", len(LOCALITY_NOS))
@@ -55,7 +62,9 @@ def test_end_to_end_rerun_is_idempotent(mock_api):
 
     pipeline = make_pipeline("test_e2e_rerun")
     for _ in range(2):
-        pipeline.run(make_source(locality_nos=LOCALITY_NOS, week_range=THREE_WEEKS)).raise_on_failed_jobs()
+        pipeline.run(
+            make_source(locality_nos=LOCALITY_NOS, week_range=THREE_WEEKS).with_resources(*PAIR)
+        ).raise_on_failed_jobs()
 
     assert_row_count(pipeline, "locality", len(LOCALITY_NOS))
     assert_row_count(pipeline, "locality_week", expected_weeks)
@@ -67,7 +76,7 @@ def test_nested_objects_land_as_json_columns_with_no_child_tables(mock_api):
     mock_api.week(90001, 2024, 5)
 
     pipeline = make_pipeline("test_e2e_nesting")
-    pipeline.run(make_source(locality_nos=[90001], week_range=WeekRange(2024, 5, 2024, 5)))
+    pipeline.run(make_source(locality_nos=[90001], week_range=WeekRange(2024, 5, 2024, 5)).with_resources(*PAIR))
 
     assert not any(name.startswith("locality_week__") for name in pipeline.default_schema.data_table_names())
     assert not any(name.startswith("locality__") for name in pipeline.default_schema.data_table_names())
@@ -97,6 +106,61 @@ def test_nested_objects_land_as_json_columns_with_no_child_tables(mock_api):
     assert row["pd_zone_id"] == "surveillance"
 
 
+def test_end_to_end_loads_all_three_tables(mock_api):
+    """One run of every resource: the pair as before, and a `locality_week_summary` row per locality per week per area.
+
+    The summary's `liceTreatments` is an array of category names; with `max_table_nesting=0`
+    it lands as one JSON column, not a child table. `productionArea` is the integer asked for.
+    """
+    expected_weeks = _serve_three_weeks(mock_api)
+    # A locality is in one area, so the two areas answer with disjoint localities, as the API does.
+    summary_rows = load_mock("locality_week_summary.json")
+    for year, week in THREE_WEEKS.weeks():
+        mock_api.summary(year, week, summary_rows[:2], body={"productionArea": 7})
+        mock_api.summary(year, week, summary_rows[2:], body={"productionArea": 8})
+
+    pipeline = make_pipeline("test_e2e_all_three")
+    load_info = pipeline.run(make_source(locality_nos=LOCALITY_NOS, week_range=THREE_WEEKS, production_areas=[7, 8]))
+    load_info.raise_on_failed_jobs()
+
+    assert set(pipeline.default_schema.data_table_names()) == {"locality", "locality_week", "locality_week_summary"}
+    assert_row_count(pipeline, "locality", len(LOCALITY_NOS))
+    assert_row_count(pipeline, "locality_week", expected_weeks)
+    assert_row_count(pipeline, "locality_week_summary", len(summary_rows) * THREE_WEEKS.n_weeks)
+
+    columns = pipeline.default_schema.tables["locality_week_summary"]["columns"]
+    assert columns["lice_treatments"]["data_type"] == "json"
+    assert columns["production_area"]["data_type"] == "bigint"
+    assert columns["locality_no"]["data_type"] == "bigint"
+
+    landed = load_rows(pipeline, "locality_week_summary")
+    assert {(row["locality_no"], row["year"], row["week"], row["production_area"]) for row in landed} == {
+        (locality_no, year, week, area)
+        for locality_no, area in ((90001, 7), (90002, 7), (90003, 8))
+        for year, week in THREE_WEEKS.weeks()
+    }
+    (treated,) = [row for row in landed if row["locality_no"] == 90003 and row["week"] == 1]
+    assert json.loads(treated["lice_treatments"]) == ["IKKE_MEDIKAMENTELL"]
+    assert json.loads(treated["diseases"]) == ["PANKREASSYKDOM"]
+    assert json.loads(treated["lice_report"])["hasReported"] is True
+    assert treated["is_filtered"] is True
+
+
+def test_end_to_end_summary_rerun_is_idempotent(mock_api):
+    """Running the same weeks and areas twice merges on locality, year and week instead of duplicating."""
+    mock_api.summaries(THREE_WEEKS)
+    source = make_source(week_range=THREE_WEEKS, production_areas=[7]).with_resources("locality_week_summary")
+
+    pipeline = make_pipeline("test_e2e_summary_rerun")
+    for _ in range(2):
+        pipeline.run(source).raise_on_failed_jobs()
+
+    assert_row_count(
+        pipeline, "locality_week_summary", len(load_mock("locality_week_summary.json")) * THREE_WEEKS.n_weeks
+    )
+    assert len(mock_api.requests_to(LOCALITIES_URL)) == 0
+
+
 def test_selecting_only_locality_week_still_fetches_the_list_but_writes_no_locality_table(mock_api):
     """The transformer needs its parent's rows; selecting it alone loads them without landing them."""
     mock_api.localities()
@@ -108,7 +172,7 @@ def test_selecting_only_locality_week_still_fetches_the_list_but_writes_no_local
 
     assert len(mock_api.requests_to(LOCALITIES_URL)) == 1
     assert "locality" not in pipeline.default_schema.data_table_names()
-    assert_row_count(pipeline, "locality_week", len(ALL_LOCALITY_NOS) * len(THREE_WEEKS))
+    assert_row_count(pipeline, "locality_week", len(ALL_LOCALITY_NOS) * THREE_WEEKS.n_weeks)
 
 
 def test_selecting_only_locality_makes_no_weekly_request(mock_api):

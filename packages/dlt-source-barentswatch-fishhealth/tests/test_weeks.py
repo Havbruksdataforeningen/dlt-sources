@@ -91,10 +91,16 @@ def test_weeks_of_a_whole_year_count_its_weeks():
     assert len(list(WeekRange(2020, 1, 2020, 53).weeks())) == weeks_in_year(2020)
 
 
-def test_len_counts_the_weeks():
-    assert len(WeekRange(2024, 3, 2024, 3)) == 1
-    assert len(WeekRange(2024, 52, 2025, 2)) == 3
-    assert len(WeekRange(2020, 1, 2020, 53)) == 53
+def test_n_weeks_is_the_number_of_weeks():
+    assert WeekRange(2024, 3, 2024, 3).n_weeks == 1
+    assert WeekRange(2024, 52, 2025, 2).n_weeks == 3
+    assert WeekRange(2020, 1, 2020, 53).n_weeks == 53
+
+
+def test_a_week_range_is_still_a_four_tuple():
+    """`len` and truthiness are the tuple's: an inverted range must not be falsy, or `if week_range:` hides it."""
+    assert len(WeekRange(2024, 10, 2024, 5)) == 4
+    assert WeekRange(2024, 10, 2024, 5)
 
 
 # --- current_iso_week --------------------------------------------------------

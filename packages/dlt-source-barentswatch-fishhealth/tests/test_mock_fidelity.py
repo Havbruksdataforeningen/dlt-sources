@@ -37,15 +37,18 @@ from tests.conftest import ALL_LOCALITY_NOS, MOCK_DIR, load_mock
 
 SPEC = json.loads((Path(__file__).parent.parent / "specs" / "openapi.json").read_text())
 
-LOCALITIES = "/v1/geodata/fishhealth/localitieswithsalmonoids"
-LOCALITY_WEEK = "/v2/geodata/fishhealth/locality/{localityNo}/{year}/{week}"
+# (method, path): the operations the source calls, as the spec keys them.
+LOCALITIES = ("get", "/v1/geodata/fishhealth/localitieswithsalmonoids")
+LOCALITY_WEEK = ("get", "/v2/geodata/fishhealth/locality/{localityNo}/{year}/{week}")
+LOCALITY_WEEK_SUMMARY = ("post", "/v2/geodata/fishhealth/locality/{year}/{week}")
 
-# fixture -> the endpoint and status code whose response it stands in for.
+# fixture -> the operation and status code whose response it stands in for.
 FIXTURES = {
     "localitieswithsalmonoids.json": (LOCALITIES, "200"),
     "locality_week_reported.json": (LOCALITY_WEEK, "200"),
     "locality_week_fallow.json": (LOCALITY_WEEK, "200"),
     "problem_details_400.json": (LOCALITY_WEEK, "400"),
+    "locality_week_summary.json": (LOCALITY_WEEK_SUMMARY, "200"),
 }
 
 
@@ -76,16 +79,17 @@ def _as_json_schema(node: Any) -> Any:
 JSON_SCHEMA_SPEC = _as_json_schema(SPEC)
 
 
-def _response_validator(path: str, status: str) -> Draft202012Validator:
-    """A validator for the JSON body the spec declares for `GET path` answering `status`."""
-    body = JSON_SCHEMA_SPEC["paths"][path]["get"]["responses"][status]["content"]["application/json"]["schema"]
+def _response_validator(operation: tuple[str, str], status: str) -> Draft202012Validator:
+    """A validator for the JSON body the spec declares for `(method, path)` answering `status`."""
+    method, path = operation
+    body = JSON_SCHEMA_SPEC["paths"][path][method]["responses"][status]["content"]["application/json"]["schema"]
     return Draft202012Validator({**body, "components": JSON_SCHEMA_SPEC["components"]})
 
 
 @pytest.mark.parametrize(("filename", "endpoint"), FIXTURES.items())
 def test_fixture_matches_its_endpoints_response_schema(filename, endpoint):
-    path, status = endpoint
-    validator = _response_validator(path, status)
+    operation, status = endpoint
+    validator = _response_validator(operation, status)
     problems = [
         f"{filename}{error.json_path[1:]}: {error.message}" for error in validator.iter_errors(load_mock(filename))
     ]
@@ -112,6 +116,23 @@ def test_the_two_weekly_fixtures_differ_where_they_should():
     assert fallow["adultFemaleLice"]["average"] is None
     assert load_mock("locality_week_reported.json")["liceTreatments"]["nonMedicinalTreatments"]
     assert not load_mock("locality_week_fallow.json")["liceTreatments"]["nonMedicinalTreatments"]
+
+
+def test_the_summary_fixture_covers_the_three_shapes():
+    """A reported week, a fallow week, and a week with a disease and a treatment category — in that order.
+
+    The summary's `liceTreatments` is category names, not the detailed report's object of
+    treatment lists; a fixture that carried the object would validate nothing about it.
+    """
+    reported, fallow, treated = load_mock("locality_week_summary.json")
+    assert [row["locality"]["no"] for row in (reported, fallow, treated)] == [90001, 90002, 90003]
+    assert reported["liceReport"]["hasReported"] is True and reported["liceReport"]["isFallow"] is False
+    assert fallow["liceReport"]["hasReported"] is False and fallow["liceReport"]["isFallow"] is True
+    assert fallow["liceReport"]["adultFemaleLice"]["average"] is None
+    assert reported["diseases"] == [] and reported["liceTreatments"] == []
+    assert treated["diseases"] == ["PANKREASSYKDOM"]
+    assert treated["liceTreatments"] == ["IKKE_MEDIKAMENTELL"]
+    assert all(row["isFiltered"] is True for row in (reported, fallow, treated)), "every row of a filtered request"
 
 
 def test_no_fixture_carries_a_real_locality_number():

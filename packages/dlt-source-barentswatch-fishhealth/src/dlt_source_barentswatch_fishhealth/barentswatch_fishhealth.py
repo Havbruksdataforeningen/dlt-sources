@@ -122,7 +122,9 @@ def barentswatch_fishhealth_source(
                 raise ValueError(f"Locality {locality_no} {year}-W{week}: the 200 response body is not a JSON object.")
             yield {**payload, "localityNo": locality_no, "year": year, "week": week}
         if skipped:
-            logger.info("Locality %s: no report for %s of %s weeks (HTTP 400).", locality_no, skipped, len(week_range))
+            logger.info(
+                "Locality %s: no report for %s of %s weeks (HTTP 400).", locality_no, skipped, week_range.n_weeks
+            )
 
     @dlt.resource(write_disposition="merge", primary_key=WEEK_KEY)
     def locality_week_summary(
@@ -134,8 +136,9 @@ def barentswatch_fishhealth_source(
         """The weekly summary of every locality matching a filter, from
         `POST /v2/geodata/fishhealth/locality/{year}/{week}`, once per week in `week_range` and per filter value.
 
-        A summary row carries the same `liceReport` and `diseases` as the detailed report, but
-        `liceTreatments` as category names only, and none of the register, zone or escape fields.
+        A summary row carries the same `liceReport` as the detailed report, but `diseases` and
+        `liceTreatments` as names only where the detailed report has full case and treatment
+        records, and none of the register, zone or escape fields.
         The API takes one production area and one organization per request, so each list fans out
         into one request per value, and the two combine with AND: `production_areas=[7, 8]` with
         `organizations=["921668236"]` is that organization's localities in area 7, then in area 8.

@@ -16,6 +16,7 @@ Aquaculture Register does not issue, and the names are words like "Testholmen" a
 | `locality_week_reported.json` | `GET /v2/geodata/fishhealth/locality/{localityNo}/{year}/{week}` for a week with a lice report and one treatment |
 | `locality_week_fallow.json` | The same endpoint for a fallow week: `hasReported: false`, `isFallow: true`, every average null |
 | `problem_details_400.json` | The same endpoint's 400 body — the API's answer for a week it has no report for |
+| `locality_week_summary.json` | `POST /v2/geodata/fishhealth/locality/{year}/{week}` — the weekly summary of every locality matching the body's filter: one reported week, one fallow week, and one reported with a disease and a treatment category |
 
 ## Before you "fix" an odd-looking shape
 
@@ -36,7 +37,9 @@ than sitting here unnoticed.
 ## Identifiers
 
 `tests/conftest.py` exports the locality numbers as `ALL_LOCALITY_NOS`; keep them in step
-with `localitieswithsalmonoids.json`. The two weekly fixtures describe the first two of
-those localities, but a test may serve either fixture for any locality and week — the
-source stamps `localityNo`, `year` and `week` from the request, not from the body. Keep the
-fixtures small: one licence or two proves the nesting as well as six would.
+with `localitieswithsalmonoids.json`. The two detailed weekly fixtures describe the first
+two of those localities, but a test may serve either fixture for any locality and week — the
+source stamps `localityNo`, `year` and `week` from the request, not from the body. The
+summary fixture's three rows are the first three localities; a test may serve it for any
+week and any filter, since `year`, `week` and `productionArea` are stamped from the request
+too. Keep the fixtures small: one licence or two proves the nesting as well as six would.

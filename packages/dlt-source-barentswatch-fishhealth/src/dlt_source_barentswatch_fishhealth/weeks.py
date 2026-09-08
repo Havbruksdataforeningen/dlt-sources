@@ -65,7 +65,9 @@ class WeekRange(NamedTuple):
             yield (iso.year, iso.week)
             cur += datetime.timedelta(weeks=1)
 
-    def __len__(self) -> int:
+    @property
+    def n_weeks(self) -> int:
+        """How many weeks the range spans. Not `__len__`: a `WeekRange` is a 4-tuple, and it stays one."""
         return sum(1 for _ in self.weeks())
 
 

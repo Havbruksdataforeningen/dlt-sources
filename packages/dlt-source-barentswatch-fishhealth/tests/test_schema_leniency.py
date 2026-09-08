@@ -6,6 +6,7 @@ from dlt_source_barentswatch_fishhealth import WeekRange
 from tests.conftest import assert_row_count, load_mock, load_rows, make_pipeline, make_source, query
 
 ONE_WEEK = WeekRange(2024, 1, 2024, 1)
+PAIR = ("locality", "locality_week")
 
 
 def test_unknown_field_lands_as_a_new_column(mock_api):
@@ -17,7 +18,7 @@ def test_unknown_field_lands_as_a_new_column(mock_api):
     mock_api.week(90001, 2024, 1, json=payload)
 
     pipeline = make_pipeline("test_leniency_extra_field")
-    pipeline.run(make_source(locality_nos=[90001], week_range=ONE_WEEK)).raise_on_failed_jobs()
+    pipeline.run(make_source(locality_nos=[90001], week_range=ONE_WEEK).with_resources(*PAIR)).raise_on_failed_jobs()
 
     assert_row_count(pipeline, "locality_week", 1)
     assert [row[0] for row in query(pipeline, "SELECT has_reported_biomass FROM locality_week")] == [True]
@@ -45,7 +46,7 @@ def test_missing_nullable_field_does_not_fail_the_load(mock_api):
     mock_api.week(90001, 2024, 1, json=payload)
 
     pipeline = make_pipeline("test_leniency_missing_field")
-    pipeline.run(make_source(locality_nos=[90001], week_range=ONE_WEEK)).raise_on_failed_jobs()
+    pipeline.run(make_source(locality_nos=[90001], week_range=ONE_WEEK).with_resources(*PAIR)).raise_on_failed_jobs()
 
     assert_row_count(pipeline, "locality_week", 1)
     (row,) = load_rows(pipeline, "locality_week")
