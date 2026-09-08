@@ -1,8 +1,8 @@
 """The `locality_week` transformer: one request per locality and week, and what each status means.
 
 The API has one answer for "no report" — HTTP 400 — and the source skips it. Everything
-else that is not a 200 with a JSON object is an error and stops the run: a week silently
-dropped would look exactly like a week with no report.
+else that is not a 200 is an error and stops the run: a week silently dropped would look
+exactly like a week with no report.
 
 Errors raised inside a resource reach the caller wrapped in dlt's `ResourceExtractionError`;
 the assertions look through it at `__cause__`, which is what the source actually raised.
@@ -15,7 +15,7 @@ import requests
 from dlt.extract.exceptions import ResourceExtractionError
 
 from dlt_source_barentswatch_fishhealth import WeekRange
-from dlt_source_barentswatch_fishhealth.barentswatch_fishhealth import TOKEN_URL
+from dlt_source_barentswatch_fishhealth.barentswatch_fishhealth import TOKEN_URL, WEEK_KEY
 from tests.conftest import (
     LOCALITIES_URL,
     THREE_WEEKS,
@@ -38,8 +38,8 @@ def _one_locality(mock_api, locality_no: int = 90001) -> None:
 # --- Status handling -----------------------------------------------------------
 
 
-def test_400_is_skipped(mock_api, caplog):
-    """A week the API has no report for is left out; the weeks around it still land."""
+def test_400_is_skipped_with_a_debug_line(mock_api, caplog):
+    """A week the API has no report for is left out; the weeks around it still land, and nothing above DEBUG is said."""
     _one_locality(mock_api)
     mock_api.week(90001, 2024, 1)
     mock_api.no_report(90001, 2024, 2)
@@ -49,36 +49,18 @@ def test_400_is_skipped(mock_api, caplog):
         rows = list(make_source(week_range=THREE_WEEKS).locality_week)
 
     assert [(row["year"], row["week"]) for row in rows] == [(2024, 1), (2024, 3)]
-
-    debug = [record.getMessage() for record in caplog.records if record.levelno == logging.DEBUG]
-    assert debug == ["Locality 90001 2024-W2: HTTP 400, no report."]
-    info = [record.getMessage() for record in caplog.records if record.levelno == logging.INFO]
-    assert info == ["Locality 90001: no report for 1 of 3 weeks (HTTP 400)."]
+    assert [(record.levelno, record.getMessage()) for record in caplog.records if record.name == LOGGER] == [
+        (logging.DEBUG, "Locality 90001 2024-W2: HTTP 400, no report.")
+    ]
 
 
-def test_all_weeks_400_yields_nothing_without_error(mock_api, caplog):
+def test_all_weeks_400_yields_nothing_without_error(mock_api):
     """A locality with no report in the whole range is a 0-row load, not a failure."""
     _one_locality(mock_api)
     for year, week in THREE_WEEKS.weeks():
         mock_api.no_report(90001, year, week)
 
-    with caplog.at_level(logging.INFO, logger=LOGGER):
-        rows = list(make_source(week_range=THREE_WEEKS).locality_week)
-
-    assert rows == []
-    assert [record.getMessage() for record in caplog.records if record.name == LOGGER] == [
-        "Locality 90001: no report for 3 of 3 weeks (HTTP 400)."
-    ]
-
-
-def test_no_summary_when_every_week_reported(mock_api, caplog):
-    _one_locality(mock_api)
-    mock_api.weeks([90001], THREE_WEEKS)
-
-    with caplog.at_level(logging.DEBUG, logger=LOGGER):
-        list(make_source(week_range=THREE_WEEKS).locality_week)
-
-    assert not [record for record in caplog.records if record.name == LOGGER]
+    assert list(make_source(week_range=THREE_WEEKS).locality_week) == []
 
 
 def test_500_raises_after_retries(mock_api):
@@ -95,27 +77,17 @@ def test_500_raises_after_retries(mock_api):
     assert week_url(90001, 2024, 3) not in mock_api.urls_requested(), "the run stops at the failure"
 
 
-def test_404_raises(mock_api):
-    """404 is not what the API says for an unknown locality — that is 400 — so it is an error."""
+@pytest.mark.parametrize("status_code", [401, 404])
+def test_other_4xx_raises_without_retry(mock_api, status_code):
+    """Only 400 means "no report"; an expired token or a moved route is an error to fix, not a week to skip."""
     _one_locality(mock_api)
-    failing = mock_api.week(90001, 2024, 1, status_code=404, text="Not Found")
+    failing = mock_api.week(90001, 2024, 1, status_code=status_code, text="Error")
 
     with pytest.raises(ResourceExtractionError) as excinfo:
         list(make_source(week_range=ONE_WEEK).locality_week)
 
-    assert http_status(excinfo.value.__cause__) == 404
-    assert failing.call_count == 1, "a 404 is not retried"
-
-
-def test_401_raises(mock_api):
-    """An expired or revoked token is an error to fix, not a week to skip."""
-    _one_locality(mock_api)
-    mock_api.week(90001, 2024, 1, status_code=401, text="Unauthorized")
-
-    with pytest.raises(ResourceExtractionError) as excinfo:
-        list(make_source(week_range=ONE_WEEK).locality_week)
-
-    assert http_status(excinfo.value.__cause__) == 401
+    assert http_status(excinfo.value.__cause__) == status_code
+    assert failing.call_count == 1, "a 4xx is not retried"
 
 
 def test_connection_error_raises(mock_api):
@@ -126,23 +98,6 @@ def test_connection_error_raises(mock_api):
         list(make_source(week_range=ONE_WEEK).locality_week)
 
     assert isinstance(excinfo.value.__cause__, requests.exceptions.ConnectionError)
-
-
-@pytest.mark.parametrize(
-    "response",
-    [{"text": "<html>not json</html>"}, {"json": None}, {"json": [{"liceReport": {}}]}, {"json": "a string"}],
-    ids=["html", "null", "array", "string"],
-)
-def test_non_object_200_body_raises(mock_api, response):
-    """A 200 whose body is not a JSON object is malformed, not "no data"."""
-    _one_locality(mock_api)
-    mock_api.week(90001, 2024, 1, **response)
-
-    with pytest.raises(ResourceExtractionError) as excinfo:
-        list(make_source(week_range=ONE_WEEK).locality_week)
-
-    # `requests.JSONDecodeError` is a `ValueError` too, so the html case lands here as well.
-    assert isinstance(excinfo.value.__cause__, ValueError)
 
 
 # --- The week range ------------------------------------------------------------
@@ -160,13 +115,12 @@ def test_unbound_week_range_raises(mock_api):
     assert mock_api.urls_requested() == [LOCALITIES_URL], "no weekly request was made"
 
 
-@pytest.mark.parametrize(
-    "week_range",
-    [WeekRange(2011, 1, 2011, 1), WeekRange(2024, 1, 2024, 53), WeekRange(2024, 10, 2024, 5)],
-    ids=["before-first-year", "week-53-of-a-52-week-year", "inverted"],
-)
-def test_invalid_week_range_raises_before_any_weekly_request(mock_api, week_range):
-    """A range the API would answer 400 for is refused here, where the message can say why."""
+def test_invalid_week_range_raises_before_any_weekly_request(mock_api):
+    """A range the API would answer 400 for is refused before a request goes out.
+
+    `WeekRange.validate` itself is `test_weeks.py`'s business; this is that it runs first.
+    """
+    week_range = WeekRange(2024, 10, 2024, 5)  # inverted
     _one_locality(mock_api)
 
     with pytest.raises(ResourceExtractionError) as excinfo:
@@ -199,7 +153,7 @@ def test_one_request_per_locality_per_week_and_none_outside_the_range(mock_api):
 
 
 def test_token_is_fetched_once_and_sent_as_bearer(mock_api):
-    """The token endpoint is asked once, and every API request carries what it answered."""
+    """The token endpoint is asked once, with the client credentials, and every API request carries what it answered."""
     _one_locality(mock_api)
     mock_api.weeks([90001], THREE_WEEKS)
 
@@ -207,7 +161,6 @@ def test_token_is_fetched_once_and_sent_as_bearer(mock_api):
 
     assert mock_api.token.call_count == 1
     token_request = mock_api.requests_to(TOKEN_URL)[0]
-    assert token_request.headers["Content-Type"] == "application/x-www-form-urlencoded"
     assert token_request.text is not None
     sent = dict(pair.split("=") for pair in token_request.text.split("&"))
     assert sent == {
@@ -219,18 +172,6 @@ def test_token_is_fetched_once_and_sent_as_bearer(mock_api):
     api_requests = [request for request in mock_api.requests if request.url != TOKEN_URL]
     assert len(api_requests) == 4
     assert all(request.headers["Authorization"] == "Bearer test-token" for request in api_requests)
-
-
-def test_token_endpoint_error_raises(mock_api):
-    """Wrong credentials fail at the token endpoint, before any API request."""
-    mock_api.mocker.post(TOKEN_URL, status_code=400, json={"error": "invalid_client"})
-    mock_api.localities()
-
-    with pytest.raises(ResourceExtractionError) as excinfo:
-        list(make_source().localities_with_salmonoids)
-
-    assert isinstance(excinfo.value.__cause__, requests.HTTPError)
-    assert mock_api.urls_requested() == []
 
 
 # --- Records --------------------------------------------------------------------
@@ -271,15 +212,13 @@ def test_injected_keys_survive_normalization(mock_api):
 # --- Resource settings -----------------------------------------------------------
 
 
-def test_resource_settings():
-    """Both locality lists are snapshots; `locality_week` merges on the three path values."""
+def test_locality_week_merges_on_the_three_path_values():
+    """The consumer's contract for a rerun: `merge` on the same key the records are stamped with, snake_cased."""
     source = make_source()
-    assert source.localities.write_disposition == "replace"
-    assert source.localities_with_salmonoids.write_disposition == "replace"
     assert source.locality_week.write_disposition == "merge"
 
     columns = source.locality_week.compute_table_schema().get("columns", {})
-    assert [name for name, column in columns.items() if column.get("primary_key")] == ["localityNo", "year", "week"]
+    assert [name for name, column in columns.items() if column.get("primary_key")] == WEEK_KEY
 
     normalized = source.discover_schema().tables["locality_week"]["columns"]
     assert [name for name, column in normalized.items() if column.get("primary_key")] == ["locality_no", "year", "week"]

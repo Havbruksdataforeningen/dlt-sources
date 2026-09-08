@@ -37,8 +37,8 @@ MOCK_DIR = Path(__file__).parent / "mock_responses"
 # `test_mock_fidelity.py` keeps them in step.
 ALL_LOCALITY_NOS = [90001, 90002, 90003, 90004, 90005]
 
-# Everything barentswatch_fishhealth_source() itself needs. Resource arguments — the
-# localities to keep and the weeks to load — live on the resources; bind them there.
+# Everything barentswatch_fishhealth_source() itself needs. Resource arguments — the weeks
+# to load and the summary's body — live on the resources; bind them there.
 SOURCE_CONFIG: dict[str, Any] = {"client_id": "test-id", "client_secret": "test-secret"}
 
 LOCALITIES_URL = BASE_URL + LOCALITIES_WITH_SALMONOIDS_PATH
@@ -116,11 +116,11 @@ def pytest_sessionfinish(session, exitstatus):
 def isolated_run_context(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Path]:
     """Run with no config at all: no `.dlt/` files, no `SOURCES__*` variables.
 
-    A maintainer's own `.dlt/config.toml` sets `locality_nos`, and dlt would inject it into
-    every `localities_with_salmonoids` resource a test builds — filtering the fixture's localities down to none.
-    So each offline test gets an empty dlt project directory instead; the test that reads the
-    packaged examples copies them in here. `test_integration.py` overrides this fixture, since
-    the live tests need the real `secrets.toml`.
+    A maintainer's own `.dlt/config.toml` may set `locality_week_summary.body`, and dlt would
+    inject it into every summary resource a test builds — changing the bodies the tests assert
+    on. So each offline test gets an empty dlt project directory instead; a test that wants
+    config read writes it in here and reloads. `test_integration.py` overrides this fixture,
+    since the live tests need the real `secrets.toml`.
 
     Yields the project directory, whose `.dlt/` is where a test puts config it wants read.
     """
@@ -275,31 +275,17 @@ def mock_api() -> Iterator[MockApi]:
         yield MockApi(mocker)
 
 
-def make_source(
-    locality_nos: list[int] | None = None,
-    week_range: WeekRange | None = None,
-    *,
-    production_areas: list[int] | None = None,
-    organizations: list[str] | None = None,
-    filters: dict[str, Any] | None = None,
-) -> Any:
+def make_source(week_range: WeekRange | None = None, *, body: dict[str, Any] | None = None) -> Any:
     """A source with test credentials, and the resource arguments bound when given.
 
     `week_range` binds to both weekly resources: a load asks for the same weeks from each.
-    The keyword-only arguments are `locality_week_summary`'s filters. dlt lets a resource be
-    bound once, so everything for the summary goes in one call.
+    `body` is `locality_week_summary`'s request body. dlt lets a resource be bound once, so
+    everything for the summary goes in one call.
     """
     source = barentswatch_fishhealth_source(**SOURCE_CONFIG)
-    if locality_nos is not None:
-        source.localities_with_salmonoids.bind(locality_nos=locality_nos)
     if week_range is not None:
         source.locality_week.bind(week_range=week_range)
-    summary_args = {
-        "week_range": week_range,
-        "production_areas": production_areas,
-        "organizations": organizations,
-        "filters": filters,
-    }
+    summary_args = {"week_range": week_range, "body": body}
     bound = {name: value for name, value in summary_args.items() if value is not None}
     if bound:
         source.locality_week_summary.bind(**bound)

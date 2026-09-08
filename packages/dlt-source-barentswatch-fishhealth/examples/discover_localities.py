@@ -2,10 +2,9 @@
 
 One request. The `localities_with_salmonoids` table it leaves behind is the API's own list — number
 and name — of every locality with a salmonoid licence, about 2 000 of them, and the list `locality_week`
-iterates over. Find yours by name below, then put their numbers in `.dlt/config.toml` under
-`[sources.barentswatch_fishhealth.localities_with_salmonoids]` or bind them in code, as backfill.py
-and weekly_load.py do. (`localities`, the other list, is every locality in the register with its
-municipality, salmonoid or not.)
+iterates over. Find yours by name below and put their numbers in backfill.py and weekly_load.py, which
+filter that list with dlt's `add_filter`. (`localities`, the other list, is every locality in the register
+with its municipality, salmonoid or not.)
 """
 
 import dlt

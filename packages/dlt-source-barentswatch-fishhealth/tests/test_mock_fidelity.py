@@ -30,6 +30,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+import pytest
 from jsonschema import Draft202012Validator
 
 from tests.conftest import ALL_LOCALITY_NOS, MOCK_DIR, load_mock
@@ -85,6 +86,14 @@ def _response_validator(operation: tuple[str, str], status: str) -> Draft202012V
     method, path = operation
     body = JSON_SCHEMA_SPEC["paths"][path][method]["responses"][status]["content"]["application/json"]["schema"]
     return Draft202012Validator({**body, "components": JSON_SCHEMA_SPEC["components"]})
+
+
+@pytest.mark.parametrize("filename", list(FIXTURES))
+def test_every_fixture_matches_the_specs_response_schema(filename):
+    """Each fixture validates against the response body the spec declares for the operation it stands in for."""
+    operation, status = FIXTURES[filename]
+    problems = list(_response_validator(operation, status).iter_errors(load_mock(filename)))
+    assert not problems, "\n".join(f"{list(error.absolute_path)}: {error.message}" for error in problems)
 
 
 def test_locality_list_fixture_matches_the_locality_constants():

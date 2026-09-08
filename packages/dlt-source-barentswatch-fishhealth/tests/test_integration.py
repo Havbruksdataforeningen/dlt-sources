@@ -50,7 +50,7 @@ def require_credentials():
 def test_two_localities_three_weeks_land():
     """Both tables land, and every weekly row carries the report as one JSON object."""
     source = barentswatch_fishhealth_source().with_resources("localities_with_salmonoids", "locality_week")
-    source.localities_with_salmonoids.bind(locality_nos=LOCALITY_NOS)
+    source.localities_with_salmonoids.add_filter(lambda row: row["localityNo"] in LOCALITY_NOS)
     source.locality_week.bind(week_range=WEEK_RANGE)
 
     pipeline = make_pipeline("integ_barentswatch_fishhealth")
@@ -83,9 +83,9 @@ def test_the_full_locality_list_lands():
 
 
 def test_one_production_area_one_week_lands_the_summary():
-    """Every locality in production area 7 for one week: well over a hundred rows, each tagged with the area asked for."""
+    """Every locality in production area 7 for one week: well over a hundred rows, each filtered by the body sent."""
     source = barentswatch_fishhealth_source().with_resources("locality_week_summary")
-    source.locality_week_summary.bind(week_range=WeekRange(2025, 35, 2025, 35), production_areas=[7])
+    source.locality_week_summary.bind(week_range=WeekRange(2025, 35, 2025, 35), body={"productionArea": 7})
 
     pipeline = make_pipeline("integ_barentswatch_fishhealth_summary")
     pipeline.run(source).raise_on_failed_jobs()
@@ -94,7 +94,7 @@ def test_one_production_area_one_week_lands_the_summary():
     assert len(rows) > 100, f"Expected area 7 to hold more than 100 localities, got {len(rows)}"
     assert len({row["locality_no"] for row in rows}) == len(rows), "one row per locality"
     for row in rows:
-        assert (row["year"], row["week"], row["production_area"]) == (2025, 35, 7)
+        assert (row["year"], row["week"]) == (2025, 35)
         assert row["is_filtered"] is True
         assert {"hasReported", "isFallow", "adultFemaleLice"} <= set(json.loads(row["lice_report"]))
         assert isinstance(json.loads(row["lice_treatments"]), list)

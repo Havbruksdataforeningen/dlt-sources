@@ -26,7 +26,7 @@ from dlt.common.configuration.specs.pluggable_run_context import PluggableRunCon
 
 from dlt_source_barentswatch_fishhealth import barentswatch_fishhealth_source
 from dlt_source_barentswatch_fishhealth.barentswatch_fishhealth import TOKEN_URL
-from tests.conftest import ALL_LOCALITY_NOS, resource_signature
+from tests.conftest import resource_signature
 
 README = Path(__file__).parent.parent / "README.md"
 DLT_DIR = Path(__file__).parent.parent / ".dlt"
@@ -77,47 +77,36 @@ def test_secrets_example_resolves_the_credentials(source_from_examples, mock_api
     assert sent["client_secret"] == PLACEHOLDERS["your-client-secret-here"]
 
 
-def test_config_example_sets_nothing_the_source_needs(source_from_examples, mock_api):
-    """Everything in the config example is commented out, so a consumer copying it loads every locality."""
-    assert tomllib.loads(CONFIG_EXAMPLE.read_text()) == {}
-
-    mock_api.localities()
-    rows = list(source_from_examples.localities_with_salmonoids)
-    assert [row["localityNo"] for row in rows] == ALL_LOCALITY_NOS
-
-
 def test_config_example_documents_only_real_resource_params(source_from_examples):
-    """The commented per-resource blocks name resources and params that still exist.
+    """The commented block names a resource and an argument that still exist, and sets nothing by itself.
 
-    They are the documented per-resource config surface. Being comments, nothing else
-    would notice them going stale.
+    It is the documented per-resource config surface. Being a comment, nothing else would
+    notice it going stale.
     """
+    assert tomllib.loads(CONFIG_EXAMPLE.read_text()) == {}, "everything in the config example is commented out"
+
     documented = _commented_resource_params(
         CONFIG_EXAMPLE.read_text(), prefix=f"sources.{source_from_examples.section}."
     )
     assert documented, "Expected the config example to document at least one per-resource param"
     _assert_real_resource_params(source_from_examples, documented, "Config example")
-    # The two resources that take config, by their endpoint-derived names. `localities` takes nothing.
-    assert documented == {
-        "localities_with_salmonoids": ["locality_nos"],
-        "locality_week_summary": ["production_areas", "organizations"],
-    }
+    assert documented == {"locality_week_summary": ["body"]}
 
 
 def test_readme_secrets_match_the_packaged_example():
     """A reader on PyPI copies the README, a reader with a checkout copies the example; they must agree."""
-    secrets, _ = _readme_toml_blocks()[:2]
-    assert secrets == tomllib.loads(SECRETS_EXAMPLE.read_text())
+    assert _readme_toml_blocks()[0] == tomllib.loads(SECRETS_EXAMPLE.read_text())
 
 
 def test_readme_config_names_real_resource_params(source_from_examples):
-    """The README's optional config block sets a real param on a real resource, under the section dlt reads."""
-    _, config = _readme_toml_blocks()[:2]
-    sections = config["sources"][source_from_examples.section]
+    """The README's optional config block, if it shows one, sets a real argument on a real resource under the section dlt reads."""
+    blocks = _readme_toml_blocks()
+    if len(blocks) < 2:
+        pytest.skip("the README shows no config.toml block")
+    sections = blocks[1]["sources"][source_from_examples.section]
     documented = {resource_name: list(params) for resource_name, params in sections.items()}
     assert documented, "Expected the README config block to set at least one per-resource param"
     _assert_real_resource_params(source_from_examples, documented, "README")
-    assert documented == {"localities_with_salmonoids": ["locality_nos"]}
 
 
 def test_neither_example_claims_ci_generates_it():
@@ -135,24 +124,32 @@ def _assert_real_resource_params(source: Any, documented: dict[str, list[str]], 
 
 
 def _commented_resource_params(config_example: str, prefix: str) -> dict[str, list[str]]:
-    """Parse the commented-out `# [<prefix><resource>]` blocks into resource → params."""
+    """Parse the commented-out `# [<prefix><resource>]` and `# [<prefix><resource>.<param>]` blocks into resource → params.
+
+    A dotted section is a table-valued argument — `locality_week_summary.body` — so the
+    section itself names the param, and the keys under it are the argument's contents.
+    """
     documented: dict[str, list[str]] = {}
     current: str | None = None
     for line in config_example.splitlines():
-        section = re.match(rf"^#\s*\[{re.escape(prefix)}(\w+)\]", line)
+        section = re.match(rf"^#\s*\[{re.escape(prefix)}(\w+)(?:\.(\w+))?\]", line)
         if section:
-            resource_name: str = section.group(1)
-            current = resource_name
+            resource_name, param = section.group(1), section.group(2)
             documented.setdefault(resource_name, [])
+            if param:
+                documented[resource_name].append(param)
+                current = None
+            else:
+                current = resource_name
             continue
-        param = re.match(r"^#\s*(\w+)\s*=", line)
-        if param and current:
-            documented[current].append(param.group(1))
+        param_line = re.match(r"^#\s*(\w+)\s*=", line)
+        if param_line and current:
+            documented[current].append(param_line.group(1))
     return documented
 
 
 def _readme_toml_blocks() -> list[dict[str, Any]]:
     """Every ```toml fenced block in the README, parsed. The first is secrets.toml, the second config.toml."""
     blocks = re.findall(r"```toml\n(.*?)```", README.read_text(), re.DOTALL)
-    assert len(blocks) >= 2, "Expected the README quick start to show secrets.toml and config.toml"
+    assert blocks, "Expected the README quick start to show secrets.toml"
     return [tomllib.loads(block) for block in blocks]

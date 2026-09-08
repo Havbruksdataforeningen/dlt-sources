@@ -44,5 +44,5 @@ the municipality numbers there are invented too, `990N`. The two detailed weekly
 two of those localities, but a test may serve either fixture for any locality and week — the
 source stamps `localityNo`, `year` and `week` from the request, not from the body. The
 summary fixture's three rows are the first three localities; a test may serve it for any
-week and any filter, since `year`, `week` and `productionArea` are stamped from the request
-too. Keep the fixtures small: one licence or two proves the nesting as well as six would.
+week and any body, since `year` and `week` are stamped from the request too and `localityNo`
+from the row's `locality.no`. Keep the fixtures small: one licence or two proves the nesting as well as six would.

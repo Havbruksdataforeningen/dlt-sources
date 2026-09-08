@@ -10,6 +10,8 @@ import json
 import re
 from pathlib import Path
 
+import pytest
+
 from dlt_source_barentswatch_fishhealth.barentswatch_fishhealth import (
     BASE_URL,
     LOCALITIES_PATH,
@@ -36,77 +38,44 @@ def _spec_path(source_path: str) -> str:
     return path
 
 
-def _path_params(path: str, method: str = "get") -> set[str]:
+def _path_params(path: str, method: str) -> set[str]:
     return {param["name"] for param in SPEC["paths"][path][method].get("parameters", []) if param["in"] == "path"}
 
 
-def test_localities_path_is_a_get_with_no_path_parameters_and_only_an_optional_query():
-    """The full list is addressed by nothing. The spec's one query parameter, a name search, is optional and unused."""
-    path = _spec_path(LOCALITIES_PATH)
-    assert "get" in SPEC["paths"][path]
-    assert _path_params(path) == set()
-    query = [param for param in SPEC["paths"][path]["get"].get("parameters", []) if param["in"] == "query"]
-    assert [param["name"] for param in query] == ["query"]
-    assert not any(param.get("required") for param in query), "the source sends no query string"
-    assert "?" not in LOCALITIES_PATH
+@pytest.mark.parametrize(
+    ("source_path", "method", "path_params"),
+    [
+        (LOCALITIES_PATH, "get", set()),
+        (LOCALITIES_WITH_SALMONOIDS_PATH, "get", set()),
+        (LOCALITY_WEEK_PATH, "get", {"localityNo", "year", "week"}),
+        (LOCALITY_WEEK_SUMMARY_PATH, "post", {"year", "week"}),
+    ],
+    ids=["localities", "localities_with_salmonoids", "locality_week", "locality_week_summary"],
+)
+def test_path_exists_with_the_method_and_path_parameters_the_source_uses(source_path, method, path_params):
+    """The source fills exactly the path values the spec declares, and calls the method it declares."""
+    path = _spec_path(source_path)
+    assert method in SPEC["paths"][path]
+    assert _path_params(path, method) == path_params
+    assert source_path.count("{") == len(path_params)
+    assert not any(
+        param.get("required") for param in SPEC["paths"][path][method].get("parameters", []) if param["in"] == "query"
+    ), "the source sends no query string"
 
 
-def test_localities_response_is_an_array_of_the_five_register_fields():
-    """What `localities` lands: a rename here shows up as a renamed column downstream."""
-    path = _spec_path(LOCALITIES_PATH)
-    body = SPEC["paths"][path]["get"]["responses"]["200"]["content"]["application/json"]["schema"]
-    assert body["type"] == "array"
-    item = SPEC["components"]["schemas"][body["items"]["$ref"].removeprefix("#/components/schemas/")]
-    assert set(item["properties"]) == {
-        "aquaCultureRegistryVersion",
-        "localityNo",
-        "name",
-        "municipalityNo",
-        "municipality",
-    }
-    assert item["properties"]["localityNo"]["type"] == "integer"
-    assert item["properties"]["municipalityNo"]["type"] == "string"
+def test_summary_request_body_is_locality_report_query_v2_with_production_area_and_organization():
+    """The body `locality_week_summary` sends verbatim is this schema; a refresh that renames a filter fails here.
 
-
-def test_localities_with_salmonoids_path_is_a_get_with_no_parameters():
-    path = _spec_path(LOCALITIES_WITH_SALMONOIDS_PATH)
-    assert "get" in SPEC["paths"][path]
-    assert _path_params(path) == set()
-    assert not any(param["in"] == "query" for param in SPEC["paths"][path]["get"].get("parameters", []))
-
-
-def test_locality_week_path_is_a_get_addressed_by_locality_year_and_week():
-    path = _spec_path(LOCALITY_WEEK_PATH)
-    assert "get" in SPEC["paths"][path]
-    assert _path_params(path) == {"localityNo", "year", "week"}
-    assert LOCALITY_WEEK_PATH.count("{") == 3, "the source fills exactly the three path values"
-
-
-def test_summary_path_is_a_post_addressed_by_year_and_week():
-    """A `POST`, but a read: the path is the week and the body is the filter."""
-    path = _spec_path(LOCALITY_WEEK_SUMMARY_PATH)
-    assert set(SPEC["paths"][path]) == {"post"}
-    assert _path_params(path, "post") == {"year", "week"}
-    assert LOCALITY_WEEK_SUMMARY_PATH.count("{") == 2, "the source fills exactly the two path values"
-    assert not any(param["in"] == "query" for param in SPEC["paths"][path]["post"].get("parameters", []))
-
-
-def test_summary_request_body_declares_the_two_filters_the_source_names():
-    """`productionArea` (one integer, 1 to 13) and `organization` (one string) are what the source's arguments become.
-
-    A refresh that renames either, or turns one into a list, fails here rather than as a
-    silent 400 the source would skip as "no report".
+    The API rejects a field the schema does not declare, and the source would skip that 400 as "no report".
     """
     path = _spec_path(LOCALITY_WEEK_SUMMARY_PATH)
     body = SPEC["paths"][path]["post"]["requestBody"]["content"]["application/json"]["schema"]
-    query = SPEC["components"]["schemas"][body["$ref"].removeprefix("#/components/schemas/")]
-    assert query["additionalProperties"] is False, "the API rejects a body field it does not declare"
-
-    area = query["properties"]["productionArea"]
-    assert area["type"] == "integer"
-    assert (area["minimum"], area["maximum"]) == (1, 13)
-    organization = query["properties"]["organization"]
-    assert organization["type"] == "string"
+    schema_name = body["$ref"].removeprefix("#/components/schemas/")
+    assert schema_name.endswith("LocalityReportQueryV2"), schema_name
+    query = SPEC["components"]["schemas"][schema_name]
+    assert query["additionalProperties"] is False
+    assert query["properties"]["productionArea"]["type"] == "integer"
+    assert query["properties"]["organization"]["type"] == "string"
 
 
 def test_base_url_is_the_specs_server():

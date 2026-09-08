@@ -6,19 +6,9 @@
 # are fixed in the package. CI never reads this file: the default test run is offline and
 # needs no credentials. Both files are yours to create locally.
 
-# Resource arguments can be set here instead of bound in code, under the resource's own
-# section. `locality_nos` keeps a subset of the salmonoid localities; leave it out to load
-# every one of them (about 2 000, each costing one request per week loaded).
-#
-# The week range has no config form: it is a `WeekRange`, bound in code —
-# see the README under "How to start".
+# A resource argument can be set here instead of bound in code, under the resource's own
+# section. The summary's request body — `LocalityReportQueryV2` in specs/openapi.json — is
+# one such argument; a week range is not, it is bound in code (see the README).
 
-# [sources.barentswatch_fishhealth.localities_with_salmonoids]
-# locality_nos = [11340, 45072]
-
-# The weekly summary's filters, one request per value per week. Leave both out for every
-# locality in Norway. `organizations` takes nine-digit organisation numbers.
-
-# [sources.barentswatch_fishhealth.locality_week_summary]
-# production_areas = [7, 8]
-# organizations = ["921668236"]
+# [sources.barentswatch_fishhealth.locality_week_summary.body]
+# productionArea = 7
