@@ -23,6 +23,10 @@ _Avoid_: NFSA
 Fiskeridirektoratet's (the Norwegian Directorate of Fisheries') register of licences and localities, Akvakulturregisteret. The API's `aquaCultureRegister` on a weekly report is the locality's entry in it: **licences** (`licenseNo`, `licensee`, `capacity`, `species`, `productionType`), **organizations** holding them, and the locality's own capacity. A licence is granted to a licensee and is valid for one or more localities.
 _Avoid_: permit, concession (the API says license)
 
+**Organisation**:
+A company holding licences, identified by its nine-digit organisation number from Brønnøysundregistrene (the Norwegian company register). The API returns it as `organizationNo` in a detailed row's `aquaCultureRegister.organizations`, and the summary's `organization` filter takes one such number per request; `organizations` on `locality_week_summary` is a list of them. A locality can belong to several organisations, which is why the source does not write the filter value back into the row. Norwegian: organisasjonsnummer.
+_Avoid_: company number, org id
+
 ### Places
 
 **Locality**:
@@ -34,7 +38,7 @@ A locality with a licence for a salmonoid species — salmon, trout, char. `GET 
 _Avoid_: active locality (a salmonoid locality can be fallow)
 
 **Production area**:
-One of the thirteen zones the Norwegian coast is divided into for regulating salmon farming capacity, the traffic-light system. Norwegian: produksjonsområde. A weekly report carries the locality's as `productionArea` (`id`, `name`, `color`).
+One of the thirteen zones the Norwegian coast is divided into for regulating salmon farming capacity, the traffic-light system, numbered 1 to 13 from south to north. Norwegian: produksjonsområde. A detailed weekly report carries the locality's as `productionArea` (`id`, `name`, `color`); the summary's `productionArea` filter takes that `id`, one per request, and the source writes the requested id into each summary row as `productionArea`, an integer, because the row does not carry it.
 _Avoid_: zone (that word is used for PD zones)
 
 **PD zone**:
@@ -54,11 +58,18 @@ The API's unit of time: a year and a week number under ISO 8601, so week 1 is th
 _Avoid_: calendar week, reporting week
 
 **Locality-week**:
-One locality in one ISO week — one request to the weekly endpoint, and one row of `locality_week`. Keyed by `localityNo`, `year`, `week`.
+One locality in one ISO week — one request to the detailed weekly endpoint, and one row of `locality_week` or of `locality_week_summary`. Keyed by `localityNo`, `year`, `week` in both.
 _Avoid_: report (a locality-week row exists for fallow weeks too, when nothing was reported)
 
+**Locality-week summary**:
+The shorter form of a locality-week, `LocalityWeekReportV2`, from `POST /v2/geodata/fishhealth/locality/{year}/{week}` — a `POST` that only reads: the filter is a JSON body, and nothing is stored. One request answers every locality matching the filter for the week, and each is one row of `locality_week_summary`: the same lice report as the detailed row, diseases and lice treatments as names only (`MEDIKAMENTELL`, `IKKE_MEDIKAMENTELL`, `RENSEFISK`), `hasSalmonoidLicense`, `isSlaughterHoldingCage` — and none of the register, zone or escape fields.
+_Avoid_: aggregate (it is per locality, not a total), site summary (the spec's prose; the package says locality)
+
+**Filtered locality**:
+`isFiltered` on a summary row says whether the locality matched the filter. It only carries information with `tagFilteredLocalities: true` in `filters`, which makes the API return every locality and tag the matches instead of dropping the rest; without it, every row returned is a match.
+
 **Week range**:
-An inclusive span of ISO weeks, `WeekRange(start_year, start_week, end_year, end_week)`. The one argument `locality_week` needs; there is no cursor and no window parameter. `FIRST_YEAR`, 2012, is the earliest year the API answers for.
+An inclusive span of ISO weeks, `WeekRange(start_year, start_week, end_year, end_week)`. The one argument both weekly resources need; there is no cursor and no window parameter. `FIRST_YEAR`, 2012, is the earliest year the API answers for.
 _Avoid_: window, period, interval
 
 **Lookback**:
@@ -106,3 +117,6 @@ These are used in the API and land as the source yields them, but the definition
 - **Export restriction area** — what the restriction covers, and who declares it, is not described in the spec.
 - **`daysSinceLastChitinSynthesisInhibitorTreatment`** — the regulatory limit it relates to is not stated in the spec; the description above is general knowledge.
 - **The `FIRST_YEAR` floor of 2012** — measured (2011-W1 is refused, 2012-W1 is served), not documented. Whether every locality's history starts there, or only the API's, is not known.
+- **`isFiltered` and `tagFilteredLocalities`** — read from the spec's one-line description of the filter ("include all sites and tag filter matches"); not exercised live.
+- **`hasSalmonoidLicense` and `isSlaughterHoldingCage`** — the spec's descriptions ("production license for salmonoid species", "slaughter holding cage license"); how they relate to the register's `productionType` is not stated. Norwegian: slaktemerd, for the second.
+- **Production areas numbered south to north** — general knowledge of the traffic-light system; the spec says only that valid values are 1–13.
