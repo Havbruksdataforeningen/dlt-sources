@@ -15,3 +15,10 @@
 
 # [sources.barentswatch_fishhealth.locality]
 # locality_nos = [11340, 45072]
+
+# The weekly summary's filters, one request per value per week. Leave both out for every
+# locality in Norway. `organizations` takes nine-digit organisation numbers.
+
+# [sources.barentswatch_fishhealth.locality_week_summary]
+# production_areas = [7, 8]
+# organizations = ["921668236"]
