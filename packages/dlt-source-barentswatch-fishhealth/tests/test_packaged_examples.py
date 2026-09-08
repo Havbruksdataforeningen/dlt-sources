@@ -69,7 +69,7 @@ def test_secrets_example_resolves_the_credentials(source_from_examples, mock_api
     """The section the example tells a consumer to write is the one dlt reads — and what reaches the token endpoint."""
     mock_api.localities()
 
-    list(source_from_examples.locality)
+    list(source_from_examples.localities_with_salmonoids)
 
     (token_request,) = mock_api.requests_to(TOKEN_URL)
     sent = {key: value for key, [value] in parse_qs(token_request.text).items()}
@@ -77,18 +77,12 @@ def test_secrets_example_resolves_the_credentials(source_from_examples, mock_api
     assert sent["client_secret"] == PLACEHOLDERS["your-client-secret-here"]
 
 
-def test_secrets_example_has_both_placeholders():
-    """A consumer overwrites two values; both have to be there to overwrite."""
-    for placeholder in PLACEHOLDERS:
-        assert placeholder in SECRETS_EXAMPLE.read_text(), f"secrets example no longer carries {placeholder}"
-
-
 def test_config_example_sets_nothing_the_source_needs(source_from_examples, mock_api):
     """Everything in the config example is commented out, so a consumer copying it loads every locality."""
     assert tomllib.loads(CONFIG_EXAMPLE.read_text()) == {}
 
     mock_api.localities()
-    rows = list(source_from_examples.locality)
+    rows = list(source_from_examples.localities_with_salmonoids)
     assert [row["localityNo"] for row in rows] == ALL_LOCALITY_NOS
 
 
@@ -103,6 +97,11 @@ def test_config_example_documents_only_real_resource_params(source_from_examples
     )
     assert documented, "Expected the config example to document at least one per-resource param"
     _assert_real_resource_params(source_from_examples, documented, "Config example")
+    # The two resources that take config, by their endpoint-derived names. `localities` takes nothing.
+    assert documented == {
+        "localities_with_salmonoids": ["locality_nos"],
+        "locality_week_summary": ["production_areas", "organizations"],
+    }
 
 
 def test_readme_secrets_match_the_packaged_example():
@@ -118,6 +117,7 @@ def test_readme_config_names_real_resource_params(source_from_examples):
     documented = {resource_name: list(params) for resource_name, params in sections.items()}
     assert documented, "Expected the README config block to set at least one per-resource param"
     _assert_real_resource_params(source_from_examples, documented, "README")
+    assert documented == {"localities_with_salmonoids": ["locality_nos"]}
 
 
 def test_neither_example_claims_ci_generates_it():

@@ -5,8 +5,8 @@ Run with: uv run pytest -m integration
 dlt resolves the credentials itself (environment variables first, then `.dlt/secrets.toml`).
 Missing credentials cause a hard error — not a skip.
 
-Two public localities over three fixed weeks, then one production area for one week: nine
-requests, a few seconds. The assertion is that rows landed in the shape the offline suite
+Two public localities over three fixed weeks, the full locality list, then one production
+area for one week: ten requests, a few seconds. The assertion is that rows landed in the shape the offline suite
 assumes.
 """
 
@@ -49,15 +49,15 @@ def require_credentials():
 
 def test_two_localities_three_weeks_land():
     """Both tables land, and every weekly row carries the report as one JSON object."""
-    source = barentswatch_fishhealth_source().with_resources("locality", "locality_week")
-    source.locality.bind(locality_nos=LOCALITY_NOS)
+    source = barentswatch_fishhealth_source().with_resources("localities_with_salmonoids", "locality_week")
+    source.localities_with_salmonoids.bind(locality_nos=LOCALITY_NOS)
     source.locality_week.bind(week_range=WEEK_RANGE)
 
     pipeline = make_pipeline("integ_barentswatch_fishhealth")
     pipeline.run(source).raise_on_failed_jobs()
 
-    assert_row_count(pipeline, "locality", len(LOCALITY_NOS))
-    assert {row["locality_no"] for row in load_rows(pipeline, "locality")} == set(LOCALITY_NOS)
+    assert_row_count(pipeline, "localities_with_salmonoids", len(LOCALITY_NOS))
+    assert {row["locality_no"] for row in load_rows(pipeline, "localities_with_salmonoids")} == set(LOCALITY_NOS)
 
     weeks = load_rows(pipeline, "locality_week")
     assert 0 < len(weeks) <= len(LOCALITY_NOS) * WEEK_RANGE.n_weeks, "Expected at least one reported week"
@@ -66,6 +66,20 @@ def test_two_localities_three_weeks_land():
         assert (row["year"], row["week"]) in set(WEEK_RANGE.weeks())
         report = json.loads(row["lice_report"])
         assert {"hasReported", "isFallow", "adultFemaleLice"} <= set(report)
+
+
+def test_the_full_locality_list_lands():
+    """One request: every locality in the register, well over two thousand, each with its five fields."""
+    source = barentswatch_fishhealth_source().with_resources("localities")
+
+    pipeline = make_pipeline("integ_barentswatch_fishhealth_localities")
+    pipeline.run(source).raise_on_failed_jobs()
+
+    rows = load_rows(pipeline, "localities")
+    assert len(rows) > 2000, f"Expected the register to list more than 2 000 localities, got {len(rows)}"
+    assert len({row["locality_no"] for row in rows}) == len(rows), "one row per locality"
+    assert {"aqua_culture_registry_version", "locality_no", "name", "municipality_no", "municipality"} <= set(rows[0])
+    assert set(LOCALITY_NOS) <= {row["locality_no"] for row in rows}, "the salmonoid localities are in the register"
 
 
 def test_one_production_area_one_week_lands_the_summary():

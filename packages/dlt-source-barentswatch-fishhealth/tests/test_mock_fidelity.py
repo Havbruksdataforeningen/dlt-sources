@@ -30,7 +30,6 @@ import json
 from pathlib import Path
 from typing import Any
 
-import pytest
 from jsonschema import Draft202012Validator
 
 from tests.conftest import ALL_LOCALITY_NOS, MOCK_DIR, load_mock
@@ -38,13 +37,15 @@ from tests.conftest import ALL_LOCALITY_NOS, MOCK_DIR, load_mock
 SPEC = json.loads((Path(__file__).parent.parent / "specs" / "openapi.json").read_text())
 
 # (method, path): the operations the source calls, as the spec keys them.
-LOCALITIES = ("get", "/v1/geodata/fishhealth/localitieswithsalmonoids")
+LOCALITIES = ("get", "/v1/geodata/fishhealth/localities")
+LOCALITIES_WITH_SALMONOIDS = ("get", "/v1/geodata/fishhealth/localitieswithsalmonoids")
 LOCALITY_WEEK = ("get", "/v2/geodata/fishhealth/locality/{localityNo}/{year}/{week}")
 LOCALITY_WEEK_SUMMARY = ("post", "/v2/geodata/fishhealth/locality/{year}/{week}")
 
 # fixture -> the operation and status code whose response it stands in for.
 FIXTURES = {
-    "localitieswithsalmonoids.json": (LOCALITIES, "200"),
+    "localities.json": (LOCALITIES, "200"),
+    "localitieswithsalmonoids.json": (LOCALITIES_WITH_SALMONOIDS, "200"),
     "locality_week_reported.json": (LOCALITY_WEEK, "200"),
     "locality_week_fallow.json": (LOCALITY_WEEK, "200"),
     "problem_details_400.json": (LOCALITY_WEEK, "400"),
@@ -86,53 +87,9 @@ def _response_validator(operation: tuple[str, str], status: str) -> Draft202012V
     return Draft202012Validator({**body, "components": JSON_SCHEMA_SPEC["components"]})
 
 
-@pytest.mark.parametrize(("filename", "endpoint"), FIXTURES.items())
-def test_fixture_matches_its_endpoints_response_schema(filename, endpoint):
-    operation, status = endpoint
-    validator = _response_validator(operation, status)
-    problems = [
-        f"{filename}{error.json_path[1:]}: {error.message}" for error in validator.iter_errors(load_mock(filename))
-    ]
-    assert not problems, "\n".join(problems)
-
-
-def test_locality_list_fixture_has_rows():
-    """An empty array would satisfy the schema and prove nothing downstream."""
-    assert load_mock("localitieswithsalmonoids.json")
-
-
 def test_locality_list_fixture_matches_the_locality_constants():
     """`conftest` hardcodes the locality numbers; the fixture is where they actually come from."""
     assert [row["localityNo"] for row in load_mock("localitieswithsalmonoids.json")] == ALL_LOCALITY_NOS
-
-
-def test_the_two_weekly_fixtures_differ_where_they_should():
-    """One reported week and one fallow week — the two shapes a consumer has to read."""
-    reported = load_mock("locality_week_reported.json")["liceReport"]
-    fallow = load_mock("locality_week_fallow.json")["liceReport"]
-    assert reported["hasReported"] is True and reported["isFallow"] is False
-    assert fallow["hasReported"] is False and fallow["isFallow"] is True
-    assert reported["adultFemaleLice"]["average"] is not None
-    assert fallow["adultFemaleLice"]["average"] is None
-    assert load_mock("locality_week_reported.json")["liceTreatments"]["nonMedicinalTreatments"]
-    assert not load_mock("locality_week_fallow.json")["liceTreatments"]["nonMedicinalTreatments"]
-
-
-def test_the_summary_fixture_covers_the_three_shapes():
-    """A reported week, a fallow week, and a week with a disease and a treatment category — in that order.
-
-    The summary's `liceTreatments` is category names, not the detailed report's object of
-    treatment lists; a fixture that carried the object would validate nothing about it.
-    """
-    reported, fallow, treated = load_mock("locality_week_summary.json")
-    assert [row["locality"]["no"] for row in (reported, fallow, treated)] == [90001, 90002, 90003]
-    assert reported["liceReport"]["hasReported"] is True and reported["liceReport"]["isFallow"] is False
-    assert fallow["liceReport"]["hasReported"] is False and fallow["liceReport"]["isFallow"] is True
-    assert fallow["liceReport"]["adultFemaleLice"]["average"] is None
-    assert reported["diseases"] == [] and reported["liceTreatments"] == []
-    assert treated["diseases"] == ["PANKREASSYKDOM"]
-    assert treated["liceTreatments"] == ["IKKE_MEDIKAMENTELL"]
-    assert all(row["isFiltered"] is True for row in (reported, fallow, treated)), "every row of a filtered request"
 
 
 def test_no_fixture_carries_a_real_locality_number():

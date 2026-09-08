@@ -1,7 +1,7 @@
 """Shared fixtures and helpers for BarentsWatch Fish Health pipeline tests.
 
 The offline suite talks HTTP to a `requests_mock` server that answers the token endpoint and
-whichever of the three API routes a test registers. Nothing inside the package is patched, so
+whichever of the four API routes a test registers. Nothing inside the package is patched, so
 the OAuth2 flow, dlt's retry session and the source's own status handling all run for real.
 """
 
@@ -25,6 +25,7 @@ from dlt_source_barentswatch_fishhealth import WeekRange, barentswatch_fishhealt
 from dlt_source_barentswatch_fishhealth.barentswatch_fishhealth import (
     BASE_URL,
     LOCALITIES_PATH,
+    LOCALITIES_WITH_SALMONOIDS_PATH,
     LOCALITY_WEEK_PATH,
     LOCALITY_WEEK_SUMMARY_PATH,
     TOKEN_URL,
@@ -32,14 +33,19 @@ from dlt_source_barentswatch_fishhealth.barentswatch_fishhealth import (
 
 MOCK_DIR = Path(__file__).parent / "mock_responses"
 
-# The locality numbers `localitieswithsalmonoids.json` lists; `test_mock_fidelity.py` keeps them in step.
+# The locality numbers `localitieswithsalmonoids.json` lists — a subset of `localities.json`'s;
+# `test_mock_fidelity.py` keeps them in step.
 ALL_LOCALITY_NOS = [90001, 90002, 90003, 90004, 90005]
 
 # Everything barentswatch_fishhealth_source() itself needs. Resource arguments — the
 # localities to keep and the weeks to load — live on the resources; bind them there.
 SOURCE_CONFIG: dict[str, Any] = {"client_id": "test-id", "client_secret": "test-secret"}
 
-LOCALITIES_URL = BASE_URL + LOCALITIES_PATH
+LOCALITIES_URL = BASE_URL + LOCALITIES_WITH_SALMONOIDS_PATH
+"""The salmonoid list, which `locality_week` iterates over."""
+
+LOCALITIES_ALL_URL = BASE_URL + LOCALITIES_PATH
+"""The full register list, which nothing else depends on."""
 
 # A short range for tests that need more than one week: three weeks, in one year.
 THREE_WEEKS = WeekRange(2024, 1, 2024, 3)
@@ -111,7 +117,7 @@ def isolated_run_context(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Ite
     """Run with no config at all: no `.dlt/` files, no `SOURCES__*` variables.
 
     A maintainer's own `.dlt/config.toml` sets `locality_nos`, and dlt would inject it into
-    every `locality` resource a test builds — filtering the fixture's localities down to none.
+    every `localities_with_salmonoids` resource a test builds — filtering the fixture's localities down to none.
     So each offline test gets an empty dlt project directory instead; the test that reads the
     packaged examples copies them in here. `test_integration.py` overrides this fixture, since
     the live tests need the real `secrets.toml`.
@@ -168,10 +174,10 @@ def summary_url(year: int, week: int) -> str:
 
 
 class MockApi:
-    """The BarentsWatch API as `requests_mock` serves it: a token endpoint and the three routes.
+    """The BarentsWatch API as `requests_mock` serves it: a token endpoint and the four routes.
 
     The token endpoint is registered on construction, because every request needs it. The
-    three data routes are registered by the test, so a request for a route the test did not
+    four data routes are registered by the test, so a request for a route the test did not
     expect fails as `NoMockAddress` rather than being answered with something plausible.
     """
 
@@ -182,12 +188,23 @@ class MockApi:
         )
 
     def localities(self, rows: list[dict[str, Any]] | None = None, **kwargs: Any) -> Any:
-        """Answer the locality list with `rows`, by default the fixture; `kwargs` go to `requests_mock`."""
+        """Answer the salmonoid locality list with `rows`, by default the fixture; `kwargs` go to `requests_mock`.
+
+        This is the list `locality_week` iterates over, so it is the one most tests need.
+        """
         if rows is not None:
             kwargs.setdefault("json", rows)
         elif not kwargs:
             kwargs["json"] = load_mock("localitieswithsalmonoids.json")
         return self.mocker.get(LOCALITIES_URL, **kwargs)
+
+    def all_localities(self, rows: list[dict[str, Any]] | None = None, **kwargs: Any) -> Any:
+        """Answer the full locality list with `rows`, by default the fixture; `kwargs` go to `requests_mock`."""
+        if rows is not None:
+            kwargs.setdefault("json", rows)
+        elif not kwargs:
+            kwargs["json"] = load_mock("localities.json")
+        return self.mocker.get(LOCALITIES_ALL_URL, **kwargs)
 
     def week(self, locality_no: int, year: int, week: int, **kwargs: Any) -> Any:
         """Answer one locality-week with a lice report, unless `kwargs` say otherwise."""
@@ -274,7 +291,7 @@ def make_source(
     """
     source = barentswatch_fishhealth_source(**SOURCE_CONFIG)
     if locality_nos is not None:
-        source.locality.bind(locality_nos=locality_nos)
+        source.localities_with_salmonoids.bind(locality_nos=locality_nos)
     if week_range is not None:
         source.locality_week.bind(week_range=week_range)
     summary_args = {

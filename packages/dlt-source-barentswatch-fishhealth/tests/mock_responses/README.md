@@ -12,7 +12,8 @@ Aquaculture Register does not issue, and the names are words like "Testholmen" a
 
 | File | Stands in for |
 |---|---|
-| `localitieswithsalmonoids.json` | `GET /v1/geodata/fishhealth/localitieswithsalmonoids` — the locality list |
+| `localities.json` | `GET /v1/geodata/fishhealth/localities` — the full locality list: number, name, municipality and register version |
+| `localitieswithsalmonoids.json` | `GET /v1/geodata/fishhealth/localitieswithsalmonoids` — the salmonoid locality list, number and name only |
 | `locality_week_reported.json` | `GET /v2/geodata/fishhealth/locality/{localityNo}/{year}/{week}` for a week with a lice report and one treatment |
 | `locality_week_fallow.json` | The same endpoint for a fallow week: `hasReported: false`, `isFallow: true`, every average null |
 | `problem_details_400.json` | The same endpoint's 400 body — the API's answer for a week it has no report for |
@@ -37,7 +38,9 @@ than sitting here unnoticed.
 ## Identifiers
 
 `tests/conftest.py` exports the locality numbers as `ALL_LOCALITY_NOS`; keep them in step
-with `localitieswithsalmonoids.json`. The two detailed weekly fixtures describe the first
+with `localitieswithsalmonoids.json`. The salmonoid list is a subset of the full list, as it
+is live, so every number in `localitieswithsalmonoids.json` is also in `localities.json`;
+the municipality numbers there are invented too, `990N`. The two detailed weekly fixtures describe the first
 two of those localities, but a test may serve either fixture for any locality and week — the
 source stamps `localityNo`, `year` and `week` from the request, not from the body. The
 summary fixture's three rows are the first three localities; a test may serve it for any

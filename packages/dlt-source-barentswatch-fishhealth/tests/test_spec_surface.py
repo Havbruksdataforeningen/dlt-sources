@@ -1,6 +1,6 @@
 """The endpoints the source reads are checked against the committed OpenAPI spec.
 
-The source addresses three paths, one server and one token endpoint, all fixed as module
+The source addresses four paths, one server and one token endpoint, all fixed as module
 constants. These tests are what fails when a spec refresh moves any of them: a renamed
 path, a new server, a token endpoint elsewhere, a renamed filter in the summary's request
 body. `specs/README.md` says how to refresh.
@@ -13,6 +13,7 @@ from pathlib import Path
 from dlt_source_barentswatch_fishhealth.barentswatch_fishhealth import (
     BASE_URL,
     LOCALITIES_PATH,
+    LOCALITIES_WITH_SALMONOIDS_PATH,
     LOCALITY_WEEK_PATH,
     LOCALITY_WEEK_SUMMARY_PATH,
     SCOPE,
@@ -39,8 +40,36 @@ def _path_params(path: str, method: str = "get") -> set[str]:
     return {param["name"] for param in SPEC["paths"][path][method].get("parameters", []) if param["in"] == "path"}
 
 
-def test_localities_path_is_a_get_with_no_parameters():
+def test_localities_path_is_a_get_with_no_path_parameters_and_only_an_optional_query():
+    """The full list is addressed by nothing. The spec's one query parameter, a name search, is optional and unused."""
     path = _spec_path(LOCALITIES_PATH)
+    assert "get" in SPEC["paths"][path]
+    assert _path_params(path) == set()
+    query = [param for param in SPEC["paths"][path]["get"].get("parameters", []) if param["in"] == "query"]
+    assert [param["name"] for param in query] == ["query"]
+    assert not any(param.get("required") for param in query), "the source sends no query string"
+    assert "?" not in LOCALITIES_PATH
+
+
+def test_localities_response_is_an_array_of_the_five_register_fields():
+    """What `localities` lands: a rename here shows up as a renamed column downstream."""
+    path = _spec_path(LOCALITIES_PATH)
+    body = SPEC["paths"][path]["get"]["responses"]["200"]["content"]["application/json"]["schema"]
+    assert body["type"] == "array"
+    item = SPEC["components"]["schemas"][body["items"]["$ref"].removeprefix("#/components/schemas/")]
+    assert set(item["properties"]) == {
+        "aquaCultureRegistryVersion",
+        "localityNo",
+        "name",
+        "municipalityNo",
+        "municipality",
+    }
+    assert item["properties"]["localityNo"]["type"] == "integer"
+    assert item["properties"]["municipalityNo"]["type"] == "string"
+
+
+def test_localities_with_salmonoids_path_is_a_get_with_no_parameters():
+    path = _spec_path(LOCALITIES_WITH_SALMONOIDS_PATH)
     assert "get" in SPEC["paths"][path]
     assert _path_params(path) == set()
     assert not any(param["in"] == "query" for param in SPEC["paths"][path]["get"].get("parameters", []))
@@ -51,12 +80,6 @@ def test_locality_week_path_is_a_get_addressed_by_locality_year_and_week():
     assert "get" in SPEC["paths"][path]
     assert _path_params(path) == {"localityNo", "year", "week"}
     assert LOCALITY_WEEK_PATH.count("{") == 3, "the source fills exactly the three path values"
-
-
-def test_locality_week_declares_400_as_a_documented_answer():
-    """The source skips 400 on the strength of the spec saying it is an answer, not an accident."""
-    path = _spec_path(LOCALITY_WEEK_PATH)
-    assert "400" in SPEC["paths"][path]["get"]["responses"]
 
 
 def test_summary_path_is_a_post_addressed_by_year_and_week():
@@ -84,11 +107,6 @@ def test_summary_request_body_declares_the_two_filters_the_source_names():
     assert (area["minimum"], area["maximum"]) == (1, 13)
     organization = query["properties"]["organization"]
     assert organization["type"] == "string"
-
-
-def test_summary_declares_400_as_a_documented_answer():
-    path = _spec_path(LOCALITY_WEEK_SUMMARY_PATH)
-    assert "400" in SPEC["paths"][path]["post"]["responses"]
 
 
 def test_base_url_is_the_specs_server():

@@ -227,7 +227,7 @@ def test_token_endpoint_error_raises(mock_api):
     mock_api.localities()
 
     with pytest.raises(ResourceExtractionError) as excinfo:
-        list(make_source().locality)
+        list(make_source().localities_with_salmonoids)
 
     assert isinstance(excinfo.value.__cause__, requests.HTTPError)
     assert mock_api.urls_requested() == []
@@ -272,9 +272,10 @@ def test_injected_keys_survive_normalization(mock_api):
 
 
 def test_resource_settings():
-    """`locality` is a snapshot, `locality_week` merges on the three path values."""
+    """Both locality lists are snapshots; `locality_week` merges on the three path values."""
     source = make_source()
-    assert source.locality.write_disposition == "replace"
+    assert source.localities.write_disposition == "replace"
+    assert source.localities_with_salmonoids.write_disposition == "replace"
     assert source.locality_week.write_disposition == "merge"
 
     columns = source.locality_week.compute_table_schema().get("columns", {})
@@ -282,9 +283,3 @@ def test_resource_settings():
 
     normalized = source.discover_schema().tables["locality_week"]["columns"]
     assert [name for name, column in normalized.items() if column.get("primary_key")] == ["locality_no", "year", "week"]
-
-
-def test_locality_week_depends_on_locality():
-    source = make_source()
-    assert source.locality_week.name == "locality_week"
-    assert source.locality_week._pipe.parent is source.locality._pipe

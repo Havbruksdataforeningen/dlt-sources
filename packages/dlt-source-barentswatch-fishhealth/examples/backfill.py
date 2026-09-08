@@ -16,8 +16,9 @@ from dlt_source_barentswatch_fishhealth import FIRST_YEAR, WeekRange, barentswat
 # The numbers discover_localities.py printed for your localities.
 LOCALITY_NOS = [11340, 45072]
 
-source = barentswatch_fishhealth_source()
-source.locality.bind(locality_nos=LOCALITY_NOS)
+# Only the detailed report and the list it iterates over: the summary resource is not bound here.
+source = barentswatch_fishhealth_source().with_resources("localities_with_salmonoids", "locality_week")
+source.localities_with_salmonoids.bind(locality_nos=LOCALITY_NOS)
 source.locality_week.bind(week_range=WeekRange(FIRST_YEAR, 1, *current_iso_week()))
 
 pipeline = dlt.pipeline(

@@ -16,8 +16,9 @@ from dlt_source_barentswatch_fishhealth import barentswatch_fishhealth_source, l
 LOCALITY_NOS = [11340, 45072]
 LOOKBACK_WEEKS = 4
 
-source = barentswatch_fishhealth_source()
-source.locality.bind(locality_nos=LOCALITY_NOS)
+# Only the detailed report and the list it iterates over: the summary resource is not bound here.
+source = barentswatch_fishhealth_source().with_resources("localities_with_salmonoids", "locality_week")
+source.localities_with_salmonoids.bind(locality_nos=LOCALITY_NOS)
 source.locality_week.bind(week_range=last_n_weeks(LOOKBACK_WEEKS))
 
 pipeline = dlt.pipeline(

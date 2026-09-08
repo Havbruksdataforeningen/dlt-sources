@@ -1,9 +1,10 @@
 """dlt source for the BarentsWatch Fish Health API.
 
 Endpoints and record shapes: https://www.barentswatch.no/bwapi/openapi/fishhealth/openapi.json,
-committed as `specs/openapi.json`. This package reads three of its endpoints: the list of
-localities with a salmonoid licence, the detailed weekly report for one locality, and the
-weekly summary of every locality matching a filter.
+committed as `specs/openapi.json`. This package reads four of its endpoints: the two locality
+lists — every locality, and the ones with a salmonoid licence — the detailed weekly report for
+one locality, and the weekly summary of every locality matching a filter. Resources are named
+after their endpoints, so the two lists are told apart the way the API tells them apart.
 
 Both weekly endpoints are addressed by ISO year and ISO week, so each takes a `WeekRange`
 and makes one request per week — per locality for the detailed report, per filter value for
@@ -31,7 +32,8 @@ TOKEN_URL = "https://id.barentswatch.no/connect/token"  # noqa: S105 — a URL, 
 
 SCOPE = "api"
 
-LOCALITIES_PATH = "v1/geodata/fishhealth/localitieswithsalmonoids"
+LOCALITIES_PATH = "v1/geodata/fishhealth/localities"
+LOCALITIES_WITH_SALMONOIDS_PATH = "v1/geodata/fishhealth/localitieswithsalmonoids"
 LOCALITY_WEEK_PATH = "v2/geodata/fishhealth/locality/{locality_no}/{year}/{week}"
 LOCALITY_WEEK_SUMMARY_PATH = "v2/geodata/fishhealth/locality/{year}/{week}"
 """A POST, but a read: the filter travels as a JSON body because it is too rich for a query string."""
@@ -45,7 +47,7 @@ def barentswatch_fishhealth_source(
     client_id: str = dlt.secrets.value,
     client_secret: str = dlt.secrets.value,
 ):
-    """BarentsWatch Fish Health API dlt source. Both resources share one authenticated client.
+    """BarentsWatch Fish Health API dlt source. All resources share one authenticated client.
 
     Args:
         client_id: OAuth2 client id, from secrets. Registered at https://www.barentswatch.no/minside/.
@@ -60,25 +62,27 @@ def barentswatch_fishhealth_source(
     client = RESTClient(base_url=BASE_URL, auth=auth)
 
     @dlt.resource(write_disposition="replace")
-    def locality(locality_nos: list[int] | None = None) -> Iterator[dict[str, Any]]:
+    def localities() -> Iterator[dict[str, Any]]:
+        """Every aquaculture locality, from `GET /v1/geodata/fishhealth/localities`.
+
+        The full register list — number, name, municipality and the register version — of
+        every locality the API knows, salmonoid or not. Not what `locality_week` iterates
+        over: lice reporting applies to salmonoid localities, so that is the shorter list below.
+        """
+        yield from _locality_list(LOCALITIES_PATH)
+
+    @dlt.resource(write_disposition="replace")
+    def localities_with_salmonoids(locality_nos: list[int] | None = None) -> Iterator[dict[str, Any]]:
         """Every locality with a salmonoid licence, from `GET /v1/geodata/fishhealth/localitieswithsalmonoids`.
 
-        Bind `locality_nos` to keep a subset. The list is still fetched, so the rows keep the
-        API's fields and a number that is not a salmonoid locality is reported rather than
-        silently sent to the weekly endpoint, which answers 400 for it — the same 400 it
-        gives a week with no data.
+        Number and name only. This is the list `locality_week` iterates over. Bind
+        `locality_nos` to keep a subset: the list is still fetched, so a number that is not a
+        salmonoid locality is reported rather than silently sent to the weekly endpoint, which
+        answers 400 for it — the same 400 it gives a week with no data.
         """
         if locality_nos is not None and not locality_nos:
             raise ValueError("locality_nos is an empty list; pass None to load every salmonoid locality, or some.")
-        response = client.get(LOCALITIES_PATH)
-        response.raise_for_status()
-        discovered = response.json()
-        if not isinstance(discovered, list) or not all(
-            isinstance(item, dict) and "localityNo" in item for item in discovered
-        ):
-            raise ValueError(f"{LOCALITIES_PATH}: expected a JSON array of objects with a localityNo.")
-        if not discovered:
-            raise ValueError(f"{LOCALITIES_PATH}: the API returned no localities; refusing a 0-row load.")
+        discovered = _locality_list(LOCALITIES_WITH_SALMONOIDS_PATH)
         if locality_nos is None:
             yield from discovered
             return
@@ -91,7 +95,17 @@ def barentswatch_fishhealth_source(
             raise ValueError("None of the requested locality_nos are salmonoid localities; refusing a 0-row load.")
         yield from selected
 
-    @dlt.transformer(data_from=locality, write_disposition="merge", primary_key=WEEK_KEY)
+    def _locality_list(path: str) -> list[dict[str, Any]]:
+        response = client.get(path)
+        response.raise_for_status()
+        rows = response.json()
+        if not isinstance(rows, list) or not all(isinstance(item, dict) and "localityNo" in item for item in rows):
+            raise ValueError(f"{path}: expected a JSON array of objects with a localityNo.")
+        if not rows:
+            raise ValueError(f"{path}: the API returned no localities; refusing a 0-row load.")
+        return rows
+
+    @dlt.transformer(data_from=localities_with_salmonoids, write_disposition="merge", primary_key=WEEK_KEY)
     def locality_week(item: dict[str, Any], week_range: WeekRange | None = None) -> Iterator[dict[str, Any]]:
         """The detailed weekly report for one locality, from
         `GET /v2/geodata/fishhealth/locality/{localityNo}/{year}/{week}`, once per week in `week_range`.
@@ -183,7 +197,7 @@ def barentswatch_fishhealth_source(
                         tagged["productionArea"] = body["productionArea"]
                     yield tagged
 
-    return (locality, locality_week, locality_week_summary)
+    return (localities, localities_with_salmonoids, locality_week, locality_week_summary)
 
 
 def _summary_body(
