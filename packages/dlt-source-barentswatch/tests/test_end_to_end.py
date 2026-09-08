@@ -87,6 +87,14 @@ def test_end_to_end_rerun_is_idempotent(mock_api):
         pipeline, "locality_week_summary", len(load_mock("locality_week_summary.json")) * THREE_WEEKS.n_weeks
     )
 
+    # Which columns the merge runs on, as they land. The row counts above only prove that
+    # some key deduplicated an identical rerun; a key with a report field in it would pass
+    # them and still fail the case that matters, a week whose report changes later.
+    for table in ("locality_week", "locality_week_summary"):
+        columns = pipeline.default_schema.tables[table]["columns"]
+        key = [name for name, column in columns.items() if column.get("primary_key")]
+        assert key == ["locality_no", "year", "week"], table
+
 
 def test_nested_objects_land_as_json_columns_with_no_child_tables(mock_api):
     """`max_table_nesting=0`: the report's objects and arrays are JSON text in one row, not child tables."""

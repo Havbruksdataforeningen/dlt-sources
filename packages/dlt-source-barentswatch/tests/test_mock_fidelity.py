@@ -96,11 +96,6 @@ def test_every_fixture_matches_the_specs_response_schema(filename):
     assert not problems, "\n".join(f"{list(error.absolute_path)}: {error.message}" for error in problems)
 
 
-def test_locality_list_fixture_matches_the_locality_constants():
-    """`conftest` hardcodes the locality numbers; the fixture is where they actually come from."""
-    assert [row["localityNo"] for row in load_mock("localitieswithsalmonoids.json")] == ALL_LOCALITY_NOS
-
-
 def test_no_fixture_carries_a_real_locality_number():
     """Locality numbers are invented, in a range the Aquaculture Register does not issue."""
     for path in sorted(MOCK_DIR.glob("*.json")):

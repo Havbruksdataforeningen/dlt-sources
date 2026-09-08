@@ -19,7 +19,7 @@ from dlt.common.configuration.specs.pluggable_run_context import PluggableRunCon
 from dlt.extract.exceptions import ResourceExtractionError
 
 from dlt_source_barentswatch import WeekRange
-from dlt_source_barentswatch.fishhealth import TOKEN_URL, WEEK_KEY
+from dlt_source_barentswatch.fishhealth import TOKEN_URL
 from tests.conftest import (
     THREE_WEEKS,
     http_status,
@@ -236,19 +236,3 @@ def test_invalid_week_range_raises_before_any_request(mock_api):
 
     assert isinstance(excinfo.value.__cause__, ValueError)
     assert mock_api.requests == []
-
-
-# --- Resource settings -----------------------------------------------------------
-
-
-def test_summary_merges_on_the_three_key_values_and_depends_on_nothing():
-    """The consumer's contract for a rerun: `merge` on the same key as `locality_week`, snake_cased; no parent."""
-    source = make_source()
-    assert source.locality_week_summary.write_disposition == "merge"
-    assert source.locality_week_summary._pipe.parent is None
-
-    columns = source.locality_week_summary.compute_table_schema().get("columns", {})
-    assert [name for name, column in columns.items() if column.get("primary_key")] == WEEK_KEY
-
-    normalized = source.discover_schema().tables["locality_week_summary"]["columns"]
-    assert [name for name, column in normalized.items() if column.get("primary_key")] == ["locality_no", "year", "week"]

@@ -15,7 +15,7 @@ import requests
 from dlt.extract.exceptions import ResourceExtractionError
 
 from dlt_source_barentswatch import WeekRange
-from dlt_source_barentswatch.fishhealth import TOKEN_URL, WEEK_KEY
+from dlt_source_barentswatch.fishhealth import TOKEN_URL
 from tests.conftest import (
     LOCALITIES_URL,
     THREE_WEEKS,
@@ -207,18 +207,3 @@ def test_injected_keys_survive_normalization(mock_api):
 
     (row,) = load_rows(pipeline, "locality_week")
     assert (row["locality_no"], row["year"], row["week"]) == (90003, 2024, 1)
-
-
-# --- Resource settings -----------------------------------------------------------
-
-
-def test_locality_week_merges_on_the_three_path_values():
-    """The consumer's contract for a rerun: `merge` on the same key the records are stamped with, snake_cased."""
-    source = make_source()
-    assert source.locality_week.write_disposition == "merge"
-
-    columns = source.locality_week.compute_table_schema().get("columns", {})
-    assert [name for name, column in columns.items() if column.get("primary_key")] == WEEK_KEY
-
-    normalized = source.discover_schema().tables["locality_week"]["columns"]
-    assert [name for name, column in normalized.items() if column.get("primary_key")] == ["locality_no", "year", "week"]
