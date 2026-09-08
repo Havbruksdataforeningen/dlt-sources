@@ -1,9 +1,9 @@
 """Load every week the API has for a few localities, from the first year to now.
 
-One request per locality per week, made one at a time as BarentsWatch asks. A handful of
-localities back to 2012 is a few thousand requests and takes minutes; every salmonoid locality
-is over a million and takes days. Weeks before a locality existed answer 400 and are skipped.
-Re-running is safe: locality_week merges on locality, year and week.
+One request per locality per week, made one at a time as BarentsWatch asks — so filter the list
+before running this over every salmonoid locality; the README's cost table says what a range costs.
+Weeks before a locality existed answer 400 and are skipped. Re-running is safe: locality_week
+merges on locality, year and week.
 """
 
 import dlt

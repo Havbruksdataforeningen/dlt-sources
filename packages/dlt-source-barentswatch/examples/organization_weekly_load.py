@@ -10,10 +10,8 @@ choice, as in weekly_load.py, where the numbers are written by hand instead.
 **Put your own organisation number in below**: the one here is a placeholder that matches nothing,
 so the run finds no localities and loads only the two production areas until you change it.
 
-A company with 28 localities costs about 120 requests and ten seconds: 28 localities x 4 weeks in
-detail, 2 areas x 4 weeks summarised, and the one that found the localities. Both weekly tables
-merge on locality, year and week, so the overlap a repeated run costs is requests and nothing
-else — why four weeks is weekly_load.py.
+Both weekly tables merge on locality, year and week, so a scheduled run can re-request the weeks it
+already has — why it looks back four of them is weekly_load.py.
 """
 
 import dlt
