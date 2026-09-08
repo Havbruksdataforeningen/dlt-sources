@@ -1,0 +1,123 @@
+{
+  "locality": {
+    "no": 90002,
+    "name": "Prøvevika",
+    "isOnLand": false
+  },
+  "geometry": {
+    "type": "Point",
+    "coordinates": [12.987654, 65.123456]
+  },
+  "municipality": {
+    "no": "9901",
+    "name": "Fiktivdal"
+  },
+  "productionArea": {
+    "id": 99,
+    "name": "Fiktivfjorden til Utkastøya",
+    "color": null
+  },
+  "aquaCultureRegister": {
+    "placement": "SJØ",
+    "capacity": 3120.0,
+    "unit": "TN",
+    "licenses": [
+      {
+        "licenseNo": "X TS 0001",
+        "licensee": "TESTOPPDRETT AS",
+        "grantDate": "1990-01-15T00:00:00",
+        "expirationDate": null,
+        "localities": [
+          {
+            "localityNo": 90001,
+            "name": "Testholmen",
+            "municipality": "Fiktivdal",
+            "isReportingLocality": true
+          },
+          {
+            "localityNo": 90002,
+            "name": "Prøvevika",
+            "municipality": "Fiktivdal",
+            "isReportingLocality": true
+          }
+        ],
+        "capacity": 780.0,
+        "purpose": "Kommersiell",
+        "productionType": "Matfisk",
+        "isGreen": false,
+        "species": ["Laks", "Regnbueørret", "Ørret"],
+        "speciesCategory": "Laks, regnbueørret og ørret",
+        "unit": "TN"
+      }
+    ],
+    "hasGreenLicense": false,
+    "hasSalmonoidLicense": true,
+    "productionTypes": ["Matfisk"],
+    "purposes": ["Kommersiell"],
+    "isSlaughterHoldingCage": false,
+    "organizations": [
+      {
+        "name": "TESTOPPDRETT AS",
+        "organizationNo": "999999999",
+        "address": "POSTBOKS 1",
+        "postalCode": "9999",
+        "city": "FIKTIVDAL",
+        "localities": [
+          {
+            "localityNo": 90001,
+            "name": "Testholmen",
+            "municipality": "Fiktivdal",
+            "isReportingLocality": false
+          },
+          {
+            "localityNo": 90002,
+            "name": "Prøvevika",
+            "municipality": "Fiktivdal",
+            "isReportingLocality": false
+          }
+        ]
+      }
+    ],
+    "species": ["Laks", "Regnbueørret", "Ørret"]
+  },
+  "controlAreas": [],
+  "exportRestrictionAreas": [],
+  "pdZoneId": null,
+  "diseases": [],
+  "farmedFishEscapes": [],
+  "liceReport": {
+    "hasReported": false,
+    "isFallow": true,
+    "adultFemaleLice": {
+      "average": null,
+      "averageOfPreviousWeek": null,
+      "trend": null
+    },
+    "mobileLice": {
+      "average": null,
+      "averageOfPreviousWeek": null,
+      "trend": null
+    },
+    "stationaryLice": {
+      "average": null,
+      "averageOfPreviousWeek": null,
+      "trend": null
+    },
+    "totalLice": {
+      "average": null,
+      "averageOfPreviousWeek": null,
+      "trend": null
+    },
+    "seaTemperature": null
+  },
+  "liceTreatments": {
+    "combinationTreatments": [],
+    "medicinalTreatments": [],
+    "nonMedicinalTreatments": [],
+    "bathTreatments": [],
+    "cleanerFishTreatment": null,
+    "inFeedTreatments": [],
+    "mechanicalRemovalTreatment": null,
+    "daysSinceLastChitinSynthesisInhibitorTreatment": null
+  }
+}
