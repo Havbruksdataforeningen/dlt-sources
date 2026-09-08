@@ -1,0 +1,17 @@
+# BarentsWatch Fish Health API — dlt pipeline configuration
+# Copy this file to config.toml and adjust as needed:
+#   cp .dlt/config.toml.example .dlt/config.toml
+#
+# Nothing in here is required: the API has one server and one token endpoint, and both
+# are fixed in the package. CI never reads this file: the default test run is offline and
+# needs no credentials. Both files are yours to create locally.
+
+# Resource arguments can be set here instead of bound in code, under the resource's own
+# section. `locality_nos` keeps a subset of the salmonoid localities; leave it out to load
+# every one of them (about 2 000, each costing one request per week loaded).
+#
+# The week range has no config form: it is a `WeekRange`, bound in code —
+# see the README under "How to start".
+
+# [sources.barentswatch_fishhealth.locality]
+# locality_nos = [11340, 45072]
