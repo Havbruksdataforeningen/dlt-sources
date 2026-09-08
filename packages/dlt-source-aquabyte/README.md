@@ -1,5 +1,7 @@
 # dlt-source-aquabyte
 
+[![PyPI](https://img.shields.io/pypi/v/dlt-source-aquabyte.svg)](https://pypi.org/project/dlt-source-aquabyte/)
+
 A [dlt](https://dlthub.com/) source for the [Aquabyte API v3](https://api.aquabyte.ai/v3/docs): sites, biomass, lice counts, welfare scores, behaviour and environmental readings, into any dlt destination.
 
 **Records land as the API returns them** — nothing renamed, nothing dropped, no invented child tables. Column names are the API's own, in dlt's usual snake_case. Reshaping belongs in your transform layer, where you can change it without waiting for a release.
