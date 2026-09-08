@@ -24,7 +24,9 @@ The columns, after dlt's snake_case (verified in DuckDB on 2026-09-08):
 
 **A fallow locality is a row, not a gap.** The API answers a fallow week with 200, `isFallow: true`, `hasReported: false` and null averages, and the source lands that row. `lice_report ->> 'hasReported'` is the condition that separates a reported week from a fallow one; a week the API has nothing for at all answers 400 and is [skipped](#http-400-means-no-report).
 
-**The `locality` table is a snapshot of the list you loaded.** `locality` loads with `replace`, so each run leaves exactly the rows it fetched: every salmonoid locality with no `locality_nos` bound, or only the ones you named. It is the API's discovery list — `localityNo` and `name`, nothing more — and the input `locality_week` iterates over. Selecting `locality_week` alone with `with_resources("locality_week")` still fetches the list, because the transformer needs it, but writes no `locality` table. `locality_week_summary` does not read it at all: the filter body decides which localities it gets.
+**The `localities_with_salmonoids` table is a snapshot of the list you loaded.** `localities_with_salmonoids` loads with `replace`, so each run leaves exactly the rows it fetched: every salmonoid locality with no `locality_nos` bound, or only the ones you named. It is the API's discovery list — `localityNo` and `name`, nothing more — and the input `locality_week` iterates over. Selecting `locality_week` alone with `with_resources("locality_week")` still fetches the list, because the transformer needs it, but writes no `localities_with_salmonoids` table. `locality_week_summary` does not read it at all: the filter body decides which localities it gets.
+
+**The `localities` table is the register list, and nothing iterates over it.** `GET /v1/geodata/fishhealth/localities` is every aquaculture locality the API knows, salmonoid or not — 2 706 rows against the salmonoid list's 2 002 on 2026-09-08 — with `municipalityNo`, `municipality` and `aquaCultureRegistryVersion` besides number and name. It also loads with `replace`, takes no argument, and is fetched only when selected. The API has two locality lists with similar names, and the source exposes both under their own names so you can tell them apart; `locality_week` iterates over the salmonoid list because lice reporting applies to those, and this one is for joining a municipality onto the weekly tables.
 
 ## The summary and the detail
 
@@ -95,7 +97,7 @@ Both weekly endpoints answer **400** — a ProblemDetails body such as `{"title"
 
 The summary endpoint also answers 400 for a body it rejects — a list where it wants one value, such as `{"productionArea": [7, 8]}` through `filters`. That is skipped like any other 400, one DEBUG line per week, so a malformed `filters` looks like a range with no reports. Check the DEBUG lines, which carry the body, before concluding the weeks are empty.
 
-That is also why `locality_nos` is filtered against the discovered list rather than sent straight to the weekly endpoint. A mistyped number would otherwise cost one silent 400 per week — a whole backfill of nothing — with no log line to show for it. Instead the `locality` resource fetches the list, keeps the numbers you named that are on it, warns about the ones that are not, and raises if none are left.
+That is also why `locality_nos` is filtered against the discovered list rather than sent straight to the weekly endpoint. A mistyped number would otherwise cost one silent 400 per week — a whole backfill of nothing — with no log line to show for it. Instead the `localities_with_salmonoids` resource fetches the list, keeps the numbers you named that are on it, warns about the ones that are not, and raises if none are left.
 
 Two consequences for reading the data:
 
@@ -104,11 +106,9 @@ Two consequences for reading the data:
 
 ## What the source does not expose
 
-**`GET /v1/geodata/fishhealth/localities`** — the full locality list, 2 706 entries against the salmonoid list's 2 002 on 2026-09-08, with `municipalityNo`, `municipality` and `aquaCultureRegistryVersion` besides number and name. Lice reporting applies to salmonoid localities, and the weekly endpoint is what this package is for, so the salmonoid list is the one that decides what to request. The extra fields are in every weekly row's `municipality` and `aqua_culture_register` anyway.
-
 **The summary's other body fields, as arguments.** `LocalityReportQueryV2` lists about 35 optional filters; the source names two of them, `productionArea` and `organization`, because those are the ones that fan out. The rest — `onlyWithSalmonoidLicense`, `allWithReport`, `aboveLiceThreshold`, `insideIlaControlArea`, `countyMunicipality`, `withinPolygon`, `diseases` and so on — reach the API through `filters`, sent as given, so they need no release to use and none to fix.
 
-**The other ~120 paths in the spec** — lice per production area, disease and control-area detail, sea temperature, the aquaculture register itself, and so on. The spec is the Fish Health API in full; this package reads the three paths the weekly reports need.
+**The other ~120 paths in the spec** — lice per production area, disease and control-area detail, sea temperature, the aquaculture register itself, and so on. The spec is the Fish Health API in full; this package reads the four paths the weekly reports need, and stays partial on purpose: it covers what our own member companies load, and grows when one of them needs the next endpoint.
 
 **Throttling and retries beyond dlt's own.** BarentsWatch asks that batch requests are made one at a time, and the source does exactly that: one request, then the next. It adds no delay between them. dlt's [requests helper](https://dlthub.com/docs/general-usage/http/requests) retries connection errors, `429` and `5xx` on its defaults.
 
@@ -118,7 +118,7 @@ The package logs three things of its own, on the logger `dlt_source_barentswatch
 
 | Level | When |
 |---|---|
-| WARNING | A number in `locality_nos` is not a salmonoid locality, and is left out |
+| WARNING | `localities_with_salmonoids`: a number in `locality_nos` is not a salmonoid locality, and is left out |
 | INFO | `locality_week`: a locality is done, and some of its weeks answered 400 — with the count of skipped weeks out of the range |
 | DEBUG | `locality_week`: one week answered 400 and was skipped. `locality_week_summary`: one week answered 400 for one filter body, and was skipped — the line carries the body |
 
@@ -137,4 +137,4 @@ A service that ships records itself hands you a handler: attach it to the `dlt` 
 
 ## Column types
 
-The source declares no column hints. Every column is typed by dlt from the data: `locality_no`, `year` and `week` are integers because the source injects them as integers, and every nested object or list is a JSON column because of [nesting](#nesting). Two columns share a name across the weekly tables and differ in shape: `lice_treatments` is an object in `locality_week` and a JSON array of category names in `locality_week_summary`, and `production_area` is the API's object in the detail and the injected integer in the summary. The summary's columns, after snake_case: `locality_no, year, week, production_area, locality_week_id, is_filtered, locality, geometry, municipality, has_salmonoid_license, is_slaughter_holding_cage, diseases, lice_report, lice_treatments`. A field the API adds after this release lands as a new column rather than failing the load, and a field it stops sending is absent rather than fatal. Dates and timestamps inside the JSON columns stay text, exactly as the API sends them; parsing is a transform on your side.
+The source declares no column hints. Every column is typed by dlt from the data: `locality_no`, `year` and `week` are integers because the source injects them as integers, and every nested object or list is a JSON column because of [nesting](#nesting). Two columns share a name across the weekly tables and differ in shape: `lice_treatments` is an object in `locality_week` and a JSON array of category names in `locality_week_summary`, and `production_area` is the API's object in the detail and the injected integer in the summary. The summary's columns, after snake_case: `locality_no, year, week, production_area, locality_week_id, is_filtered, locality, geometry, municipality, has_salmonoid_license, is_slaughter_holding_cage, diseases, lice_report, lice_treatments`. The two lists are flat: `localities_with_salmonoids` is `locality_no, name`, and `localities` is `locality_no, name, municipality_no, municipality, aqua_culture_registry_version`. A field the API adds after this release lands as a new column rather than failing the load, and a field it stops sending is absent rather than fatal. Dates and timestamps inside the JSON columns stay text, exactly as the API sends them; parsing is a transform on your side.

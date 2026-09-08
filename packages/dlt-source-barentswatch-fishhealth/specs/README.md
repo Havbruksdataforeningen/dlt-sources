@@ -13,14 +13,14 @@ there, most of it under `info.description` and `components.securitySchemes`.
 | Fetched on | 2026-09-08 |
 
 Refresh it by overwriting the file from that URL and running the tests —
-`tests/test_spec_surface.py` pins the paths this package reads, the server URL and
+`tests/test_spec_surface.py` pins the four paths this package reads, the server URL and
 the token URL against it, and `tests/test_mock_fidelity.py` validates the offline
 fixtures against its schemas. The filename stays put, so `git log -p specs/openapi.json`
 reads as a history of the API's own changes.
 
 The document covers the whole Fish Health API: 128 paths, from lice per production area to
-the aquaculture register. This package reads three of them —
-`GET /v1/geodata/fishhealth/localitieswithsalmonoids`,
+the aquaculture register. This package reads four of them —
+`GET /v1/geodata/fishhealth/localities`, `GET /v1/geodata/fishhealth/localitieswithsalmonoids`,
 `GET /v2/geodata/fishhealth/locality/{localityNo}/{year}/{week}` and
 `POST /v2/geodata/fishhealth/locality/{year}/{week}`, a `POST` that only reads (the filter
 is a JSON body; nothing is stored) — and `REFERENCE.md` says why the rest is left alone
@@ -97,7 +97,7 @@ And one that bites when you are debugging rather than reading:
   before debugging against this API. The skipped `400`s are `DEBUG` lines, one per week,
   with an `INFO` count per locality in `locality_week` — [Logging](../REFERENCE.md#logging).
 
-The two `GET` endpoints take nothing but their path — no query parameters — so there is
+The three `GET` endpoints take nothing but their path — no query parameters — so there is
 no mistyped-parameter quirk to know about there. The summary `POST` takes a filter body,
 `LocalityReportQueryV2`, and has three of its own:
 
@@ -127,12 +127,12 @@ no mistyped-parameter quirk to know about there. The summary `POST` takes a filt
 
 ### Identifiers
 
-**`localityNo` is the key, inside and outside this dataset.** The discovery list returns it
+**`localityNo` is the key, inside and outside this dataset.** Both locality lists return it
 as `localityNo`, both weekly reports repeat it as `locality.no`, and the source injects it
 as `locality_no` on every weekly row — from the request path in `locality_week`, copied
 from `locality.no` in `locality_week_summary`. All three are the same number:
 the locality number from the aquaculture register, which is the identifier the industry,
-Fiskeridirektoratet and Mattilsynet all use. So it joins `locality` to `locality_week` by
+Fiskeridirektoratet and Mattilsynet all use. So it joins `localities_with_salmonoids` and `localities` to `locality_week` by
 construction, and — assumed rather than verified — `locality_week` to any other
 BarentsWatch dataset and to a member company's own systems.
 

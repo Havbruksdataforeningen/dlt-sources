@@ -34,8 +34,12 @@ An aquaculture locality — one licensed place in the sea or on land where fish 
 _Avoid_: site, farm, facility (the spec's prose says "aquaculture site"; its field names say locality, and so does everyone in Norway)
 
 **Salmonoid locality**:
-A locality with a licence for a salmonoid species — salmon, trout, char. `GET /v1/geodata/fishhealth/localitieswithsalmonoids` lists them, about 2 000, and lice reporting applies to them. The `locality` resource is that list; the fuller `/localities` list (about 2 700) is not read.
+A locality with a licence for a salmonoid species — salmon, trout, char. `GET /v1/geodata/fishhealth/localitieswithsalmonoids` lists them, about 2 000, and lice reporting applies to them. The `localities_with_salmonoids` resource is that list, and `locality_week` iterates over it.
 _Avoid_: active locality (a salmonoid locality can be fallow)
+
+**Locality list**:
+The API has two, with similar names, and the source exposes both as resources named after their endpoints. `GET /v1/geodata/fishhealth/localities` is every aquaculture locality in the register, salmonoid or not — about 2 700 — with municipality number and name and the register version; the `localities` resource. `GET /v1/geodata/fishhealth/localitieswithsalmonoids` is the salmonoid localities only, number and name — about 2 000; the `localities_with_salmonoids` resource, the one the weekly detail is requested for.
+_Avoid_: the locality list, locality table (say which)
 
 **Production area**:
 One of the thirteen zones the Norwegian coast is divided into for regulating salmon farming capacity, the traffic-light system, numbered 1 to 13 from south to north. Norwegian: produksjonsområde. A detailed weekly report carries the locality's as `productionArea` (`id`, `name`, `color`); the summary's `productionArea` filter takes that `id`, one per request, and the source writes the requested id into each summary row as `productionArea`, an integer, because the row does not carry it.
