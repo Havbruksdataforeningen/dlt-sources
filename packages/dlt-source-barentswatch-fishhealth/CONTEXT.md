@@ -24,7 +24,7 @@ Fiskeridirektoratet's (the Norwegian Directorate of Fisheries') register of lice
 _Avoid_: permit, concession (the API says license)
 
 **Organisation**:
-A company holding licences, identified by its nine-digit organisation number from Brønnøysundregistrene (the Norwegian company register). The API returns it as `organizationNo` in a detailed row's `aquaCultureRegister.organizations`, and the summary's `organization` filter takes one such number per request; `organizations` on `locality_week_summary` is a list of them. A locality can belong to several organisations, which is why the source does not write the filter value back into the row. Norwegian: organisasjonsnummer.
+A company holding licences, identified by its nine-digit organisation number from Brønnøysundregistrene (the Norwegian company register). The API returns it as `organizationNo` in a detailed row's `aquaCultureRegister.organizations`, and the summary's `organization` filter takes one such number per request. A locality can belong to several organisations, so a filter value is one of its owners, not the answer. Norwegian: organisasjonsnummer.
 _Avoid_: company number, org id
 
 ### Places
@@ -42,7 +42,7 @@ The API has two, with similar names, and the source exposes both as resources na
 _Avoid_: the locality list, locality table (say which)
 
 **Production area**:
-One of the thirteen zones the Norwegian coast is divided into for regulating salmon farming capacity, the traffic-light system, numbered 1 to 13 from south to north. Norwegian: produksjonsområde. A detailed weekly report carries the locality's as `productionArea` (`id`, `name`, `color`); the summary's `productionArea` filter takes that `id`, one per request, and the source writes the requested id into each summary row as `productionArea`, an integer, because the row does not carry it.
+One of the thirteen zones the Norwegian coast is divided into for regulating salmon farming capacity, the traffic-light system, numbered 1 to 13 from south to north. Norwegian: produksjonsområde. A detailed weekly report carries the locality's as `productionArea` (`id`, `name`, `color`); the summary's `productionArea` filter takes that `id`, one per request; a summary row does not carry it, so stamp it on with `add_map` if you need it.
 _Avoid_: zone (that word is used for PD zones)
 
 **PD zone**:
@@ -70,7 +70,7 @@ The shorter form of a locality-week, `LocalityWeekReportV2`, from `POST /v2/geod
 _Avoid_: aggregate (it is per locality, not a total), site summary (the spec's prose; the package says locality)
 
 **Filtered locality**:
-`isFiltered` on a summary row says whether the locality matched the filter. It only carries information with `tagFilteredLocalities: true` in `filters`, which makes the API return every locality and tag the matches instead of dropping the rest; without it, every row returned is a match.
+`isFiltered` on a summary row says whether the locality matched the filter. It only carries information with `tagFilteredLocalities: true` in the `body`, which makes the API return every locality and tag the matches instead of dropping the rest; without it, every row returned is a match.
 
 **Week range**:
 An inclusive span of ISO weeks, `WeekRange(start_year, start_week, end_year, end_week)`. The one argument both weekly resources need; there is no cursor and no window parameter. `FIRST_YEAR`, 2012, is the earliest year the API answers for.

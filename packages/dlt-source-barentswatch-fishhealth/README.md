@@ -22,19 +22,19 @@ client_secret = "your-client-secret-here"
 
 The two values are an OAuth2 client, registered under "Min side" at <https://www.barentswatch.no/minside/> ([how](https://developer.barentswatch.no/docs/appreg)). The source exchanges them for a token and refreshes it itself; nothing else needs configuring, because the API has one server and one token endpoint, both fixed in the package.
 
-Optionally `.dlt/config.toml`, to load some localities rather than all of them:
+Optionally `.dlt/config.toml`, to give the summary a filter without binding one in code:
 
 ```toml
-[sources.barentswatch_fishhealth.localities_with_salmonoids]
-locality_nos = [11340, 45072]
+[sources.barentswatch_fishhealth.locality_week_summary.body]
+productionArea = 7
 ```
 
 Then three steps for your own localities, one example each, and a fourth for comparing them against everyone else's. That is everything needed to get running, a page of code each.
 
-1. **Discover** — [`discover_localities.py`](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-barentswatch-fishhealth/examples/discover_localities.py). One request, the `localities_with_salmonoids` resource alone: the API's list of every locality with a salmonoid licence, about 2 000, printed with number and name. Find yours by name and put their numbers in the config file above, or bind them in code as the next two examples do.
-2. **Backfill** — [`backfill.py`](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-barentswatch-fishhealth/examples/backfill.py). Every week from 2012 to now for the localities you chose, run once. Re-running it is safe: `locality_week` merges on locality, year and week.
-3. **Weekly load** — [`weekly_load.py`](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-barentswatch-fishhealth/examples/weekly_load.py). The last four complete weeks for the same localities, on a timer from then on. It re-requests weeks it already has because reports arrive after the week ends ([why four](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-barentswatch-fishhealth/REFERENCE.md#the-weekly-load-looks-back)).
-4. **Compare** — [`production_areas.py`](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-barentswatch-fishhealth/examples/production_areas.py). The weekly summary of every locality in production areas 7 and 8, the last four complete weeks, on the same timer. One request per area per week, however many localities the area holds, so it is the load for monitoring your localities against their neighbours; the three steps above stay the load for your own localities in detail ([which to use for what](#what-it-loads)). It is a `POST` that only reads: the filter travels as a JSON body, and nothing is stored.
+1. **Discover** — [`discover_localities.py`](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-barentswatch-fishhealth/examples/discover_localities.py). One request, the `localities_with_salmonoids` resource alone: the API's list of every locality with a salmonoid licence, about 2 000, printed with number and name. Find yours by name and put their numbers in `backfill.py` and `weekly_load.py`, which filter the list with dlt's `add_filter`.
+2. **Backfill** — [`backfill.py`](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-barentswatch-fishhealth/examples/backfill.py). Every week from 2012 to now for the localities the filter keeps, run once. Re-running it is safe: `locality_week` merges on locality, year and week.
+3. **Weekly load** — [`weekly_load.py`](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-barentswatch-fishhealth/examples/weekly_load.py). The last four complete weeks for the same filter, on a timer from then on. It re-requests weeks it already has because reports arrive after the week ends ([why four](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-barentswatch-fishhealth/REFERENCE.md#the-weekly-load-looks-back)).
+4. **Compare** — [`production_areas.py`](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-barentswatch-fishhealth/examples/production_areas.py). The weekly summary of every locality in production areas 7 and 8, the last four complete weeks, on the same timer — the resource run once per area, with dlt's `add_map` stamping the area on each row. One request per area per week, however many localities the area holds, so it is the load for monitoring your localities against their neighbours; the three steps above stay the load for your own localities in detail ([which to use for what](#what-it-loads)). It is a `POST` that only reads: the filter travels as a JSON body, and nothing is stored.
 
 From a checkout, run one with `python examples/<name>.py`.
 
@@ -61,33 +61,43 @@ The summary endpoint answers every locality matching the filter in one request p
 | `locality_week` | `GET /v2/geodata/fishhealth/locality/{localityNo}/{year}/{week}` | merge | `localityNo`, `year`, `week` |
 | `locality_week_summary` | `POST /v2/geodata/fishhealth/locality/{year}/{week}` | merge | `localityNo`, `year`, `week` |
 
-`locality_week` is a dlt transformer over `localities_with_salmonoids`: for each locality row it requests every week in the range you bind, and writes one row per week the API has a report for. `locality_week_summary` stands alone: for each week in its range it sends the filter you bind, and writes one row per locality the API matched. Five defaults worth knowing before your first query:
+`locality_week` is a dlt transformer over `localities_with_salmonoids`: for each locality row it requests every week in the range you bind, and writes one row per week the API has a report for. `locality_week_summary` stands alone: for each week in its range it sends the `body` you bind, and writes one row per locality the API matched. Five defaults worth knowing before your first query:
 
-- **Two locality lists, named after their endpoints.** `localities_with_salmonoids` is the list lice reporting applies to — number and name, about 2 000 — and the one `locality_week` iterates over. `localities` is the full aquaculture register list, about 2 700, with `municipalityNo`, `municipality` and `aquaCultureRegistryVersion` besides; load it to join a municipality onto the weekly tables. It is not fetched unless you select it, and no argument narrows it — [what each holds](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-barentswatch-fishhealth/REFERENCE.md#one-row-per-locality-week).
+- **Two locality lists, named after their endpoints.** `localities_with_salmonoids` is the list lice reporting applies to — number and name, about 2 000 — and the one `locality_week` iterates over; an `add_filter` on it keeps the localities you want, and so decides which ones `locality_week` requests. `localities` is the full aquaculture register list, about 2 700, with `municipalityNo`, `municipality` and `aquaCultureRegistryVersion` besides; load it to join a municipality onto the weekly tables. Neither is fetched unless selected, and neither takes an argument — [what each holds](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-barentswatch-fishhealth/REFERENCE.md#one-row-per-locality-week).
 - **Two weekly tables, one key.** A summary row has the same `liceReport` as the detailed row for that locality-week, `diseases` and `liceTreatments` as names only (`["PANKREASSYKDOM"]`, `["IKKE_MEDIKAMENTELL"]`) where the detailed row has full case and treatment records, and none of the register, zone or escape fields. Load the summary to monitor lice across many localities and areas — one request per week per production area, per organisation, or for the whole coast. Load the detail for the disease cases and treatment records, the aquaculture-register entry and the control and PD zones. Both merge on `localityNo`, `year`, `week`, so they join row for row — [the field-by-field comparison](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-barentswatch-fishhealth/REFERENCE.md#the-summary-and-the-detail).
 - **The key is injected, not returned.** Neither weekly response says which week it is for, and the detailed one does not repeat the locality either, so the source adds `localityNo`, `year` and `week` from the request (the summary copies `localityNo` from each row's `locality.no`). They land as `locality_no`, `year`, `week` — [where the rest of the row comes from](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-barentswatch-fishhealth/REFERENCE.md#one-row-per-locality-week).
 - **Nested objects land as one JSON column each** — `lice_report`, `lice_treatments`, `aqua_culture_register`, `geometry` and so on — [why, and how to override it](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-barentswatch-fishhealth/REFERENCE.md#nesting).
-- **A week with no report is skipped, not an error.** The API answers HTTP 400 for it, and for an unknown locality number, and the source cannot tell the two apart — [what that means for `locality_nos`](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-barentswatch-fishhealth/REFERENCE.md#http-400-means-no-report).
+- **A week with no report is skipped, not an error.** The API answers HTTP 400 for it, and for an unknown locality number, and the source cannot tell the two apart — [what that means for reading the data](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-barentswatch-fishhealth/REFERENCE.md#http-400-means-no-report).
 
 ## Configuring a resource
 
-Five arguments across the four resources. The three `GET` endpoints take nothing but their path; the summary's `POST` takes a filter body, and its three extra arguments build it.
-
-```python
-source = barentswatch_fishhealth_source()
-source.localities_with_salmonoids.bind(locality_nos=[11340, 45072])
-source.locality_week.bind(week_range=last_n_weeks(4))
-source.locality_week_summary.bind(week_range=last_n_weeks(4), production_areas=[7, 8])
-pipeline.run(source)
-```
+Two arguments across the four resources. The two `GET` lists take nothing; both weekly resources take a `week_range`, and the summary's `POST` takes the filter `body` it sends.
 
 | Argument | Resource | What to know |
 |---|---|---|
-| `locality_nos` | `localities_with_salmonoids` | A list of locality numbers to keep; `None` (the default) keeps every salmonoid locality. Bind it or set it in config under `[sources.barentswatch_fishhealth.localities_with_salmonoids]`. A number that is not a salmonoid locality is warned about and left out; an empty list, or a list with no match, raises. |
 | `week_range` | `locality_week`, `locality_week_summary` | A `WeekRange(start_year, start_week, end_year, end_week)`, inclusive at both ends. **Required** on both — a run without one raises an error naming the resource. Bind it in code; it has no config form. |
-| `production_areas` | `locality_week_summary` | A list of production-area ids, 1–13. One request per area per week, and the id is added to each row as `productionArea`, because the row does not say which area it came from. `None` (the default) leaves the area unfiltered; an empty list raises. Bind it, or set it in config under `[sources.barentswatch_fishhealth.locality_week_summary]`. |
-| `organizations` | `locality_week_summary` | A list of nine-digit organisation numbers — `organizationNo` in the detailed row's `aquaCultureRegister.organizations`. One request per organisation per week, and each combines with each production area (AND): `production_areas=[7, 8]` with `organizations=["921668236"]` is that company's localities in 7, then in 8. Not added to the row, because a locality can belong to several organisations. Config form as above. |
-| `filters` | `locality_week_summary` | A dict of the other ~30 body fields the spec lists under `LocalityReportQueryV2` — `onlyWithSalmonoidLicense`, `allWithReport`, `aboveLiceThreshold`, `insideIlaControlArea`, `countyMunicipality`, `withinPolygon`, `diseases` and so on — sent as given. Merged into the body last, so it wins over the two arguments above. With none of the three bound the body is `{}`, and every locality on the coast is a row. |
+| `body` | `locality_week_summary` | The filter, `LocalityReportQueryV2` in the spec — `productionArea`, `organization`, `onlyWithSalmonoidLicense`, `aboveLiceThreshold`, `withinPolygon` and about 30 more — sent as given, once per week. `None` (the default) sends `{}`, and every locality on the coast is a row. Bind it, or set it in config under `[sources.barentswatch_fishhealth.locality_week_summary.body]`. |
+
+**Everything else is dlt's.** The source makes the API's requests and nothing more; which rows to keep, what to stamp on them and how many times to ask are the pipeline's choices, made with what dlt already provides:
+
+- **Keep some localities** with `add_filter` on `localities_with_salmonoids`. `locality_week` iterates over that resource, so the filter also decides which localities it requests.
+- **Stamp a row** with `add_map`. A summary row does not say which area it was requested for, so `production_areas.py` writes the area in. Give `add_map` a one-argument function: dlt passes `meta` as the second argument, so a `lambda row, area=area:` gets `meta`, not the area.
+- **Several filter values** — the API takes one `productionArea` and one `organization` per request — is the resource run once per value, as `production_areas.py` does.
+- **`body` from config** rather than code: the block in [How to start](#how-to-start).
+
+```python
+source = barentswatch_fishhealth_source().with_resources("localities_with_salmonoids", "locality_week")
+source.localities_with_salmonoids.add_filter(lambda row: row["localityNo"] in {11340, 45072})
+source.locality_week.bind(week_range=last_n_weeks(4))
+pipeline.run(source)
+```
+
+```python
+source = barentswatch_fishhealth_source().with_resources("locality_week_summary")
+source.locality_week_summary.bind(week_range=last_n_weeks(4), body={"productionArea": 7})
+source.locality_week_summary.add_map(lambda row: {**row, "productionArea": 7})
+pipeline.run(source)
+```
 
 Four helpers build a `week_range`, all importable from the package:
 

@@ -51,9 +51,8 @@ you load or read it:
   found.", "status": 400, ..., "bwErrorCode": "GenericError"}`, with a `bwErrorCode` the
   spec's `ProblemDetails` does not declare. Only an invalid week number says something
   different (`Week must in the range [1, 52] or [1, 53]...`). So "no data" and "no such
-  locality" are indistinguishable, and the source treats every `400` as a skipped week —
-  which is why `locality_nos` is checked against the discovered list before any weekly
-  request goes out. A `401` is a bad token; anything else non-200 raises.
+  locality" are indistinguishable, and the source treats every `400` as a skipped week.
+  A `401` is a bad token; anything else non-200 raises.
 
 - **The API's history starts at ISO year 2012.** `2011-W1` is refused with the `400` above;
   `2012-W1` is served. Nothing in the spec says so. `FIRST_YEAR` in `weeks.py` pins it, and
@@ -94,8 +93,8 @@ And one that bites when you are debugging rather than reading:
 - **dlt hides the `title` that says what the API objected to.** `http_show_error_body`
   defaults to `False`, so a refusal the source does not swallow reaches your logs as
   `401 Client Error: Unauthorized` and nothing more. Set `RUNTIME__HTTP_SHOW_ERROR_BODY=true`
-  before debugging against this API. The skipped `400`s are `DEBUG` lines, one per week,
-  with an `INFO` count per locality in `locality_week` — [Logging](../REFERENCE.md#logging).
+  before debugging against this API. The skipped `400`s are `DEBUG` lines, one per week —
+  [Logging](../REFERENCE.md#logging).
 
 The three `GET` endpoints take nothing but their path — no query parameters — so there is
 no mistyped-parameter quirk to know about there. The summary `POST` takes a filter body,
@@ -103,10 +102,10 @@ no mistyped-parameter quirk to know about there. The summary `POST` takes a filt
 
 - **`productionArea` and `organization` take one value each.** The spec types them as one
   integer and one string, and the API means it: a JSON list in `productionArea` answers
-  `400`, and a comma-separated string in `organization` answers `200` with no rows. The
-  source therefore takes `production_areas` and `organizations` as lists and sends one
-  request per value, combining the two as a product with AND. A list passed through
-  `filters` reaches the API as sent, and its `400` is skipped like a week with no report —
+  `400`, and a comma-separated string in `organization` answers `200` with no rows. Two
+  areas is therefore the resource run once per area, each with its own `body`, as
+  `examples/production_areas.py` does. A list in the `body` reaches the API as sent, and
+  its `400` is skipped like a week with no report —
   [REFERENCE.md](../REFERENCE.md#http-400-means-no-report).
 
 - **`liceTreatments` and `diseases` are a different shape on the two weekly endpoints.**
@@ -119,18 +118,18 @@ no mistyped-parameter quirk to know about there. The summary `POST` takes a filt
   `liceReport` is identical on the two.
 
 - **A summary row does not say which production area it is in.** `LocalityWeekReportV2`
-  has no `productionArea`, so a load of two areas would land as one undifferentiated set
-  of rows. The source injects the id it asked for, as `productionArea`, on every row of a
-  request that was filtered by area — an integer, where the detailed row's
-  `productionArea` is `{id, name, color}`. An empty body returns every locality on the
-  coast, 1 770 rows on 2025-W35, with no area on any of them.
+  has no `productionArea`, so a load of two areas lands as one undifferentiated set of
+  rows, and an empty body returns every locality on the coast — 1 770 rows on 2025-W35 —
+  with no area on any of them. The detailed row carries `productionArea` as
+  `{id, name, color}`; the summary never does. Stamp it on with `add_map` if you need it.
 
 ### Identifiers
 
 **`localityNo` is the key, inside and outside this dataset.** Both locality lists return it
-as `localityNo`, both weekly reports repeat it as `locality.no`, and the source injects it
+as `localityNo`, both weekly reports repeat it as `locality.no`, and the source adds it
 as `locality_no` on every weekly row — from the request path in `locality_week`, copied
-from `locality.no` in `locality_week_summary`. All three are the same number:
+from `locality.no` in `locality_week_summary` — because neither weekly response says
+which week it answers, and the detailed one does not repeat the locality. All three are the same number:
 the locality number from the aquaculture register, which is the identifier the industry,
 Fiskeridirektoratet and Mattilsynet all use. So it joins `localities_with_salmonoids` and `localities` to `locality_week` by
 construction, and — assumed rather than verified — `locality_week` to any other
