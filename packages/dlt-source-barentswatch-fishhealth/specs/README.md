@@ -88,6 +88,27 @@ you load or read it:
   transition. `liceTreatments.cleanerFishTreatment` was `null` on every recent week
   checked, not an empty object.
 
+- **`localitieswithsalmonoids` returns the same locality more than once.** 2 002 objects for
+  1 902 distinct `localityNo` on 2026-09-08: 92 numbers twice and four three times, 100
+  surplus objects. Every repeat is the same site under another spelling of its name — a
+  punctuation variant (`Alterosen (Land)` / `Alterosen Land`, `Industrilab Hib` /
+  `Industrilab,,Hib` / `Industrilab.,Hib`), an abbreviation expanded (`Dolma N` /
+  `Dolma Nord`), a typo (`Kvenbukta V` / `Kvernbukta V`) or an outright rename
+  (`Arveneset` / `Skjelfjord`, `Veso Vikan` / `Vikan Akvavet`). Nothing but `name` differs;
+  the objects carry no other field. The list looks like it is keyed on the site's name
+  history rather than on its number. `localities`, the register list, has none of this —
+  2 706 objects, 2 706 distinct numbers — and the salmonoid numbers are a subset of it, so
+  the two lists disagree only in this one respect. Raised with BarentsWatch rather than
+  worked around here.
+
+  It reaches a load two ways: `localities_with_salmonoids` lands 2 002 rows for 1 902
+  localities, so count `distinct locality_no` over it; and `locality_week` iterates that
+  list, so a duplicated locality is requested once per repeat — 100 redundant requests per
+  week loaded, about 5 % of a full-coast run, deduplicated on arrival by the merge key.
+  De-duplication is left to the transform layer rather than done in the source: the API's
+  answer lands as the API gave it, and the canonical name for a locality comes from
+  Fiskeridirektoratet's register anyway, not from this list.
+
 And one that bites when you are debugging rather than reading:
 
 - **dlt hides the `title` that says what the API objected to.** `http_show_error_body`
@@ -96,8 +117,10 @@ And one that bites when you are debugging rather than reading:
   before debugging against this API. The skipped `400`s are `DEBUG` lines, one per week —
   [Logging](../REFERENCE.md#logging).
 
-The three `GET` endpoints take nothing but their path — no query parameters — so there is
-no mistyped-parameter quirk to know about there. The summary `POST` takes a filter body,
+Two of the three `GET` endpoints take nothing but their path, and `localities` takes one
+optional `query` — a free-text search by name or site id, which this package does not send
+and which does not filter the duplicates above — so there is no mistyped-parameter quirk to
+know about there. The summary `POST` takes a filter body,
 `LocalityReportQueryV2`, and has three of its own:
 
 - **`productionArea` and `organization` take one value each.** The spec types them as one
