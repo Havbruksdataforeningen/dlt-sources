@@ -1,29 +1,7 @@
-"""Record shapes written by hand are checked against `specs/fishhealth.json`.
+"""The hand-written fixtures are checked against `specs/fishhealth.json`, so the offline suite cannot go blind to the real API.
 
-The fixtures under `mock_responses/` describe what a record looks like, and nothing
-generates them. The spec is the authority. A fixture in a shape the API could not produce
-makes the whole offline suite blind to the real one.
-
-The spec is OpenAPI 3.0. It is validated as the JSON Schema it nearly is, with two
-relaxations applied first — both of them the API's own departures from the document, listed
-under ["API quirks worth knowing"](../specs/README.md#api-quirks-worth-knowing):
-
-- **A field marked `nullable: true` may be null.** OpenAPI 3.0 spells "may be null" that way,
-  and JSON Schema does not read it, so `null` is added to the schema's `type` (or `enum`, or
-  an `anyOf` when it has neither).
-- **A property whose schema is a bare `$ref` may be null even though the spec does not say
-  so.** `productionArea.color`, every `trend`, `cleanerFishTreatment` and
-  `mechanicalRemovalTreatment` arrive null. Reference properties are the one place the spec
-  cannot carry `nullable`, so the allowance is made for all of them rather than for a list
-  that would go stale.
-
-And one tightening: **a record may carry no field the spec does not declare.** JSON Schema
-allows extras by default; here an extra means an invented fixture, which is the thing worth
-catching. `ProblemDetails` declares `additionalProperties` itself and keeps it — the API's
-400 body carries `message` and `bwErrorCode` on top of the standard fields.
-
-Both live samples the fixtures were modelled on validate with 0 errors under this
-translation, so a fixture that fails here is wrong, not the translation.
+`_as_json_schema` translates the spec from OpenAPI 3.0: `nullable` and bare-`$ref` properties may be null — the
+API's own departures, in [specs/README.md](../specs/README.md#api-quirks-worth-knowing) — and no undeclared field is allowed.
 """
 
 import json

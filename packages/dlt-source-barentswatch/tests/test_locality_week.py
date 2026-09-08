@@ -1,11 +1,6 @@
 """The `locality_week` transformer: one request per locality and week, and what each status means.
 
-The API has one answer for "no report" — HTTP 400 — and the source skips it. Everything
-else that is not a 200 is an error and stops the run: a week silently dropped would look
-exactly like a week with no report.
-
-Errors raised inside a resource reach the caller wrapped in dlt's `ResourceExtractionError`;
-the assertions look through it at `__cause__`, which is what the source actually raised.
+400 is the API's only answer for "no report" and is skipped; anything else non-200 stops the run.
 """
 
 import logging
@@ -116,10 +111,7 @@ def test_unbound_week_range_raises(mock_api):
 
 
 def test_invalid_week_range_raises_before_any_weekly_request(mock_api):
-    """A range the API would answer 400 for is refused before a request goes out.
-
-    `WeekRange.validate` itself is `test_weeks.py`'s business; this is that it runs first.
-    """
+    """The range is validated before a request goes out; `WeekRange.validate` itself is `test_weeks.py`'s business."""
     week_range = WeekRange(2024, 10, 2024, 5)  # inverted
     _one_locality(mock_api)
 

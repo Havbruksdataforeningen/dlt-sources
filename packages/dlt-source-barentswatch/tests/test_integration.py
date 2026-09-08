@@ -1,14 +1,4 @@
-"""Integration tests against the real BarentsWatch API.
-
-Run with: uv run pytest -m integration
-
-dlt resolves the credentials itself (environment variables first, then `.dlt/secrets.toml`).
-Missing credentials cause a hard error — not a skip.
-
-Two public localities over three fixed weeks, the full locality list, then one production
-area for one week: ten requests, a few seconds. The assertion is that rows landed in the shape the offline suite
-assumes.
-"""
+"""Live tests against the real API: `uv run pytest -m integration`. Missing credentials are an error, not a skip."""
 
 import json
 

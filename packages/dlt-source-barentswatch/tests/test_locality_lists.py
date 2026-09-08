@@ -1,12 +1,4 @@
-"""The two locality lists: `localities` (the full register) and `localities_with_salmonoids` (what `locality_week` iterates over).
-
-Both are plain `GET`s that yield the API's array as it comes — no arguments, no filtering.
-A consumer who wants some localities filters the salmonoid list with dlt's own `add_filter`,
-which also narrows what `locality_week` requests; `examples/weekly_load.py` relies on that.
-
-Errors raised inside a resource reach the caller wrapped in dlt's `ResourceExtractionError`;
-the assertions look through it at `__cause__`, which is what the source actually raised.
-"""
+"""The two locality lists: plain `GET`s that yield the API's array as it comes."""
 
 import pytest
 from dlt.extract.exceptions import ResourceExtractionError
@@ -84,11 +76,7 @@ def test_non_200_raises(mock_api, resource_name, status_code):
 
 
 def test_add_filter_on_the_salmonoid_list_narrows_what_locality_week_requests(mock_api):
-    """The consumer's way to pick localities: filter the parent, and the transformer only sees what passes.
-
-    `weekly_load.py` and `backfill.py` do exactly this. The mock serves every locality-week
-    so a leak would land rows, not fail on `NoMockAddress`.
-    """
+    """Filtering the parent narrows the transformer: the mock serves every locality-week, so a leak lands rows rather than failing."""
     mock_api.localities()
     mock_api.weeks(ALL_LOCALITY_NOS, THREE_WEEKS)
     keep = {90002, 90004}

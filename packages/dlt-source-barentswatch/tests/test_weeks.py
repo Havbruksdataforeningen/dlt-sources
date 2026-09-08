@@ -1,9 +1,4 @@
-"""The ISO week arithmetic behind the locality-week endpoint's `{year}/{week}` path.
-
-No API here. What is checked is the calendar: 53-week years, the year boundary, that "this
-week" is decided on the Norwegian date, and that a range the API would refuse is refused
-before a request is made.
-"""
+"""The ISO week arithmetic behind the `{year}/{week}` path: 53-week years, the year boundary, and the Norwegian date."""
 
 import datetime
 

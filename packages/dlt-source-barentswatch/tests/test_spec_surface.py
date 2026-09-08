@@ -1,10 +1,4 @@
-"""The endpoints the source reads are checked against the committed OpenAPI spec.
-
-The source addresses four paths, one server and one token endpoint, all fixed as module
-constants. These tests are what fails when a spec refresh moves any of them: a renamed
-path, a new server, a token endpoint elsewhere, a renamed filter in the summary's request
-body. `specs/README.md` says how to refresh.
-"""
+"""The paths, server and token endpoint the source hard-codes, checked against the committed spec: this is what fails when a refresh moves one."""
 
 import json
 from pathlib import Path
@@ -54,10 +48,7 @@ def test_path_exists_with_the_method_and_path_parameters_the_source_uses(source_
 
 
 def test_summary_request_body_is_locality_report_query_v2_with_production_area_and_organization():
-    """The body `locality_week_summary` sends verbatim is this schema; a refresh that renames a filter fails here.
-
-    The API rejects a field the schema does not declare, and the source would skip that 400 as "no report".
-    """
+    """The body `locality_week_summary` sends verbatim is this schema; a refresh that renames a filter fails here."""
     path = _spec_path(LOCALITY_WEEK_SUMMARY_PATH)
     body = SPEC["paths"][path]["post"]["requestBody"]["content"]["application/json"]["schema"]
     schema_name = body["$ref"].removeprefix("#/components/schemas/")

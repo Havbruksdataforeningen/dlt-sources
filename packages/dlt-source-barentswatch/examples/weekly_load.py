@@ -1,9 +1,7 @@
-"""Load the last few complete weeks for a few localities, once a week from then on.
+"""The last few complete weeks for a few localities, to run on a timer.
 
-Reports for a week keep arriving after it ends, so a scheduled load re-requests a few recent
-weeks every time instead of only the newest one; merge on locality, year and week makes the
-overlap free. `last_n_weeks` leaves the current week out because it is still being reported.
-DuckDB is this example's choice, not the package's — swap destination= for any dlt one.
+Reports keep arriving after a week ends, so the load re-requests recent weeks rather than only the
+newest; merge on locality, year and week absorbs the overlap.
 """
 
 import dlt

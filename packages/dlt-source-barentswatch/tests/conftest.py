@@ -1,9 +1,4 @@
-"""Shared fixtures and helpers for BarentsWatch Fish Health pipeline tests.
-
-The offline suite talks HTTP to a `requests_mock` server that answers the token endpoint and
-whichever of the four API routes a test registers. Nothing inside the package is patched, so
-the OAuth2 flow, dlt's retry session and the source's own status handling all run for real.
-"""
+"""Shared fixtures: `requests_mock` answers the token endpoint and the routes a test registers, with nothing inside the package patched."""
 
 import inspect
 import json
@@ -26,17 +21,12 @@ from dlt_source_barentswatch.fishhealth import BASE_URL, TOKEN_URL
 
 MOCK_DIR = Path(__file__).parent / "mock_responses"
 
-# The locality numbers `localitieswithsalmonoids.json` lists — a subset of `localities.json`'s;
-# `test_mock_fidelity.py` keeps them in step.
+# Invented numbers, the ones `localitieswithsalmonoids.json` lists.
 ALL_LOCALITY_NOS = [90001, 90002, 90003, 90004, 90005]
 
-# Everything fishhealth_source() itself needs. Resource arguments — the weeks
-# to load and the summary's body — live on the resources; bind them there.
 SOURCE_CONFIG: dict[str, Any] = {"client_id": "test-id", "client_secret": "test-secret"}
 
-# The four paths the source requests, spelled the way the spec spells them. The mocked tests
-# answer only these, so a source that asked for anything else would find no mock; and
-# `test_spec_surface.py` checks they are still in `specs/fishhealth.json`.
+# The only paths the mocks answer: a request for anything else finds no mock.
 LOCALITIES_PATH = "v1/geodata/fishhealth/localities"
 LOCALITIES_WITH_SALMONOIDS_PATH = "v1/geodata/fishhealth/localitieswithsalmonoids"
 LOCALITY_WEEK_PATH = "v2/geodata/fishhealth/locality/{localityNo}/{year}/{week}"
@@ -45,23 +35,13 @@ LOCALITY_WEEK_SUMMARY_PATH = "v2/geodata/fishhealth/locality/{year}/{week}"
 LOCALITIES_URL = BASE_URL + LOCALITIES_WITH_SALMONOIDS_PATH
 LOCALITIES_ALL_URL = BASE_URL + LOCALITIES_PATH
 
-# A short range for tests that need more than one week: three weeks, in one year.
 THREE_WEEKS = WeekRange(2024, 1, 2024, 3)
 
 
 # --- Teardown ----------------------------------------------------------------
 #
-# A test run writes two things: a `<pipeline_name>.duckdb` file per pipeline in the
-# working directory, and dlt's own state under `~/.dlt/pipelines/`, which is what
-# `dlt pipeline <name> show` reads. Both are deleted when the session finishes, so a
-# run leaves the working tree as it found it. `pytest --keep-db` keeps them, for when
-# you want to open what a run actually ingested.
-#
-# Teardown removes what this session *touched*, never everything it finds: pipeline
-# names are fixed per test, so a rerun reuses the same file rather than making another
-# one. Artifacts of tests this session did not run keep their older timestamps and
-# survive — so `pytest -k locality` leaves the rest alone, including anything kept from
-# an earlier `--keep-db` run.
+# The DuckDB files and dlt pipeline state a run writes are removed when it finishes —
+# but only what this session touched, so `pytest -k locality` leaves the rest alone.
 
 
 def pytest_addoption(parser):
@@ -112,20 +92,10 @@ def pytest_sessionfinish(session, exitstatus):
 
 @pytest.fixture(autouse=True)
 def isolated_run_context(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Path]:
-    """Run with no config at all: no `.dlt/` files, no `SOURCES__*` variables.
-
-    A maintainer's own `.dlt/config.toml` may set `locality_week_summary.body`, and dlt would
-    inject it into every summary resource a test builds — changing the bodies the tests assert
-    on. So each offline test gets an empty dlt project directory instead; a test that wants
-    config read writes it in here and reloads. `test_integration.py` overrides this fixture,
-    since the live tests need the real `secrets.toml`.
-
-    Yields the project directory, whose `.dlt/` is where a test puts config it wants read.
-    """
+    """An empty dlt project per test: a maintainer's own `.dlt/config.toml` would otherwise bind `body` into every source built here."""
     for name in [name for name in os.environ if name.startswith("SOURCES__")]:
         monkeypatch.delenv(name, raising=False)
-    # The maintainer's global config may switch dlt's telemetry off; an empty project does
-    # not, and the ping would show up in the mock API's request history.
+    # An empty project does not inherit telemetry being off, and the ping would show up in the request history.
     monkeypatch.setenv("RUNTIME__DLTHUB_TELEMETRY", "false")
 
     # `reload` swaps a process-global, so the restore has to cover the reload itself.
@@ -140,12 +110,7 @@ def isolated_run_context(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Ite
 
 @pytest.fixture(autouse=True)
 def zero_retry_backoff(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Retry 5xx and connection errors as many times as dlt would, but without waiting between them.
-
-    dlt's session retries five times with exponential backoff, which is right in production
-    and a twenty-second wait in a test of a 500. The attempts are kept — a test can count
-    them — and only the delays go.
-    """
+    """dlt's five retries with the backoff removed: the attempts are kept, the twenty seconds are not."""
     import dlt.sources.helpers.requests.retry as retry_module
 
     original = retry_module._make_retry
@@ -172,12 +137,7 @@ def summary_url(year: int, week: int) -> str:
 
 
 class MockApi:
-    """The BarentsWatch API as `requests_mock` serves it: a token endpoint and the four routes.
-
-    The token endpoint is registered on construction, because every request needs it. The
-    four data routes are registered by the test, so a request for a route the test did not
-    expect fails as `NoMockAddress` rather than being answered with something plausible.
-    """
+    """The API as `requests_mock` serves it. A route the test did not register fails as `NoMockAddress` rather than answering."""
 
     def __init__(self, mocker: requests_mock.Mocker) -> None:
         self.mocker = mocker
@@ -186,10 +146,7 @@ class MockApi:
         )
 
     def localities(self, rows: list[dict[str, Any]] | None = None, **kwargs: Any) -> Any:
-        """Answer the salmonoid locality list with `rows`, by default the fixture; `kwargs` go to `requests_mock`.
-
-        This is the list `locality_week` iterates over, so it is the one most tests need.
-        """
+        """Answer the salmonoid locality list with `rows`, by default the fixture; `kwargs` go to `requests_mock`."""
         if rows is not None:
             kwargs.setdefault("json", rows)
         elif not kwargs:
@@ -231,12 +188,7 @@ class MockApi:
         body: dict[str, Any] | None = None,
         **kwargs: Any,
     ) -> Any:
-        """Answer the weekly summary `POST` with `rows`, by default the fixture; `kwargs` go to `requests_mock`.
-
-        With `body`, only a request whose JSON body equals it is answered, so a test can serve
-        different rows per filter value and be sure the source asked for each. Without it, any
-        body gets the same answer; the bodies actually sent are on `bodies_posted()`.
-        """
+        """Answer the summary `POST` with `rows`; with `body`, only a request carrying exactly that body is answered."""
         if rows is not None:
             kwargs.setdefault("json", rows)
         elif not kwargs:
@@ -274,12 +226,7 @@ def mock_api() -> Iterator[MockApi]:
 
 
 def make_source(week_range: WeekRange | None = None, *, body: dict[str, Any] | None = None) -> Any:
-    """A source with test credentials, and the resource arguments bound when given.
-
-    `week_range` binds to both weekly resources: a load asks for the same weeks from each.
-    `body` is `locality_week_summary`'s request body. dlt lets a resource be bound once, so
-    everything for the summary goes in one call.
-    """
+    """A source with test credentials, and the resource arguments bound when given."""
     source = fishhealth_source(**SOURCE_CONFIG)
     if week_range is not None:
         source.locality_week.bind(week_range=week_range)
@@ -333,9 +280,5 @@ def assert_row_count(pipeline: Any, table: str, expected: int) -> None:
 
 
 def resource_signature(source: Any, resource_name: str) -> inspect.Signature:
-    """The signature of the function behind a resource.
-
-    Reaching through `_pipe.gen` is dlt's private shape, so it is spelled out once here
-    rather than in each test that needs a resource's declared arguments.
-    """
+    """The signature of the function behind a resource, reached through dlt's private `_pipe.gen`."""
     return inspect.signature(cast(Callable, source.resources[resource_name]._pipe.gen))

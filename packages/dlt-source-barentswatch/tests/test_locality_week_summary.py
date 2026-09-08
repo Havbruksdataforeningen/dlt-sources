@@ -1,12 +1,6 @@
-"""The `locality_week_summary` resource: one `POST` per week, the body sent as given, and what each answer means.
+"""The `locality_week_summary` resource: one `POST` per week, the body sent as given.
 
-The filter is the request body — `LocalityReportQueryV2` in the spec — and the source has
-no opinion about it: `None` is `{}`, every locality; anything else goes on the wire
-verbatim. What matters is that exactly that lands at the API, because a body it does not
-accept is a 400 the source would skip as "no report".
-
-Errors raised inside a resource reach the caller wrapped in dlt's `ResourceExtractionError`;
-the assertions look through it at `__cause__`, which is what the source actually raised.
+What matters is that exactly the bound body lands at the API: one it rejects is a 400 the source skips as "no report".
 """
 
 import logging
@@ -69,11 +63,7 @@ def test_a_bound_body_is_posted_verbatim_every_week(mock_api):
 
 
 def test_a_body_from_config_reaches_the_wire(mock_api, isolated_run_context: Path):
-    """`[sources.fishhealth.locality_week_summary.body]` in config.toml is what the API is sent.
-
-    The one block `.dlt/config.toml.example` documents, written here into the empty project
-    the autouse fixture pointed dlt at, and reloaded so dlt reads it.
-    """
+    """`[sources.fishhealth.locality_week_summary.body]` in config.toml is what the API is sent."""
     settings = isolated_run_context / ".dlt"
     settings.mkdir()
     (settings / "config.toml").write_text(
@@ -224,10 +214,7 @@ def test_unbound_week_range_raises(mock_api):
 
 
 def test_invalid_week_range_raises_before_any_request(mock_api):
-    """A range the API would answer 400 for is refused before a request goes out.
-
-    `WeekRange.validate` itself is `test_weeks.py`'s business; this is that it runs first.
-    """
+    """The range is validated before a request goes out; `WeekRange.validate` itself is `test_weeks.py`'s business."""
     week_range = WeekRange(2024, 10, 2024, 5)  # inverted
     mock_api.summaries(WeekRange(2024, 1, 2024, 10))
 

@@ -1,17 +1,13 @@
-"""Load every week the API has for a few localities, from the first year to now.
+"""Every week the API has for a few localities, from 2012 to now, run once.
 
-One request per locality per week, made one at a time as BarentsWatch asks — so filter the list
-before running this over every salmonoid locality; the README's cost table says what a range costs.
-Weeks before a locality existed answer 400 and are skipped. Re-running is safe: locality_week
-merges on locality, year and week.
+One request per locality per week: keep the filter, or this is every salmonoid locality back to
+2012. Weeks before a locality existed answer 400 and are skipped.
 """
 
 import dlt
 
 from dlt_source_barentswatch import FIRST_YEAR, WeekRange, current_iso_week, fishhealth_source
 
-# The numbers discover_localities.py printed for your localities. The filter is dlt's own,
-# on the list locality_week iterates over — the source itself has no opinion about which.
 LOCALITY_NOS = {11340, 45072}
 
 source = fishhealth_source().with_resources("localities_with_salmonoids", "locality_week")

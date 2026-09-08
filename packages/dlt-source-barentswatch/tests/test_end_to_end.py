@@ -1,8 +1,4 @@
-"""End-to-end: the four resources of fishhealth_source, through a DuckDB pipeline.
-
-`localities_with_salmonoids` and `locality_week` are a pair — the transformer reads the
-resource. `localities` and `locality_week_summary` stand alone.
-"""
+"""End to end: the four resources through a DuckDB pipeline."""
 
 import json
 
@@ -87,9 +83,7 @@ def test_end_to_end_rerun_is_idempotent(mock_api):
         pipeline, "locality_week_summary", len(load_mock("locality_week_summary.json")) * THREE_WEEKS.n_weeks
     )
 
-    # Which columns the merge runs on, as they land. The row counts above only prove that
-    # some key deduplicated an identical rerun; a key with a report field in it would pass
-    # them and still fail the case that matters, a week whose report changes later.
+    # Which columns merge runs on: the counts above pass for an over-broad key too.
     for table in ("locality_week", "locality_week_summary"):
         columns = pipeline.default_schema.tables[table]["columns"]
         key = [name for name, column in columns.items() if column.get("primary_key")]
