@@ -7,35 +7,25 @@ body. `specs/README.md` says how to refresh.
 """
 
 import json
-import re
 from pathlib import Path
 
 import pytest
 
-from dlt_source_barentswatch_fishhealth.barentswatch_fishhealth import (
-    BASE_URL,
+from dlt_source_barentswatch_fishhealth.barentswatch_fishhealth import BASE_URL, SCOPE, TOKEN_URL
+from tests.conftest import (
     LOCALITIES_PATH,
     LOCALITIES_WITH_SALMONOIDS_PATH,
     LOCALITY_WEEK_PATH,
     LOCALITY_WEEK_SUMMARY_PATH,
-    SCOPE,
-    TOKEN_URL,
 )
 
 SPEC = json.loads((Path(__file__).parent.parent / "specs" / "openapi.json").read_text())
 
-# The path templates use the source's own placeholder names; the spec's are camelCase.
-# Compare them with the placeholders blanked, and check the names separately below.
-_PLACEHOLDER = re.compile(r"\{\w+\}")
 
-
-def _spec_path(source_path: str) -> str:
-    """The spec's key for one of the source's path templates."""
-    wanted = "/" + _PLACEHOLDER.sub("{}", source_path)
-    matches = [path for path in SPEC["paths"] if _PLACEHOLDER.sub("{}", path) == wanted]
-    assert matches, f"{source_path} is not a path in specs/openapi.json"
-    (path,) = matches
-    return path
+def _spec_path(path: str) -> str:
+    """The spec's key for one of the paths the source requests."""
+    assert "/" + path in SPEC["paths"], f"{path} is not a path in specs/openapi.json"
+    return "/" + path
 
 
 def _path_params(path: str, method: str) -> set[str]:

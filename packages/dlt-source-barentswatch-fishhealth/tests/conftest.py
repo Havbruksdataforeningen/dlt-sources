@@ -22,14 +22,7 @@ from dlt.common.configuration.container import Container
 from dlt.common.configuration.specs.pluggable_run_context import PluggableRunContext
 
 from dlt_source_barentswatch_fishhealth import WeekRange, barentswatch_fishhealth_source
-from dlt_source_barentswatch_fishhealth.barentswatch_fishhealth import (
-    BASE_URL,
-    LOCALITIES_PATH,
-    LOCALITIES_WITH_SALMONOIDS_PATH,
-    LOCALITY_WEEK_PATH,
-    LOCALITY_WEEK_SUMMARY_PATH,
-    TOKEN_URL,
-)
+from dlt_source_barentswatch_fishhealth.barentswatch_fishhealth import BASE_URL, TOKEN_URL
 
 MOCK_DIR = Path(__file__).parent / "mock_responses"
 
@@ -41,11 +34,16 @@ ALL_LOCALITY_NOS = [90001, 90002, 90003, 90004, 90005]
 # to load and the summary's body — live on the resources; bind them there.
 SOURCE_CONFIG: dict[str, Any] = {"client_id": "test-id", "client_secret": "test-secret"}
 
-LOCALITIES_URL = BASE_URL + LOCALITIES_WITH_SALMONOIDS_PATH
-"""The salmonoid list, which `locality_week` iterates over."""
+# The four paths the source requests, spelled the way the spec spells them. The mocked tests
+# answer only these, so a source that asked for anything else would find no mock; and
+# `test_spec_surface.py` checks they are still in `specs/openapi.json`.
+LOCALITIES_PATH = "v1/geodata/fishhealth/localities"
+LOCALITIES_WITH_SALMONOIDS_PATH = "v1/geodata/fishhealth/localitieswithsalmonoids"
+LOCALITY_WEEK_PATH = "v2/geodata/fishhealth/locality/{localityNo}/{year}/{week}"
+LOCALITY_WEEK_SUMMARY_PATH = "v2/geodata/fishhealth/locality/{year}/{week}"
 
+LOCALITIES_URL = BASE_URL + LOCALITIES_WITH_SALMONOIDS_PATH
 LOCALITIES_ALL_URL = BASE_URL + LOCALITIES_PATH
-"""The full register list, which nothing else depends on."""
 
 # A short range for tests that need more than one week: three weeks, in one year.
 THREE_WEEKS = WeekRange(2024, 1, 2024, 3)
@@ -166,7 +164,7 @@ def load_mock(filename: str) -> Any:
 
 
 def week_url(locality_no: int, year: int, week: int) -> str:
-    return BASE_URL + LOCALITY_WEEK_PATH.format(locality_no=locality_no, year=year, week=week)
+    return BASE_URL + LOCALITY_WEEK_PATH.format(localityNo=locality_no, year=year, week=week)
 
 
 def summary_url(year: int, week: int) -> str:

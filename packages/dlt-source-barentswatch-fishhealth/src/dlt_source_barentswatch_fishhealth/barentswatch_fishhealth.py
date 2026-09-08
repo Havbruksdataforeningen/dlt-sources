@@ -22,11 +22,6 @@ BASE_URL = "https://www.barentswatch.no/bwapi/"
 TOKEN_URL = "https://id.barentswatch.no/connect/token"  # noqa: S105 — a URL, not a secret
 SCOPE = "api"
 
-LOCALITIES_PATH = "v1/geodata/fishhealth/localities"
-LOCALITIES_WITH_SALMONOIDS_PATH = "v1/geodata/fishhealth/localitieswithsalmonoids"
-LOCALITY_WEEK_PATH = "v2/geodata/fishhealth/locality/{locality_no}/{year}/{week}"
-LOCALITY_WEEK_SUMMARY_PATH = "v2/geodata/fishhealth/locality/{year}/{week}"
-
 WEEK_KEY = ["localityNo", "year", "week"]
 """The merge key of both weekly tables: the request's own values, since neither response repeats them."""
 
@@ -52,26 +47,21 @@ def barentswatch_fishhealth_source(
 
     @dlt.resource(write_disposition="replace")
     def localities() -> Iterator[dict[str, Any]]:
-        """`GET /v1/geodata/fishhealth/localities`."""
-        yield from get_list(LOCALITIES_PATH)
+        yield from get_list("v1/geodata/fishhealth/localities")
 
     @dlt.resource(write_disposition="replace")
     def localities_with_salmonoids() -> Iterator[dict[str, Any]]:
-        """`GET /v1/geodata/fishhealth/localitieswithsalmonoids`. What `locality_week` iterates over."""
-        yield from get_list(LOCALITIES_WITH_SALMONOIDS_PATH)
+        yield from get_list("v1/geodata/fishhealth/localitieswithsalmonoids")
 
     @dlt.transformer(data_from=localities_with_salmonoids, write_disposition="merge", primary_key=WEEK_KEY)
     def locality_week(item: dict[str, Any], week_range: WeekRange | None = None) -> Iterator[dict[str, Any]]:
-        """`GET /v2/geodata/fishhealth/locality/{localityNo}/{year}/{week}`, once per locality and week.
-
-        A 400 is the API's answer for a week it has no report for, and is skipped.
-        """
+        """One request per locality and week. A 400 is the API's answer for a week without a report; skipped."""
         if week_range is None:
             raise ValueError("locality_week needs a week_range: bind one with .bind(week_range=...)")
         week_range.validate()
         locality_no = item["localityNo"]
         for year, week in week_range.weeks():
-            response = client.get(LOCALITY_WEEK_PATH.format(locality_no=locality_no, year=year, week=week))
+            response = client.get(f"v2/geodata/fishhealth/locality/{locality_no}/{year}/{week}")
             if response.status_code == 400:
                 logger.debug("Locality %s %s-W%s: HTTP 400, no report.", locality_no, year, week)
                 continue
@@ -82,16 +72,12 @@ def barentswatch_fishhealth_source(
     def locality_week_summary(
         week_range: WeekRange | None = None, body: dict[str, Any] | None = None
     ) -> Iterator[dict[str, Any]]:
-        """`POST /v2/geodata/fishhealth/locality/{year}/{week}`, once per week — a read whose filter is the body.
-
-        `body` is the spec's `LocalityReportQueryV2`, sent as given; `None` is every locality.
-        A 400 is skipped as above.
-        """
+        """One request per week: a POST that reads, with the filter (`LocalityReportQueryV2`) as the body."""
         if week_range is None:
             raise ValueError("locality_week_summary needs a week_range: bind one with .bind(week_range=...)")
         week_range.validate()
         for year, week in week_range.weeks():
-            response = client.post(LOCALITY_WEEK_SUMMARY_PATH.format(year=year, week=week), json=body or {})
+            response = client.post(f"v2/geodata/fishhealth/locality/{year}/{week}", json=body or {})
             if response.status_code == 400:
                 logger.debug("Summary %s-W%s: HTTP 400, no report.", year, week)
                 continue
