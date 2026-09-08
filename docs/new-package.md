@@ -4,7 +4,7 @@ How to add a new dlt source package to this repo, from copying the template fold
 
 `packages/dlt-source-aquabyte/` is the template. There is no CI to write and no repository to create: the workspace globs `packages/*` and every CI job loops over it, so a new folder is picked up on the next push.
 
-Throughout, `<sourcename>` is your supplier in lowercase — `barentswatch`, `fishtalk`. Two spellings of it matter and they are not interchangeable:
+Throughout, `<sourcename>` is your supplier in lowercase — `aquabyte`, `fishtalk`. A supplier with several separate APIs gets one package per API, with the API in the name: `barentswatch-fishhealth`, not `barentswatch`. Two spellings of it matter and they are not interchangeable:
 
 | | Looks like | Used for |
 |---|---|---|

@@ -5,6 +5,7 @@ This repository holds one context per source package, plus the shared language b
 ## Contexts
 
 - [dlt-source-aquabyte](./packages/dlt-source-aquabyte/CONTEXT.md) — Aquabyte, a supplier of camera-based monitoring of farmed salmon in sea pens. Their API reports sites, pens, biomass, lice, welfare, behaviour and environment.
+- [dlt-source-barentswatch-fishhealth](./packages/dlt-source-barentswatch-fishhealth/CONTEXT.md) — BarentsWatch's Fish Health API, which republishes what fish farms report to the Norwegian Food Safety Authority: per locality and ISO week, lice counts, treatments, diseases, escapes and the licences behind the site. One of several BarentsWatch APIs; each gets its own package.
 
 ## Relationships
 

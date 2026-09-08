@@ -2,13 +2,14 @@
 
 Shared [dlt](https://dlthub.com/) source packages for Havbruksdataforeningen members — one repo, one folder per source, each published as its own package.
 
-> **Status: pre-1.0.** `dlt-source-aquabyte` is verified against the live Aquabyte API and heading for its first release. Folders here may still move; what a package promises its users is covered by its own version.
+> **Status: pre-1.0.** Each package is verified against its supplier's live API before release. Folders here may still move; what a package promises its users is covered by its own version.
 
 ## Source packages
 
 | Source package | Description |
 |---|---|
 | [`dlt-source-aquabyte`](packages/dlt-source-aquabyte/) | Aquabyte — camera-based monitoring of farmed salmon (sites, pens, biomass, lice, welfare, environment) |
+| [`dlt-source-barentswatch-fishhealth`](packages/dlt-source-barentswatch-fishhealth/) | BarentsWatch Fish Health API — the weekly lice, treatment, disease and licence report per aquaculture locality, as reported to the Norwegian Food Safety Authority |
 
 ## Layout
 
@@ -18,11 +19,13 @@ A [uv workspace](https://docs.astral.sh/uv/concepts/projects/workspaces/): each 
 dlt-sources/
 ├── pyproject.toml                    ← workspace root
 └── packages/
-    └── dlt-source-aquabyte/
-        ├── pyproject.toml
-        ├── src/dlt_source_aquabyte/  ← what a consumer installs
-        ├── tests/
-        └── examples/
+    ├── dlt-source-aquabyte/
+    │   ├── pyproject.toml
+    │   ├── src/dlt_source_aquabyte/  ← what a consumer installs
+    │   ├── tests/
+    │   └── examples/
+    └── dlt-source-barentswatch-fishhealth/
+        └── … the same layout
 ```
 
 Adding a source = adding a folder; CI and conventions are inherited. Why it works this way: [`docs/monorepo.md`](docs/monorepo.md).
