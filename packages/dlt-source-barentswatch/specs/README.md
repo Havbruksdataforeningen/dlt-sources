@@ -114,7 +114,7 @@ know about there. The summary `POST` takes a filter body,
   `400`, and a comma-separated string in `organization` answers `200` with no rows. Two
   areas is therefore the resource run once per area, each with its own `body`, as
   `examples/production_areas.py` does. A list in the `body` reaches the API as sent, and
-  its `400` is skipped like a week with no report —
+  its `400` is raised, not skipped — a rejected filter is not "no report" —
   [REFERENCE.md](../REFERENCE.md#http-400-means-no-report).
 
 - **`liceTreatments` and `diseases` are a different shape on the two weekly endpoints.**

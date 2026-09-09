@@ -1,9 +1,9 @@
 """The `locality_week_summary` resource: one `POST` per week, the body sent as given.
 
-What matters is that exactly the bound body lands at the API: one it rejects is a 400 the source skips as "no report".
+What matters is that exactly the bound body lands at the API: unlike `locality_week`, a rejected
+body here is not "no report" — it fails loudly, so a bad filter is never silently zero rows.
 """
 
-import logging
 from pathlib import Path
 
 import pytest
@@ -24,7 +24,6 @@ from tests.conftest import (
     summary_url,
 )
 
-LOGGER = "dlt_source_barentswatch.fishhealth"
 ONE_WEEK = WeekRange(2024, 1, 2024, 1)
 BODY = {"productionArea": 7, "onlyWithSalmonoidLicense": True}
 
@@ -142,26 +141,31 @@ def test_injected_keys_survive_normalization(mock_api):
 # --- Status handling -----------------------------------------------------------
 
 
-def test_400_is_skipped_with_a_debug_line(mock_api, caplog):
-    """A week the API has no summary for is left out; the weeks around it land, and nothing above DEBUG is said."""
-    mock_api.summary(2024, 1)
-    mock_api.summary(2024, 2, status_code=400, json=load_mock("problem_details_400.json"))
-    mock_api.summary(2024, 3)
-
-    with caplog.at_level(logging.DEBUG, logger=LOGGER):
-        rows = _rows(THREE_WEEKS, body=BODY)
-
-    assert sorted({(row["year"], row["week"]) for row in rows}) == [(2024, 1), (2024, 3)]
-    assert [(record.levelno, record.getMessage()) for record in caplog.records if record.name == LOGGER] == [
-        (logging.DEBUG, "Summary 2024-W2: HTTP 400, no report.")
-    ]
-
-
 def test_empty_array_is_a_0_row_week_not_an_error(mock_api):
     """`[]` is the API's answer for a filter that matches nothing — an unknown organization, say."""
     mock_api.summary(2024, 1, [])
 
     assert _rows(ONE_WEEK, body={"organization": "000000000"}) == []
+
+
+def test_204_is_a_0_row_week_not_an_error(mock_api):
+    """A 204 in the middle of a range does not abort the other weeks."""
+    mock_api.summary(2024, 1)
+    mock_api.summary(2024, 2, status_code=204)
+    mock_api.summary(2024, 3)
+
+    rows = _rows(THREE_WEEKS, body=BODY)
+
+    assert sorted({(row["year"], row["week"]) for row in rows}) == [(2024, 1), (2024, 3)]
+
+
+def test_null_locality_lands_as_a_none_locality_no(mock_api):
+    """`locality` on a row can be `null`; `localityNo` is then `None`, not a crash."""
+    mock_api.summary(2024, 1, [{**FIRST_ROW, "locality": None}])
+
+    (row,) = _rows(ONE_WEEK)
+
+    assert row["localityNo"] is None
 
 
 def test_500_raises_after_retries(mock_api):
@@ -177,9 +181,9 @@ def test_500_raises_after_retries(mock_api):
     assert summary_url(2024, 3) not in mock_api.urls_requested(), "the run stops at the failure"
 
 
-@pytest.mark.parametrize("status_code", [401, 404])
+@pytest.mark.parametrize("status_code", [400, 401, 404])
 def test_other_4xx_raises_without_retry(mock_api, status_code):
-    """Only 400 means "no report"; anything else is an error to fix."""
+    """Unlike `locality_week`, a 400 here is not "no report" — every 4xx is an error to fix."""
     failing = mock_api.summary(2024, 1, status_code=status_code, text="Error")
 
     with pytest.raises(ResourceExtractionError) as excinfo:

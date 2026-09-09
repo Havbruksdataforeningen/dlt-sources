@@ -106,9 +106,9 @@ The token is refreshed by the source, so a backfill longer than the token's 3 60
 
 ## HTTP 400 means "no report"
 
-Both weekly endpoints answer **400** — a ProblemDetails body such as `{"title": "Locality week for 11340 2030-W1 was not found.", "status": 400}` — for every request they have no data for: a week the locality did not report, a week before it existed, a future week, a year before 2012, a locality number the detailed endpoint does not know. All of them look the same. So the source treats 400 as "no report" and skips the week, in both resources, and raises on every other non-200. The alternative, raising on 400, would fail every backfill on its first pre-opening week.
+The detailed endpoint answers **400** — a ProblemDetails body such as `{"title": "Locality week for 11340 2030-W1 was not found.", "status": 400}` — for every request it has no data for: a week the locality did not report, a week before it existed, a future week, a year before 2012, a locality number the detailed endpoint does not know. All of them look the same. So `locality_week` treats 400 as "no report" and skips the week, and raises on every other non-200. The alternative, raising on 400, would fail every backfill on its first pre-opening week.
 
-The summary endpoint also answers 400 for a body it rejects — a list where it wants one value, such as `{"productionArea": [7, 8]}`. That is skipped like any other 400, one DEBUG line per week, so a malformed `body` looks like a range with no reports. Check the DEBUG lines before concluding the weeks are empty.
+The summary endpoint answers 400 for a `body` it rejects — a list where it wants one value, such as `{"productionArea": [7, 8]}` — so `locality_week_summary` raises on it rather than loading zero rows for a filter that never matched. Its "no report" is a 204, and that is skipped.
 
 A mistyped locality number in your `add_filter` matches nothing on the salmonoid list, so `locality_week` never asks for it — no requests, no rows, no 400s.
 
@@ -132,7 +132,7 @@ The package logs two things of its own, on the logger `dlt_source_barentswatch.f
 | Level | When |
 |---|---|
 | DEBUG | `locality_week`: one locality-week answered 400 and was skipped |
-| DEBUG | `locality_week_summary`: one week answered 400 for the body and was skipped |
+| DEBUG | `locality_week_summary`: one week answered 204 and was skipped |
 
 Everything else the package does, it raises. A locality skipping every week of the lookback is either fallow-and-unreported or gone, and the API does not say which; count the DEBUG lines, or compare the rows you got against the list you filtered.
 
@@ -143,7 +143,7 @@ dlt logs each request on the logger named `dlt` at INFO, off by default, dlt's o
 | `log_level` | `"INFO"` turns on dlt's request lines; `"DEBUG"` adds this package's per-week skips |
 | `log_format` | `"JSON"` for a collector to parse, or your own `{}`-style format string |
 | `sentry_dsn` | logged errors and unhandled exceptions go to Sentry, once `sentry-sdk` is installed |
-| `http_show_error_body` | `true` shows the API's own `title` on a non-200 — a `401` from a bad client, or a `400` the source would have skipped if you are probing by hand |
+| `http_show_error_body` | `true` shows the API's own `title` on a non-200 — a `401` from a bad client, or a `locality_week` `400` the source would have skipped if you are probing by hand |
 
 A service that ships records itself hands you a handler: attach it to the `dlt` logger before the run, and to `dlt_source_barentswatch` for this package's lines. The rest is in dlt's [running in production](https://dlthub.com/docs/running-in-production/running#set-the-log-level-and-format) guide.
 

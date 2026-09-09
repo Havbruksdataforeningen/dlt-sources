@@ -23,7 +23,8 @@ TOKEN_URL = "https://id.barentswatch.no/connect/token"  # noqa: S105 — a URL, 
 SCOPE = "api"
 
 WEEK_KEY = ["localityNo", "year", "week"]
-"""The merge key of both weekly tables: the request's own values, since neither response repeats them."""
+"""The merge key of both weekly tables. Neither response says which week it is for, so year and week come
+from the request; localityNo comes from the request in `locality_week` and from `locality.no` in the summary."""
 
 
 @dlt.source(max_table_nesting=0)
@@ -78,11 +79,11 @@ def fishhealth_source(
         week_range.validate()
         for year, week in week_range.weeks():
             response = client.post(f"v2/geodata/fishhealth/locality/{year}/{week}", json=body or {})
-            if response.status_code == 400:
-                logger.debug("Summary %s-W%s: HTTP 400, no report.", year, week)
-                continue
             response.raise_for_status()
+            if response.status_code == 204:
+                logger.debug("Summary %s-W%s: HTTP 204, no report.", year, week)
+                continue
             for row in response.json():
-                yield {**row, "localityNo": row["locality"]["no"], "year": year, "week": week}
+                yield {**row, "localityNo": (row.get("locality") or {}).get("no"), "year": year, "week": week}
 
     return (localities, localities_with_salmonoids, locality_week, locality_week_summary)
