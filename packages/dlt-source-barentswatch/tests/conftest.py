@@ -3,8 +3,6 @@
 import inspect
 import json
 import os
-import shutil
-import time
 from collections.abc import Callable, Iterator
 from pathlib import Path
 from typing import Any, cast
@@ -38,65 +36,17 @@ LOCALITIES_ALL_URL = BASE_URL + LOCALITIES_PATH
 THREE_WEEKS = WeekRange(2024, 1, 2024, 3)
 
 
-# --- Teardown ----------------------------------------------------------------
-#
-# The DuckDB files and dlt pipeline state a run writes are removed when it finishes —
-# but only what this session touched, so `pytest -k locality` leaves the rest alone.
-
-
-def pytest_addoption(parser):
-    parser.addoption(
-        "--keep-db",
-        action="store_true",
-        default=False,
-        help="Keep the DuckDB files and dlt pipeline state this run touched, to inspect afterwards.",
-    )
-
-
-def _duckdb_files() -> list[Path]:
-    return list(Path.cwd().glob("*.duckdb"))
-
-
-def _pipeline_state_dirs() -> list[Path]:
-    pipelines = Path(Container()[PluggableRunContext].context.data_dir) / "pipelines"
-    return list(pipelines.iterdir()) if pipelines.is_dir() else []
-
-
-def _touched_since(path: Path, cutoff: float) -> bool:
-    candidates = [path, *path.rglob("*")] if path.is_dir() else [path]
-    return any(p.stat().st_mtime >= cutoff for p in candidates if p.exists())
-
-
-def pytest_sessionstart(session):
-    if not session.config.getoption("--keep-db"):
-        # A second of slack: filesystem timestamps are coarser than time.time().
-        session.clean_db_cutoff = time.time() - 1  # type: ignore[attr-defined]
-
-
-def pytest_sessionfinish(session, exitstatus):
-    cutoff = getattr(session, "clean_db_cutoff", None)
-    if cutoff is None:
-        return
-
-    for path in _duckdb_files():
-        if _touched_since(path, cutoff):
-            path.unlink(missing_ok=True)
-            path.with_suffix(".duckdb.wal").unlink(missing_ok=True)
-    for path in _pipeline_state_dirs():
-        if _touched_since(path, cutoff):
-            shutil.rmtree(path, ignore_errors=True)
-
-
 # --- Isolation ----------------------------------------------------------------
 
 
 @pytest.fixture(autouse=True)
 def isolated_run_context(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Path]:
-    """An empty dlt project per test: a maintainer's own `.dlt/config.toml` would otherwise bind `body` into every source built here."""
+    """An empty dlt project per test, pipeline state included: a maintainer's own `.dlt/config.toml` would otherwise bind `body` into every source built here, and `~/.dlt/pipelines` is shared with live loads."""
     for name in [name for name in os.environ if name.startswith("SOURCES__")]:
         monkeypatch.delenv(name, raising=False)
     # An empty project does not inherit telemetry being off, and the ping would show up in the request history.
     monkeypatch.setenv("RUNTIME__DLTHUB_TELEMETRY", "false")
+    monkeypatch.setenv("DLT_DATA_DIR", str(tmp_path / "data"))
 
     # `reload` swaps a process-global, so the restore has to cover the reload itself.
     run_context = Container()[PluggableRunContext]
