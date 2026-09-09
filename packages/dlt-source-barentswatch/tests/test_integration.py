@@ -22,6 +22,12 @@ def isolated_run_context():
     yield
 
 
+@pytest.fixture(autouse=True)
+def zero_retry_backoff():
+    """Overrides the offline suite's fixture: the live API gets dlt's real backoff between retries."""
+    yield
+
+
 @pytest.fixture(scope="module", autouse=True)
 def require_credentials():
     """Fail fast if dlt cannot resolve the credentials from any provider."""
