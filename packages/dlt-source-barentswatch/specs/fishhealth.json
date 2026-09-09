@@ -880,8 +880,8 @@
         "tags": [
           "FishHealthLocality"
         ],
-        "summary": "List all aquaculture sites with salmonoid license",
-        "description": "Returns a compact list of aquaculture sites with names for sites that has salmonoid license. The property\nlocalityNo is used in other endpoints to request detailed data for sites.",
+        "summary": "List all aquaculture sites that have had a salmonoid license",
+        "description": "\nReturns the names and locality numbers of all aquaculture sites that have had a salmonoid license.\n                Aquaculture sites that have had different names for the same locality number have one entry per name.\n\nTo get all aquaculture sites with salmonoid licenses in a given week, you can use the endpoint\n                \"v2/geodata/fishhealth/locality/{year}/{week}\" with the \"OnlyWithSalmonoidLicense\" filter.",
         "responses": {
           "200": {
             "description": "OK",

@@ -11,7 +11,13 @@ there, most of it under `info.description` and `components.securitySchemes`.
 | Fetched from | <https://www.barentswatch.no/bwapi/openapi/fishhealth/openapi.json> |
 | `openapi` | `3.0.4` |
 | `info.version` | `v1` |
-| Fetched on | 2026-09-08 |
+| Fetched on | 2026-09-09 |
+
+The 2026-09-09 refresh carries one change: BarentsWatch rewrote the `localitieswithsalmonoids`
+summary and description after we asked why it repeats locality numbers. The repeats are
+deliberate — the list is every site that has *had* a salmonoid licence, one entry per name it has
+been known by — and the endpoint now says so. What that means for a load is in
+[REFERENCE.md](../REFERENCE.md#one-row-per-locality-week).
 
 Refresh it by overwriting the file from that URL and running the tests —
 `tests/test_spec_surface.py` pins the four paths this package reads, the server URL and
@@ -88,27 +94,6 @@ you load or read it:
   `info.description` adds that data from 19 April 2018 may be missing during the
   transition. `liceTreatments.cleanerFishTreatment` was `null` on every recent week
   checked, not an empty object.
-
-- **`localitieswithsalmonoids` returns the same locality more than once.** 2 002 objects for
-  1 902 distinct `localityNo` on 2026-09-08: 92 numbers twice and four three times, 100
-  surplus objects. Every repeat is the same site under another spelling of its name — a
-  punctuation variant (`Alterosen (Land)` / `Alterosen Land`, `Industrilab Hib` /
-  `Industrilab,,Hib` / `Industrilab.,Hib`), an abbreviation expanded (`Dolma N` /
-  `Dolma Nord`), a typo (`Kvenbukta V` / `Kvernbukta V`) or an outright rename
-  (`Arveneset` / `Skjelfjord`, `Veso Vikan` / `Vikan Akvavet`). Nothing but `name` differs;
-  the objects carry no other field. The list looks like it is keyed on the site's name
-  history rather than on its number. `localities`, the register list, has none of this —
-  2 706 objects, 2 706 distinct numbers — and the salmonoid numbers are a subset of it, so
-  the two lists disagree only in this one respect. Raised with BarentsWatch rather than
-  worked around here.
-
-  It reaches a load two ways: `localities_with_salmonoids` lands 2 002 rows for 1 902
-  localities, so count `distinct locality_no` over it; and `locality_week` iterates that
-  list, so a duplicated locality is requested once per repeat — 100 redundant requests per
-  week loaded, about 5 % of a full-coast run, deduplicated on arrival by the merge key.
-  De-duplication is left to the transform layer rather than done in the source: the API's
-  answer lands as the API gave it, and the canonical name for a locality comes from
-  Fiskeridirektoratet's register anyway, not from this list.
 
 And one that bites when you are debugging rather than reading:
 

@@ -34,11 +34,11 @@ An aquaculture locality — one licensed place in the sea or on land where fish 
 _Avoid_: site, farm, facility (the spec's prose says "aquaculture site"; its field names say locality, and so does everyone in Norway)
 
 **Salmonoid locality**:
-A locality with a licence for a salmonoid species — salmon, trout, char. `GET /v1/geodata/fishhealth/localitieswithsalmonoids` lists them, about 2 000, and lice reporting applies to them. The `localities_with_salmonoids` resource is that list, and `locality_week` iterates over it.
+A locality with a licence for a salmonoid species — salmon, trout, char. Lice reporting applies to them. `GET /v1/geodata/fishhealth/localitieswithsalmonoids` lists every locality that has *had* such a licence, about 1 900 of them, one entry per name the locality has been known by; the `localities_with_salmonoids` resource is that list, and `locality_week` iterates over it. For the ones licensed in a given week, the summary's `onlyWithSalmonoidLicense` filter.
 _Avoid_: active locality (a salmonoid locality can be fallow)
 
 **Locality list**:
-The API has two, with similar names, and the source exposes both as resources named after their endpoints. `GET /v1/geodata/fishhealth/localities` is every aquaculture locality in the register, salmonoid or not — about 2 700 — with municipality number and name and the register version; the `localities` resource. `GET /v1/geodata/fishhealth/localitieswithsalmonoids` is the salmonoid localities only, number and name — about 2 000; the `localities_with_salmonoids` resource, the one the weekly detail is requested for.
+The API has two, with similar names, and the source exposes both as resources named after their endpoints. `GET /v1/geodata/fishhealth/localities` is every aquaculture locality in the register, salmonoid or not — about 2 700 — with municipality number and name and the register version; the `localities` resource. `GET /v1/geodata/fishhealth/localitieswithsalmonoids` is the localities that have had a salmonoid licence, number and name, one row per name a locality has been known by — about 1 900 in 2 002 rows; the `localities_with_salmonoids` resource, the one the weekly detail is requested for.
 _Avoid_: the locality list, locality table (say which)
 
 **Production area**:
