@@ -108,7 +108,7 @@ The token is refreshed by the source, so a backfill longer than the token's 3 60
 
 The detailed endpoint answers **400** — a ProblemDetails body such as `{"title": "Locality week for 11340 2030-W1 was not found.", "status": 400}` — for every request it has no data for: a week the locality did not report, a week before it existed, a future week, a year before 2012, a locality number the detailed endpoint does not know. All of them look the same. So `locality_week` treats 400 as "no report" and skips the week, and raises on every other non-200. The alternative, raising on 400, would fail every backfill on its first pre-opening week.
 
-The summary endpoint answers 400 for a `body` it rejects — a list where it wants one value, such as `{"productionArea": [7, 8]}` — so `locality_week_summary` raises on it rather than loading zero rows for a filter that never matched. Its "no report" is a 204, and that is skipped.
+The summary endpoint answers 400 for a `body` it rejects — a list where it wants one value, such as `{"productionArea": [7, 8]}` — so `locality_week_summary` raises on it rather than loading zero rows for a filter that never matched. A week it has nothing for — a future week, a year before 2012, an organisation it does not know — answers 200 with `[]`, verified live; the source also skips the 204 the spec declares, which has not been seen.
 
 A mistyped locality number in your `add_filter` matches nothing on the salmonoid list, so `locality_week` never asks for it — no requests, no rows, no 400s.
 
@@ -132,7 +132,7 @@ The package logs two things of its own, on the logger `dlt_source_barentswatch.f
 | Level | When |
 |---|---|
 | DEBUG | `locality_week`: one locality-week answered 400 and was skipped |
-| DEBUG | `locality_week_summary`: one week answered 204 and was skipped |
+| DEBUG | `locality_week_summary`: one week answered the spec's 204 and was skipped |
 
 Everything else the package does, it raises. A locality skipping every week of the lookback is either fallow-and-unreported or gone, and the API does not say which; count the DEBUG lines, or compare the rows you got against the list you filtered.
 
