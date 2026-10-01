@@ -1,0 +1,7 @@
+{
+  "title": "Bad Request",
+  "status": 400,
+  "detail": "No lice report found for locality 90001 in week 2 of 2024.",
+  "message": "No lice report found for locality 90001 in week 2 of 2024.",
+  "bwErrorCode": "GenericError"
+}

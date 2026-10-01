@@ -1,0 +1,152 @@
+{
+  "locality": {
+    "no": 90001,
+    "name": "Testholmen",
+    "isOnLand": false
+  },
+  "geometry": {
+    "type": "Point",
+    "coordinates": [12.345678, 65.432109]
+  },
+  "municipality": {
+    "no": "9901",
+    "name": "Fiktivdal"
+  },
+  "productionArea": {
+    "id": 99,
+    "name": "Fiktivfjorden til Utkastøya",
+    "color": null
+  },
+  "aquaCultureRegister": {
+    "placement": "SJØ",
+    "capacity": 4680.0,
+    "unit": "TN",
+    "licenses": [
+      {
+        "licenseNo": "X TS 0001",
+        "licensee": "TESTOPPDRETT AS",
+        "grantDate": "1990-01-15T00:00:00",
+        "expirationDate": null,
+        "localities": [
+          {
+            "localityNo": 90001,
+            "name": "Testholmen",
+            "municipality": "Fiktivdal",
+            "isReportingLocality": true
+          },
+          {
+            "localityNo": 90002,
+            "name": "Prøvevika",
+            "municipality": "Fiktivdal",
+            "isReportingLocality": true
+          }
+        ],
+        "capacity": 780.0,
+        "purpose": "Kommersiell",
+        "productionType": "Matfisk",
+        "isGreen": false,
+        "species": ["Laks", "Regnbueørret", "Ørret"],
+        "speciesCategory": "Laks, regnbueørret og ørret",
+        "unit": "TN"
+      },
+      {
+        "licenseNo": "X TS 0002",
+        "licensee": "TESTOPPDRETT AS",
+        "grantDate": "2005-06-01T00:00:00",
+        "expirationDate": null,
+        "localities": [
+          {
+            "localityNo": 90001,
+            "name": "Testholmen",
+            "municipality": "Fiktivdal",
+            "isReportingLocality": true
+          }
+        ],
+        "capacity": 780.0,
+        "purpose": "Kommersiell",
+        "productionType": "Matfisk - grønn konvertert",
+        "isGreen": false,
+        "species": ["Laks", "Regnbueørret", "Ørret"],
+        "speciesCategory": "Laks, regnbueørret og ørret",
+        "unit": "TN"
+      }
+    ],
+    "hasGreenLicense": false,
+    "hasSalmonoidLicense": true,
+    "productionTypes": ["Matfisk", "Matfisk - grønn konvertert"],
+    "purposes": ["Kommersiell"],
+    "isSlaughterHoldingCage": false,
+    "organizations": [
+      {
+        "name": "TESTOPPDRETT AS",
+        "organizationNo": "999999999",
+        "address": "POSTBOKS 1",
+        "postalCode": "9999",
+        "city": "FIKTIVDAL",
+        "localities": [
+          {
+            "localityNo": 90001,
+            "name": "Testholmen",
+            "municipality": "Fiktivdal",
+            "isReportingLocality": false
+          },
+          {
+            "localityNo": 90002,
+            "name": "Prøvevika",
+            "municipality": "Fiktivdal",
+            "isReportingLocality": false
+          }
+        ]
+      }
+    ],
+    "species": ["Laks", "Regnbueørret", "Ørret"]
+  },
+  "controlAreas": [],
+  "exportRestrictionAreas": [],
+  "pdZoneId": "surveillance",
+  "diseases": [],
+  "farmedFishEscapes": [],
+  "liceReport": {
+    "hasReported": true,
+    "isFallow": false,
+    "adultFemaleLice": {
+      "average": 0.42,
+      "averageOfPreviousWeek": 0.31,
+      "trend": "Increasing"
+    },
+    "mobileLice": {
+      "average": 1.15,
+      "averageOfPreviousWeek": 0.6,
+      "trend": "Increasing"
+    },
+    "stationaryLice": {
+      "average": 0.45,
+      "averageOfPreviousWeek": 0.5,
+      "trend": "Decreasing"
+    },
+    "totalLice": {
+      "average": 2.02,
+      "averageOfPreviousWeek": 1.41,
+      "trend": "Increasing"
+    },
+    "seaTemperature": 11.4
+  },
+  "liceTreatments": {
+    "combinationTreatments": [],
+    "medicinalTreatments": [],
+    "nonMedicinalTreatments": [
+      {
+        "id": 90101,
+        "type": "TERMISK_BEHANDLING",
+        "doneBeforeLiceCount": true,
+        "entireLocality": false,
+        "numberOfCages": 2
+      }
+    ],
+    "bathTreatments": [],
+    "cleanerFishTreatment": null,
+    "inFeedTreatments": [],
+    "mechanicalRemovalTreatment": null,
+    "daysSinceLastChitinSynthesisInhibitorTreatment": null
+  }
+}
