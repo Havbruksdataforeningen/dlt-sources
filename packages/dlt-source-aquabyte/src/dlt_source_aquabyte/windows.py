@@ -5,6 +5,7 @@ Where the numbers come from: `specs/README.md#api-quirks-worth-knowing`.
 """
 
 import logging
+from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
@@ -34,6 +35,19 @@ from here — a `period` this is not keyed on still has one.
 
 Window = tuple[Any, Any]
 """One request's window: the value to send as the start param, and the one for the end."""
+
+
+@dataclass(frozen=True)
+class WindowParams:
+    """The query params that carry a window, and the config key its cursor starts from."""
+
+    start: str
+    end: str
+    config_key: str
+
+
+DATE_PARAMS = WindowParams("fromDate", "toDate", "initial_date")
+TIME_PARAMS = WindowParams("fromTime", "toTime", "initial_time")
 
 DEFAULT_PERIOD = "D"
 """The `period` the API computes when none is sent."""
@@ -74,7 +88,7 @@ def max_window_days(resource: str, period: str | None = None) -> int:
 
 def windows_to_request(
     resource: str,
-    start_param: str,
+    window_params: WindowParams,
     incremental: dlt.sources.incremental[str] | None,
     params: dict[str, Any] | None,
     period: str | None = None,
@@ -88,7 +102,7 @@ def windows_to_request(
     start = incremental.last_value if incremental is not None else None
     end = incremental.end_value if incremental is not None else None
     period = (params or {}).get("period", period)  # `params` wins here as it does on the wire
-    if params and (start_param in params or start_param.replace("from", "to") in params):
+    if params and (window_params.start in params or window_params.end in params):
         return [(start, end)]
     if start is None:
         # No cursor value at all. Whether that is fatal is the caller's check.

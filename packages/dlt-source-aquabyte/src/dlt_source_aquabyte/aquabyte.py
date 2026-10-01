@@ -33,7 +33,7 @@ from dlt_source_aquabyte.columns import (
     SWIM_SPEED_COLUMNS,
     WELFARE_SCORES_COLUMNS,
 )
-from dlt_source_aquabyte.windows import windows_to_request
+from dlt_source_aquabyte.windows import DATE_PARAMS, TIME_PARAMS, WindowParams, windows_to_request
 
 SCD2: TScd2StrategyDict = {"disposition": "merge", "strategy": "scd2"}
 """Registry tables are versioned, never replaced. Why, and how to take the other side:
@@ -49,7 +49,7 @@ def _query(extra: dict[str, Any] | None = None, **named: Any) -> dict[str, Any]:
 
 def _windowed_queries(
     resource: str,
-    start_param: str,
+    window_params: WindowParams,
     incremental: dlt.sources.incremental[str] | None,
     params: dict[str, Any] | None,
     **named: Any,
@@ -59,15 +59,13 @@ def _windowed_queries(
     A window start is the one thing a request may not go out without: the API would answer
     with a default window of its own, which nothing here chose.
     """
-    end_param = start_param.replace("from", "to")
-    spans = windows_to_request(resource, start_param, incremental, params, named.get("period"))
-    queries = [_query(params, **named, **{start_param: start, end_param: end}) for start, end in spans]
-    if any(query.get(start_param) is None for query in queries):
-        config_key = "initial_time" if start_param == "fromTime" else "initial_date"
+    spans = windows_to_request(resource, window_params, incremental, params, named.get("period"))
+    queries = [_query(params, **named, **{window_params.start: start, window_params.end: end}) for start, end in spans]
+    if any(query.get(window_params.start) is None for query in queries):
         raise ValueError(
-            f"{resource}: the request carries no {start_param}. Set {config_key} under [sources.aquabyte] "
-            f"to start the cursor, bind a window on the resource's incremental_* argument to backfill "
-            f"(see REFERENCE.md), or send {start_param} yourself through params."
+            f"{resource}: the request carries no {window_params.start}. Set {window_params.config_key} under "
+            f"[sources.aquabyte] to start the cursor, bind a window on the resource's incremental_* argument "
+            f"to backfill (see REFERENCE.md), or send {window_params.start} yourself through params."
         )
     return queries
 
@@ -119,7 +117,7 @@ def aquabyte_source(
     ):
         """Environmental readings from `GET /environmental`."""
         for query in _windowed_queries(
-            "environmental", "fromTime", incremental_from_time, params, penId=pen_id, period=period
+            "environmental", TIME_PARAMS, incremental_from_time, params, penId=pen_id, period=period
         ):
             yield from client.paginate("/environmental", params=query, data_selector="data")
 
@@ -144,7 +142,7 @@ def aquabyte_source(
     ):
         """Daily biomass from `GET /biomass`."""
         for query in _windowed_queries(
-            "biomass", "fromDate", incremental_date, params, penId=pen_id, bucketSize=bucket_size
+            "biomass", DATE_PARAMS, incremental_date, params, penId=pen_id, bucketSize=bucket_size
         ):
             yield from client.paginate("/biomass", params=query, data_selector="biomass")
 
@@ -162,7 +160,7 @@ def aquabyte_source(
     ):
         """Harvest reports from `GET /biomass/harvestReport`."""
         for query in _windowed_queries(
-            "harvest_report", "fromDate", incremental_slaughter_start_date, params, penId=pen_id
+            "harvest_report", DATE_PARAMS, incremental_slaughter_start_date, params, penId=pen_id
         ):
             yield from client.paginate(
                 "/biomass/harvestReport",
@@ -180,7 +178,7 @@ def aquabyte_source(
         ),
     ):
         """Lice counts from `GET /liceCount`."""
-        for query in _windowed_queries("lice_count", "fromDate", incremental_date, params, penId=pen_id):
+        for query in _windowed_queries("lice_count", DATE_PARAMS, incremental_date, params, penId=pen_id):
             yield from client.paginate("/liceCount", params=query, data_selector="liceCount")
 
     @dlt.resource(write_disposition="merge", primary_key=["penId", "fromTime", "toTime"], columns=SWIM_SPEED_COLUMNS)
@@ -194,7 +192,7 @@ def aquabyte_source(
     ):
         """Swim speed and tilt from `GET /behaviour/swimSpeed`."""
         for query in _windowed_queries(
-            "behaviour_swim_speed", "fromTime", incremental_from_time, params, penId=pen_id, period=period
+            "behaviour_swim_speed", TIME_PARAMS, incremental_from_time, params, penId=pen_id, period=period
         ):
             yield from client.paginate("/behaviour/swimSpeed", params=query, data_selector="swimSpeed")
 
@@ -208,7 +206,7 @@ def aquabyte_source(
     ):
         """Breathing index from `GET /behaviour/breathingIndex`, which documents no `period`."""
         for query in _windowed_queries(
-            "behaviour_breathing_index", "fromTime", incremental_from_time, params, penId=pen_id
+            "behaviour_breathing_index", TIME_PARAMS, incremental_from_time, params, penId=pen_id
         ):
             yield from client.paginate("/behaviour/breathingIndex", params=query, data_selector="breathingIndex")
 
@@ -221,7 +219,7 @@ def aquabyte_source(
         ),
     ):
         """Welfare scores from `GET /welfareScores` — one row per pen and date, categories nested."""
-        for query in _windowed_queries("welfare_scores", "fromDate", incremental_date, params, penId=pen_id):
+        for query in _windowed_queries("welfare_scores", DATE_PARAMS, incremental_date, params, penId=pen_id):
             yield from client.paginate("/welfareScores", params=query, data_selector="welfareScores")
 
     return (
