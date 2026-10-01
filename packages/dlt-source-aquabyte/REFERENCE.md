@@ -95,6 +95,8 @@ max_window_days("biomass")  # 366
   max_window_days = 31
   ```
 
+  The value replaces the window cap at every `period`. A resource bound to 31 days and later moved to `period = "15min"` asks for 31-day windows, which the API refuses, so change the two together.
+
   The `max_window_days()` function still answers the package's own number, not the one you bound.
 - **Assigning into `MAX_WINDOW_DAYS` is deprecated.** It still works, but it changes the window cap for every source in the process. Use the argument above.
 - Send a window param through `params` and you own the window — it goes out as one request, unsplit.
