@@ -143,7 +143,7 @@ def test_an_open_ended_date_incremental_ends_today(mock_rest_client):
 
 
 def test_an_open_ended_catch_up_wider_than_the_cap_splits(mock_rest_client):
-    """The case that made this a correctness bug: a cursor left far behind still loads."""
+    """A cursor left far behind still loads: without splitting, the API refuses it on every run."""
     start = (datetime.now(tz=UTC) - timedelta(days=20)).strftime("%Y-%m-%dT%H:%M:%SZ")
     sent = _run(mock_rest_client, ENVIRONMENTAL, "test_catch_up", period="15min", **_window(ENVIRONMENTAL, start))
 
@@ -167,10 +167,10 @@ def test_a_window_sent_through_params_is_left_alone(mock_rest_client):
 
 
 def test_date_sub_windows_use_the_whole_cap_without_overlapping(mock_rest_client):
-    """The API measures `toDate - fromDate`, confirmed at the boundary on 2026-08-28.
+    """The API measures `toDate - fromDate`, so a sub-window may be a full 366 wide.
 
-    So a sub-window may be a full 366 wide. `toDate` is inclusive, so the next one starts
-    the day after — which costs a day of width nowhere, and asks for no date twice.
+    `toDate` is inclusive, so the next one starts the day after — which costs a day of width
+    nowhere, and asks for no date twice.
     """
     sent = _run(mock_rest_client, BIOMASS, "test_whole_cap", **_window(BIOMASS, "2026-01-01", "2029-01-05"))
 

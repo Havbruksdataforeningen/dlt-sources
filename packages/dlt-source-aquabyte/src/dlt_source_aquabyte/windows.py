@@ -54,8 +54,7 @@ DEFAULT_PERIOD = "D"
 _WINDOWLESS_RESOURCES = frozenset({"sites", "environmental_latest"})
 """Resources the source loads whole: no cursor, so no window and no window cap.
 
-Kept next to the table so `max_window_days` can tell a resource with no window from a name the
-source does not load. `tests/test_window_splitting.py` pins both sets to the source's resources.
+`max_window_days` tells one of these from a name the source does not load.
 """
 
 _FALLBACK_MAX_WINDOW_DAYS = 366
@@ -65,12 +64,9 @@ _FALLBACK_MAX_WINDOW_DAYS = 366
 def max_window_days(resource: str, period: str | None = None) -> int:
     """The widest window `resource` accepts at `period`, in days — the width the source splits at.
 
-    A `period` with no window cap of its own gets the one the API's default period carries, since
-    that is the period the API computes when a request sends none. A resource with no window,
-    `sites` or `environmental_latest`, takes none at all, so it answers the widest value quietly:
-    a number that must not narrow a chunk size, not a cap the resource has. A resource this does
-    not load gets the same answer and a warning, a name it has never seen
-    being likelier a typo than a new endpoint. `REFERENCE.md#windows-are-split-to-fit-the-window-cap`.
+    A `period` with no window cap of its own gets the default period's. A resource with no
+    window gets the widest value, so it cannot narrow a chunk size. A name the source does not
+    load gets the same, with a warning: `REFERENCE.md#windows-are-split-to-fit-the-window-cap`.
     """
     if (resource, period) in MAX_WINDOW_DAYS:
         return MAX_WINDOW_DAYS[(resource, period)]

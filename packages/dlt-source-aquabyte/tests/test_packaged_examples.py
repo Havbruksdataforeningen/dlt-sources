@@ -1,17 +1,11 @@
 """The packaged `.dlt/*.example` files are checked by using them.
 
-A consumer's first act is to copy these two files and fill in a key, so a section
-name that dlt does not look in is a broken quick start — and it stayed broken for a
-release because nothing here read the examples. These tests copy them into a throwaway
-dlt project, point dlt at it, and build the source with **no arguments and no
-environment variables**: whatever the examples fail to supply, the source fails to
-resolve.
+A consumer's first act is to copy these two files and fill in a key, so a section name
+that dlt does not look in is a broken quick start. These tests copy them into a throwaway
+dlt project and build the source with no arguments and no environment variables: whatever
+the examples fail to supply, the source fails to resolve.
 
-The README inlines the same two files, for a reader on PyPI who has no checkout to copy
-from, so it is held to the examples here as well.
-
-Nothing below names a config section. The prefix comes from the source itself, so
-renaming the source's module moves the test, not the consumer.
+The README inlines the same two files, so it is held to the examples here as well.
 """
 
 import re

@@ -167,9 +167,6 @@ def assert_all_active_pens(pipeline: Any, table: str) -> None:
     assert_pen_ids(pipeline, table, ACTIVE_PEN_IDS)
 
 
-# --- Endpoints ----------------------------------------------------------------
-
-
 @dataclass(frozen=True)
 class Cursor:
     """How a window is spelled on the wire and in config, with a backfill window to bind."""

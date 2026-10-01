@@ -6,8 +6,8 @@ import dlt
 
 from dlt_source_aquabyte import aquabyte_source
 
-# Step 2 of the README's "How to start": the earliest dates discover_history.py measured go
-# here. No window arithmetic — the source splits the span into windows the API accepts.
+# The earliest dates discover_history.py measured go here. The source splits the span into
+# windows the API accepts.
 #
 # `end_value` is what makes this a backfill rather than a load: dlt then runs the resource
 # with transient state, so the stored cursor is neither consulted nor advanced and the daily

@@ -1,7 +1,7 @@
 """Record shapes written by hand are checked against `specs/openapi.json`.
 
 Two things here describe what a record looks like, and neither is generated: the fixtures
-under `mock_responses/`, and the column hints in `aquabyte.py`. The spec is the authority
+under `mock_responses/`, and the column hints in `columns.py`. The spec is the authority
 for both. A fixture in a shape the API could not produce makes the whole offline suite
 blind to the real one, and a column hint naming a field the API does not send is a hint
 that silently does nothing.
@@ -127,9 +127,9 @@ def _dlt_data_type(declared: dict[str, Any]) -> str:
 def test_no_fixture_carries_an_external_identifier():
     """These two fields are declared by the API and were never sent — see `specs/README.md`.
 
-    An earlier fixture invented them, which made the suite assert a shape the live API
-    has not produced. They most likely arrive once an account populates them, so if that
-    happens, re-record from live and delete this test; do not add them back by hand.
+    A fixture carrying them asserts a shape the live API has not produced. They most likely
+    arrive once an account populates them, so if that happens, re-record from live and delete
+    this test; do not add them back by hand.
     """
     for path in sorted(MOCK_DIR.glob("*.json")):
         payload = json.dumps(json.loads(path.read_text()))
