@@ -2,15 +2,23 @@
 
 All notable changes to `dlt-source-aquabyte`, written for people using the package. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); how to write an entry is in [`docs/release.md`](../../docs/release.md).
 
-## [Unreleased]
+## [0.4.0] - 2026-10-01
+
+**Upgrading from 0.3.x needs no change.** A pipeline written against 0.3.1 runs unmodified and loads the same tables.
 
 ### Added
 
-- **`max_window_days` on every resource with a cursor.** The width, in days, the resource splits its window at. Bind it or set it under `[sources.aquabyte.<resource>]` when a window cap has moved, or when a window the API accepts is too slow to answer. Leave it out and nothing changes.
+- **`max_window_days` on every resource with a cursor.** The width, in days, the resource splits its window at. Bind it or set it under `[sources.aquabyte.<resource>]` when a window cap has moved, or when a window the API accepts is too slow to answer:
+
+  ```python
+  source.environmental.bind(max_window_days=31)
+  ```
+
+  Leave it out and the package's own window cap applies, as before. The value applies at every `period`, so a resource that changes `period` needs it changed too. A value below one day is refused. [Reference](REFERENCE.md#windows-are-split-to-fit-the-window-cap).
 
 ### Deprecated
 
-- **Assigning into `MAX_WINDOW_DAYS`.** It still works, but it changes the window cap for every source in the process. Bind `max_window_days` on the resource instead. Reading the table, and `max_window_days()`, are unaffected.
+- **Assigning into `MAX_WINDOW_DAYS`.** It still works, but it changes the window cap for every source in the process. Bind `max_window_days` on the resource instead: `MAX_WINDOW_DAYS[("environmental", "D")] = 31` becomes the line above. Reading the table, and `max_window_days()`, are unaffected.
 
 ## [0.3.1] - 2026-08-31
 
