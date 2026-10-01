@@ -8,33 +8,18 @@ from dlt_source_aquabyte import aquabyte_source
 from tests.conftest import (
     ACTIVE_PEN_IDS,
     ALL_PEN_IDS,
+    ENDPOINTS,
     SOURCE_CONFIG,
     assert_all_active_pens,
     assert_row_count,
     load_mock,
+    make_pipeline,
     query,
     serve,
 )
 
-ROUTES = {
-    "/environmental": load_mock("environmental.json")["data"],
-    "/biomass": load_mock("biomass.json")["biomass"],
-    "/biomass/harvestReport": load_mock("harvest_report.json")["reports"],
-    "/liceCount": load_mock("lice_count.json")["liceCount"],
-    "/behaviour/swimSpeed": load_mock("swim_speed.json")["swimSpeed"],
-    "/behaviour/breathingIndex": load_mock("breathing_index.json")["breathingIndex"],
-    "/welfareScores": load_mock("welfare_scores.json")["welfareScores"],
-}
-
-PEN_TABLES = [
-    "biomass",
-    "environmental",
-    "harvest_report",
-    "lice_count",
-    "behaviour_swim_speed",
-    "behaviour_breathing_index",
-    "welfare_scores",
-]
+ROUTES = {endpoint.path: endpoint.records for endpoint in ENDPOINTS}
+PEN_TABLES = [endpoint.resource for endpoint in ENDPOINTS]
 
 
 def test_end_to_end_all_resources(mock_rest_client):
@@ -52,15 +37,8 @@ def test_end_to_end_all_resources(mock_rest_client):
 
     mock_rest_client.paginate.side_effect = paginate
 
-    pipeline = dlt.pipeline(
-        pipeline_name="test_e2e",
-        destination="duckdb",
-        dataset_name="test_e2e_data",
-        dev_mode=True,
-    )
-
-    load_info = pipeline.run(aquabyte_source(**SOURCE_CONFIG))
-    assert load_info is not None
+    pipeline = make_pipeline("test_e2e")
+    pipeline.run(aquabyte_source(**SOURCE_CONFIG))
 
     assert_row_count(pipeline, "sites", 2)
 
@@ -74,28 +52,22 @@ def test_end_to_end_all_resources(mock_rest_client):
 
 
 def test_end_to_end_rerun_is_idempotent(mock_rest_client):
-    """Running the same window twice merges on the primary keys instead of duplicating."""
+    """Loading the same window twice merges on the primary keys instead of duplicating.
+
+    The second run is a backfill of that window. Run from the stored cursor instead, its
+    rows would be dropped as already seen and never reach the merge.
+    """
     mock_rest_client.paginate.side_effect = serve(ROUTES)
+    pipeline = make_pipeline("test_e2e_rerun")
 
-    pipeline = dlt.pipeline(
-        pipeline_name="test_e2e_rerun",
-        destination="duckdb",
-        dataset_name="test_e2e_rerun_data",
-        dev_mode=True,
-    )
+    pipeline.run(aquabyte_source(**SOURCE_CONFIG).with_resources(*PEN_TABLES))
 
-    for _ in range(2):
-        mock_rest_client.paginate.side_effect = serve(ROUTES)
-        pipeline.run(aquabyte_source(**SOURCE_CONFIG).with_resources(*PEN_TABLES))
+    backfill = aquabyte_source(**SOURCE_CONFIG)
+    for endpoint in ENDPOINTS:
+        start, end = endpoint.window
+        window = dlt.sources.incremental(initial_value=start, end_value=end)
+        backfill.resources[endpoint.resource].bind(**{endpoint.incremental_argument: window})
+    pipeline.run(backfill.with_resources(*PEN_TABLES))
 
-    expected = {
-        "biomass": len(ROUTES["/biomass"]),
-        "environmental": len(ROUTES["/environmental"]),
-        "harvest_report": len(ROUTES["/biomass/harvestReport"]),
-        "lice_count": len(ROUTES["/liceCount"]),
-        "behaviour_swim_speed": len(ROUTES["/behaviour/swimSpeed"]),
-        "behaviour_breathing_index": len(ROUTES["/behaviour/breathingIndex"]),
-        "welfare_scores": len(ROUTES["/welfareScores"]),
-    }
-    for table, per_pen_rows in expected.items():
-        assert_row_count(pipeline, table, per_pen_rows * len(ACTIVE_PEN_IDS))
+    for endpoint in ENDPOINTS:
+        assert_row_count(pipeline, endpoint.resource, len(endpoint.records) * len(ACTIVE_PEN_IDS))

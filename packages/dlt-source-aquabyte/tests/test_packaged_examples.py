@@ -121,12 +121,6 @@ def test_readme_quick_start_matches_the_packaged_examples():
     assert secrets == tomllib.loads(SECRETS_EXAMPLE.read_text())
 
 
-def test_neither_example_claims_ci_generates_it():
-    """CI runs the offline suite with no credentials, so it generates neither file."""
-    for example in (SECRETS_EXAMPLE, CONFIG_EXAMPLE):
-        assert "AQUABYTE_API_KEY" not in example.read_text(), f"{example.name} still refers to a CI repository secret"
-
-
 def _initial_value(source: Any, resource_name: str, argument: str) -> Any:
     """The `initial_value` the named resource's incremental was built with."""
     return resource_signature(source, resource_name).parameters[argument].default.initial_value

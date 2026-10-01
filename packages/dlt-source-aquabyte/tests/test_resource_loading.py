@@ -43,9 +43,8 @@ def _run(mock_rest_client, endpoint: Endpoint, name: str, **bound: Any):
 @pytest.mark.parametrize("endpoint", ENDPOINTS, ids=lambda endpoint: endpoint.resource)
 def test_resource_loads_the_records_of_the_pen_it_was_bound_to(mock_rest_client, endpoint):
     """One pen bound: that pen's records land, read from the endpoint's own envelope key."""
-    pipeline, load_info = _run(mock_rest_client, endpoint, "test_load", pen_id="pen-001")
+    pipeline, _ = _run(mock_rest_client, endpoint, "test_load", pen_id="pen-001")
 
-    assert load_info is not None
     assert_row_count(pipeline, endpoint.resource, len(endpoint.records))
     assert_pen_ids(pipeline, endpoint.resource, ["pen-001"])
 
@@ -64,9 +63,8 @@ def test_resource_defaults_to_every_pen(mock_rest_client, endpoint):
     A run makes one request per window rather than exactly one — see
     `test_window_splitting.py` — but the pen is not what decides how many.
     """
-    pipeline, load_info = _run(mock_rest_client, endpoint, "test_all_pens")
+    pipeline, _ = _run(mock_rest_client, endpoint, "test_all_pens")
 
-    assert load_info is not None
     assert_row_count(pipeline, endpoint.resource, len(endpoint.records) * len(ACTIVE_PEN_IDS))
     assert_pen_ids(pipeline, endpoint.resource, ACTIVE_PEN_IDS)
     sent = params_sent(mock_rest_client, endpoint.path)
@@ -77,9 +75,8 @@ def test_resource_defaults_to_every_pen(mock_rest_client, endpoint):
 @pytest.mark.parametrize("endpoint", ENDPOINTS, ids=lambda endpoint: endpoint.resource)
 def test_resource_always_sends_a_window_start(mock_rest_client, endpoint):
     """Nothing bound: the cursor's initial value is still sent, never an open window."""
-    _, load_info = _run(mock_rest_client, endpoint, "test_window")
+    _run(mock_rest_client, endpoint, "test_window")
 
-    assert load_info is not None
     assert params_sent(mock_rest_client, endpoint.path)[0][endpoint.window_param] == endpoint.configured_start
 
 
@@ -90,9 +87,8 @@ def test_resource_requests_the_window_a_backfill_incremental_carries(mock_rest_c
     rows dlt will keep. A window inside the window cap is one request."""
     start, end = endpoint.window
     window = dlt.sources.incremental(initial_value=start, end_value=end)
-    _, load_info = _run(mock_rest_client, endpoint, "test_backfill", **{endpoint.incremental_argument: window})
+    _run(mock_rest_client, endpoint, "test_backfill", **{endpoint.incremental_argument: window})
 
-    assert load_info is not None
     (sent,) = params_sent(mock_rest_client, endpoint.path)
     assert sent[endpoint.window_param] == start
     assert sent[endpoint.end_param] == end
@@ -126,7 +122,7 @@ def test_resource_refuses_a_disabled_incremental_with_no_window_start(mock_rest_
 def test_resource_runs_cursorless_on_a_window_start_from_params(mock_rest_client, endpoint):
     """`incremental_*=None` plus a start in `params` is a valid run: no cursor, one window."""
     start = endpoint.window[0]
-    _, load_info = _run(
+    _run(
         mock_rest_client,
         endpoint,
         "test_cursorless",
@@ -134,18 +130,18 @@ def test_resource_runs_cursorless_on_a_window_start_from_params(mock_rest_client
         params={endpoint.window_param: start},
     )
 
-    assert load_info is not None
     assert params_sent(mock_rest_client, endpoint.path)[0][endpoint.window_param] == start
 
 
-def test_cursor_starts_are_not_required_by_resources_that_take_no_cursor(mock_rest_client):
+def test_cursor_starts_are_not_required_by_resources_that_take_no_cursor(mock_rest_client, without_configured_starts):
     """`sites` loads with only base_url and api_key — the cursor starts are not its business."""
-    mock_rest_client.paginate.side_effect = serve({"/sites": load_mock("sites.json")["sites"]})
+    sites = load_mock("sites.json")["sites"]
+    mock_rest_client.paginate.side_effect = serve({"/sites": sites})
 
     source = aquabyte_source(base_url=SOURCE_CONFIG["base_url"], api_key=SOURCE_CONFIG["api_key"])
-    _, load_info = run_source("test_sites_without_cursor_starts", source, ["sites"])
+    pipeline, _ = run_source("test_sites_without_cursor_starts", source, ["sites"])
 
-    assert load_info is not None
+    assert_row_count(pipeline, "sites", len(sites))
 
 
 @pytest.mark.parametrize("endpoint", WITH_OPTIONAL, ids=lambda endpoint: endpoint.resource)

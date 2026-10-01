@@ -29,8 +29,7 @@ than sitting here unnoticed.
 Identifiers are the suite's own scheme (`site-00N`, `pen-00N`, with `pen-002` inactive),
 and dates sit in the fixtures' existing synthetic early-2026 window — January for the
 windowed endpoints, February for `environmental_latest.json`, which reports one moment
-rather than a range. `tests/conftest.py` exports the pen constants; keep them in step
-with `sites.json`.
+rather than a range. `tests/conftest.py` reads its pen ids from `sites.json`.
 
 ## Per-pen templates
 

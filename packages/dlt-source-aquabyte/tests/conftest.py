@@ -21,9 +21,14 @@ from dlt_source_aquabyte import aquabyte_source
 
 MOCK_DIR = Path(__file__).parent / "mock_responses"
 
-ACTIVE_PEN_IDS = ["pen-001", "pen-003", "pen-004", "pen-005"]
-INACTIVE_PEN_ID = "pen-002"
-ALL_PEN_IDS = ["pen-001", "pen-002", "pen-003", "pen-004", "pen-005"]
+
+def load_mock(filename: str) -> dict:
+    return json.loads((MOCK_DIR / filename).read_text())
+
+
+_PENS = [pen for site in load_mock("sites.json")["sites"] for pen in site["pens"]]
+ALL_PEN_IDS = [pen["id"] for pen in _PENS]
+ACTIVE_PEN_IDS = [pen["id"] for pen in _PENS if pen["isActive"]]
 
 # Everything aquabyte_source() itself needs: connection details and cursor starts.
 # Query params live on the resources — bind them there.
@@ -95,10 +100,6 @@ def pytest_sessionfinish(session, exitstatus):
     for path in _pipeline_state_dirs():
         if _touched_since(path, cutoff):
             shutil.rmtree(path, ignore_errors=True)
-
-
-def load_mock(filename: str) -> dict:
-    return json.loads((MOCK_DIR / filename).read_text())
 
 
 def make_per_pen_data(template: list[dict], pen_id: str) -> list[dict]:
