@@ -15,6 +15,7 @@ import importlib.util
 import re
 import subprocess
 import tomllib
+from fnmatch import fnmatchcase
 from pathlib import Path
 
 import pytest
@@ -207,10 +208,12 @@ def test_the_date_of_another_version_is_not_read_as_this_ones():
     )
 
 
-def test_the_repo_uses_the_tag_shape_the_release_workflow_selects_on():
-    """`release.yml` triggers on `dlt-source-*/v*`. A tag outside that shape publishes nothing."""
+@pytest.mark.parametrize("package", PACKAGES, ids=lambda path: path.name)
+def test_the_release_workflow_selects_the_tag_of_every_package(package: Path):
+    """`release.yml` triggers on a tag glob. A tag it does not select validates, and publishes nothing."""
     workflow = (REPO_ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
-    selector = re.search(r'^\s*-\s*"(dlt-source-\S+)"\s*$', workflow, re.MULTILINE)
+    selector = re.search(r'^\s+tags:\n(?:\s*#.*\n)*\s*-\s*"(\S+)"\s*$', workflow, re.MULTILINE)
+    tag = f"{package.name}/v{_declared_version(package)}"
 
     assert selector, "release.yml must select release tags by a quoted glob"
-    assert selector.group(1) == "dlt-source-*/v*"
+    assert fnmatchcase(tag, selector.group(1)), f"{tag} is not selected by {selector.group(1)}"
