@@ -1,15 +1,13 @@
 """dlt source for the Aquabyte API v3.
 
-Endpoints, params and record shapes: https://api.aquabyte.ai/v3/docs — committed as
-`specs/openapi.json`, which `tests/test_param_surface.py` pins every signature against.
+Endpoints, params and record shapes: https://api.aquabyte.ai/v3/docs, committed as
+`specs/openapi.json`.
 
 Each resource takes its endpoint's params in snake_case, plus a `params` escape hatch
 merged into the query string last. Bind them per resource or set them in config under
 `[sources.aquabyte.<resource>]`; see the README. The window params are the exception:
 they come from the resource's incremental, which is where a caller sets a window. A
 windowed resource also takes `max_window_days`, the width its window is split at.
-
-Column hints live in `columns.py`, and the window arithmetic in `windows.py`.
 """
 
 from typing import Any
@@ -82,8 +80,6 @@ def aquabyte_source(
     """Aquabyte API v3 dlt source. All resources share one RESTClient.
 
     Args:
-        base_url: API base URL, from config.
-        api_key: API key, from secrets.
         initial_date: Cursor start for the date-based resources (YYYY-MM-DD). Needed only
             when such a resource runs without a bound window; erroring then, not before.
         initial_time: As `initial_date`, for the time-based resources (ISO 8601).
