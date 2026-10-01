@@ -292,6 +292,33 @@ def test_a_corrected_window_cap_moves_the_splitting_and_the_published_answer_tog
     assert max(widths) == timedelta(days=31)
 
 
+def test_max_window_days_set_in_config_is_the_width_the_window_is_split_at(mock_rest_client, monkeypatch):
+    """Like every resource argument, it can live under `[sources.aquabyte.<resource>]`.
+
+    Bound in code, it is asserted for every resource in `test_resource_loading.py`.
+    """
+    monkeypatch.setenv("SOURCES__AQUABYTE__BIOMASS__MAX_WINDOW_DAYS", "100")
+
+    sent = _run(mock_rest_client, BIOMASS, "test_configured_cap", **_window(BIOMASS, "2026-01-01", "2026-06-30"))
+
+    assert [(one["fromDate"], one["toDate"]) for one in sent] == [
+        ("2026-01-01", "2026-04-11"),
+        ("2026-04-12", "2026-06-30"),
+    ]
+
+
+def test_a_max_window_days_below_one_is_refused(mock_rest_client):
+    """A window cap of zero days is a window that never advances."""
+    with pytest.raises(Exception, match="at least 1 day"):
+        _run(
+            mock_rest_client,
+            BIOMASS,
+            "test_zero_cap",
+            max_window_days=0,
+            **_window(BIOMASS, "2026-01-01", "2026-06-30"),
+        )
+
+
 def test_an_unknown_resource_gets_the_widest_window_cap_and_says_so(caplog):
     """A consumer's entry point takes a name it typed, so a typo must not pass for an answer.
 
