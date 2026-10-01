@@ -4,8 +4,6 @@ import copy
 import inspect
 import json
 import os
-import shutil
-import time
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import KW_ONLY, dataclass
@@ -41,62 +39,11 @@ SOURCE_CONFIG: dict[str, Any] = {
 }
 
 
-# --- Teardown ----------------------------------------------------------------
-#
-# A test run writes two things: a `<pipeline_name>.duckdb` file per pipeline in the
-# working directory, and dlt's own state under `~/.dlt/pipelines/`, which is what
-# `dlt pipeline <name> show` reads. Both are deleted when the session finishes, so a
-# run leaves the working tree as it found it. `pytest --keep-db` keeps them, for when
-# you want to open what a run actually ingested.
-#
-# Teardown removes what this session *touched*, never everything it finds: pipeline
-# names are fixed per test, so a rerun reuses the same file rather than making another
-# one. Artifacts of tests this session did not run keep their older timestamps and
-# survive — so `pytest -k sites` leaves the rest alone, including anything kept from
-# an earlier `--keep-db` run.
-
-
-def pytest_addoption(parser):
-    parser.addoption(
-        "--keep-db",
-        action="store_true",
-        default=False,
-        help="Keep the DuckDB files and dlt pipeline state this run touched, to inspect afterwards.",
-    )
-
-
-def _duckdb_files() -> list[Path]:
-    return list(Path.cwd().glob("*.duckdb"))
-
-
-def _pipeline_state_dirs() -> list[Path]:
-    pipelines = Path(Container()[PluggableRunContext].context.data_dir) / "pipelines"
-    return list(pipelines.iterdir()) if pipelines.is_dir() else []
-
-
-def _touched_since(path: Path, cutoff: float) -> bool:
-    candidates = [path, *path.rglob("*")] if path.is_dir() else [path]
-    return any(p.stat().st_mtime >= cutoff for p in candidates if p.exists())
-
-
-def pytest_sessionstart(session):
-    if not session.config.getoption("--keep-db"):
-        # A second of slack: filesystem timestamps are coarser than time.time().
-        session.clean_db_cutoff = time.time() - 1  # type: ignore[attr-defined]
-
-
-def pytest_sessionfinish(session, exitstatus):
-    cutoff = getattr(session, "clean_db_cutoff", None)
-    if cutoff is None:
-        return
-
-    for path in _duckdb_files():
-        if _touched_since(path, cutoff):
-            path.unlink(missing_ok=True)
-            path.with_suffix(".duckdb.wal").unlink(missing_ok=True)
-    for path in _pipeline_state_dirs():
-        if _touched_since(path, cutoff):
-            shutil.rmtree(path, ignore_errors=True)
+@pytest.fixture(autouse=True)
+def dlt_writes_to_tmp_path(tmp_path, monkeypatch):
+    """Each test's DuckDB file and dlt pipeline state land in its own `tmp_path`."""
+    monkeypatch.setenv("DLT_LOCAL_DIR", str(tmp_path))
+    monkeypatch.setenv("DLT_DATA_DIR", str(tmp_path / "dlt"))
 
 
 def make_per_pen_data(template: list[dict], pen_id: str) -> list[dict]:
