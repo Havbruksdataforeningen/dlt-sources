@@ -76,21 +76,18 @@ def test_resource_offers_exactly_its_endpoints_params(resource_name, paths):
     assert _resource_params(resource_name) == expected
 
 
-@pytest.mark.parametrize("resource_name", ENDPOINTS)
-def test_every_resource_takes_a_params_passthrough(resource_name):
-    """A query param the API grows later can be sent without a release."""
-    assert "params" in _signature(resource_name).parameters
-
-
-def test_params_passthrough_reaches_the_request(mock_rest_client):
-    """An unknown query param passed through lands on the request untouched."""
-    mock_rest_client.paginate.side_effect = serve({"/biomass": load_mock("biomass.json")["biomass"]})
+@pytest.mark.parametrize(("resource_name", "paths"), ENDPOINTS.items())
+def test_params_passthrough_reaches_the_request(mock_rest_client, resource_name, paths):
+    """A query param the API grows later can be sent without a release, on every resource."""
+    mock_rest_client.paginate.side_effect = serve({})
 
     source = aquabyte_source(**SOURCE_CONFIG)
-    source.biomass.bind(params={"someFutureParam": "yes"})
-    run_source("test_params_passthrough", source, ["biomass"])
+    source.resources[resource_name].bind(params={"someFutureParam": "yes"})
+    run_source(f"test_params_passthrough_{resource_name}", source, [resource_name])
 
-    assert params_sent(mock_rest_client, "/biomass")[0]["someFutureParam"] == "yes"
+    sent = params_sent(mock_rest_client, paths[0])
+    assert sent, "the resource must reach its endpoint"
+    assert all(one["someFutureParam"] == "yes" for one in sent)
 
 
 def test_params_passthrough_wins_over_named_params(mock_rest_client):

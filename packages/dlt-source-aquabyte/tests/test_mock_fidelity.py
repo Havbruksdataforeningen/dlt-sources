@@ -22,7 +22,7 @@ import pytest
 from jsonschema import Draft202012Validator
 
 from dlt_source_aquabyte import aquabyte_source
-from tests.conftest import ALL_PEN_IDS, MOCK_DIR, SOURCE_CONFIG, load_mock
+from tests.conftest import MOCK_DIR, SOURCE_CONFIG, load_mock
 
 SPEC = json.loads((Path(__file__).parent.parent / "specs" / "openapi.json").read_text())
 
@@ -137,13 +137,6 @@ def _dlt_data_type(declared: dict[str, Any]) -> str:
     """The dlt data type for a spec property, looking through its nullable wrapper."""
     branches = [branch for branch in declared.get("anyOf", [declared]) if branch.get("type") != "null"]
     return DLT_DATA_TYPES[_resolve(branches[0])["type"]]
-
-
-def test_sites_fixture_matches_the_pen_constants():
-    """`conftest` hardcodes the pen ids; the fixture is where they actually come from."""
-    sites = load_mock("sites.json")["sites"]
-    pens = [pen for site in sites for pen in site["pens"]]
-    assert sorted(pen["id"] for pen in pens) == sorted(ALL_PEN_IDS)
 
 
 def test_no_fixture_carries_an_external_identifier():

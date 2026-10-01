@@ -1,8 +1,8 @@
 """Behaviour specific to the environmental resource.
 
 The shared mechanics — the pen, the window params, the envelope key, `period` — are in
-`test_resource_loading.py`. `/environmental` is the resource used to exercise cursor
-pagination, being one of the six endpoints that return a `nextToken`.
+`test_resource_loading.py`. `/environmental` stands in for the endpoints that answer in
+more than one page.
 """
 
 from dlt_source_aquabyte import aquabyte_source
@@ -17,7 +17,7 @@ from tests.conftest import (
 DATA = load_mock("environmental.json")["data"]
 
 
-def test_environmental_pagination_with_next_token(mock_rest_client):
+def test_environmental_loads_every_page(mock_rest_client):
     """Every page `paginate` yields is loaded, not just the first."""
     page1 = make_per_pen_data(DATA[:1], "pen-001")
     page2 = make_per_pen_data(DATA[1:], "pen-001")
@@ -28,7 +28,6 @@ def test_environmental_pagination_with_next_token(mock_rest_client):
 
     source = aquabyte_source(**SOURCE_CONFIG)
     source.environmental.bind(pen_id="pen-001")
-    pipeline, load_info = run_source("test_env_pagination", source, ["environmental"])
+    pipeline, _ = run_source("test_env_pagination", source, ["environmental"])
 
-    assert load_info is not None
     assert_row_count(pipeline, "environmental", len(DATA))

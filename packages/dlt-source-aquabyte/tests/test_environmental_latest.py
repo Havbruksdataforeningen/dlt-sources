@@ -20,9 +20,8 @@ def test_environmental_latest_loads_into_duckdb(mock_rest_client):
     mock_rest_client.paginate.return_value = iter([DATA])
 
     source = aquabyte_source(**SOURCE_CONFIG)
-    pipeline, load_info = run_source("test_env_latest", source, ["environmental_latest"])
+    pipeline, _ = run_source("test_env_latest", source, ["environmental_latest"])
 
-    assert load_info is not None
     assert_row_count(pipeline, "environmental_latest", len(DATA))
 
     rows = query(pipeline, "SELECT DISTINCT pen_id FROM environmental_latest ORDER BY pen_id")

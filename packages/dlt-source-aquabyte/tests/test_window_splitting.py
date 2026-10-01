@@ -160,10 +160,10 @@ def test_a_window_sent_through_params_is_left_alone(mock_rest_client):
         ENVIRONMENTAL,
         "test_params_window",
         period="15min",
-        params={"fromTime": "2020-01-01T00:00:00Z", "toTime": "2026-01-01T00:00:00Z"},
+        params={"fromTime": "2021-06-01T00:00:00Z", "toTime": "2026-01-01T00:00:00Z"},
     )
 
-    assert len(sent) == 1
+    assert [(one["fromTime"], one["toTime"]) for one in sent] == [("2021-06-01T00:00:00Z", "2026-01-01T00:00:00Z")]
 
 
 def test_date_sub_windows_use_the_whole_cap_without_overlapping(mock_rest_client):
