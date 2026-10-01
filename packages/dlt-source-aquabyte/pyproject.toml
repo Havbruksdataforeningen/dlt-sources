@@ -36,7 +36,7 @@ Issues = "https://github.com/Havbruksdataforeningen/dlt-sources/issues"
 dev = [
     "dlt[duckdb]>=1.2",
     # tests/test_mock_fidelity.py validates the fixtures against specs/openapi.json,
-    # which is JSON Schema. Hand-rolling that check was ~60 lines of subset validator.
+    # which is JSON Schema.
     "jsonschema>=4",
     "pytest>=8.0",
     "pytest-cov>=6.0",
@@ -60,9 +60,8 @@ src = ["src", "tests"]
 [tool.ruff.lint]
 # S is ruff's port of bandit: hardcoded credentials, requests without a
 # timeout, disabled TLS verification — the risks of code that talks to a
-# supplier's API with credentials. It replaces bandit itself, which ran as a
-# separate unenforced command until it was removed; don't add it back without
-# a check it catches that S does not.
+# supplier's API with credentials. Don't add bandit itself without a check it
+# catches that S does not.
 select = ["E", "W", "F", "I", "B", "C4", "UP", "SIM", "RUF", "S"]
 ignore = ["E501", "B008"]
 
