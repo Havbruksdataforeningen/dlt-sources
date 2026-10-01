@@ -35,7 +35,7 @@ ALSO_READS = {"sites": ["/sites/{siteId}"]}
 PARAMS_OWNED_BY_MECHANICS = {"next_token", "from_date", "to_date", "from_time", "to_time"}
 
 # Resource arguments that are not API params.
-NON_API_ARGS = {"params"}
+NON_API_ARGS = {"params", "max_window_days"}
 
 
 def _snake(name: str) -> str:

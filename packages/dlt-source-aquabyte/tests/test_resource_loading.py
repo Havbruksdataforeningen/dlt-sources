@@ -95,6 +95,20 @@ def test_resource_requests_the_window_a_backfill_incremental_carries(mock_rest_c
 
 
 @pytest.mark.parametrize("endpoint", WINDOWED_ENDPOINTS, ids=lambda endpoint: endpoint.resource)
+def test_resource_splits_its_window_at_a_bound_max_window_days(mock_rest_client, endpoint):
+    """The window caps are measured, not documented, so a consumer can replace one per resource:
+    lower it when a window the API accepts is too slow to answer, or correct it when a cap has moved.
+    """
+    start, end = endpoint.cursor.window
+    window = dlt.sources.incremental(initial_value=start, end_value=end)
+    _run(mock_rest_client, endpoint, "test_bound_cap", max_window_days=10, **{endpoint.incremental_argument: window})
+
+    sent = params_sent(mock_rest_client, endpoint.path)
+    assert len(sent) == 3, "a 30-day window at a 10-day window cap is three requests"
+    assert (sent[0][endpoint.cursor.start_param], sent[-1][endpoint.cursor.end_param]) == (start, end)
+
+
+@pytest.mark.parametrize("endpoint", WINDOWED_ENDPOINTS, ids=lambda endpoint: endpoint.resource)
 def test_resource_refuses_to_run_without_a_window_start(mock_rest_client, endpoint, without_configured_starts):
     """No cursor value and no start in `params`: an error naming the config key, never a
     request the API answers with a default window of its own."""

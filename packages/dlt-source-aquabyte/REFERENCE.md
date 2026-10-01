@@ -84,7 +84,21 @@ max_window_days("biomass")  # 366
 ```
 
 - **Read a window cap through `max_window_days`.** It resolves the way the source does, so your chunks are the width the source would split at. A resource loaded with no `period` gets the cap of the period the API computes when a request sends none, `D` — so `max_window_days("environmental")` is 366 rather than an error. A resource with no window, `sites` or `environmental_latest`, takes no window at all, so its answer must not narrow a chunk size: it is the widest, 366, and quiet. A name the source does not load gets the same 366 with a warning.
-- **Write to `MAX_WINDOW_DAYS` to correct one.** The numbers are [measured, not documented by the API](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/specs/README.md#api-quirks-worth-knowing), so treat them as observations: if a window cap moves, assign the new value before your run instead of waiting for a release. The key is `(resource, period)`, with `None` for the resources that take no `period`, and `max_window_days` reads what you assign.
+- **Bind `max_window_days` on a resource to replace one.** The numbers are [measured, not documented by the API](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/specs/README.md#api-quirks-worth-knowing), so treat them as observations. If a window cap moves, or a window the API accepts is too slow to answer, give the resource the width to split at instead of waiting for a release:
+
+  ```python
+  source.environmental.bind(max_window_days=31)
+  ```
+
+  ```toml
+  [sources.aquabyte.environmental]
+  max_window_days = 31
+  ```
+
+  The value replaces the window cap at every `period`. A resource bound to 31 days and later moved to `period = "15min"` asks for 31-day windows, which the API refuses, so change the two together.
+
+  The `max_window_days()` function still answers the package's own number, not the one you bound.
+- **Assigning into `MAX_WINDOW_DAYS` is deprecated.** It still works, but it changes the window cap for every source in the process. Use the argument above.
 - Send a window param through `params` and you own the window — it goes out as one request, unsplit.
 
 ## What the source does not expose

@@ -27,10 +27,9 @@ MAX_WINDOW_DAYS: dict[tuple[str, str | None], int] = {
 }
 """Widest window per `(resource, period)`, in days.
 
-Writable on purpose: a window cap that has moved can be corrected without waiting for a
-release, and `max_window_days` reads the correction. Read a window cap through that rather than
-from here — a `period` this is not keyed on still has one.
-`REFERENCE.md#windows-are-split-to-fit-the-window-cap`.
+Read a window cap through `max_window_days` rather than from here — a `period` this is not keyed
+on still has one. Assigning into it to correct a window cap is deprecated: bind `max_window_days`
+on the resource. `REFERENCE.md#windows-are-split-to-fit-the-window-cap`.
 """
 
 Window = tuple[Any, Any]
@@ -92,12 +91,14 @@ def windows_to_request(
     incremental: dlt.sources.incremental[str] | None,
     params: dict[str, Any] | None,
     period: str | None = None,
+    window_cap_days: int | None = None,
 ) -> list[Window]:
     """The window of every request `resource` must make, oldest first.
 
     One window when the timespan fits the window cap, several when it does not, and always with an
     end: `end_value` if the incremental carries one, otherwise now. A caller who sends a
     window param through `params` owns the window and gets it back unmeasured.
+    `window_cap_days` replaces the window cap `max_window_days` would answer.
     """
     start = incremental.last_value if incremental is not None else None
     end = incremental.end_value if incremental is not None else None
@@ -105,8 +106,11 @@ def windows_to_request(
     if start is None or caller_owns_window:
         return [(start, end)]
 
-    period = (params or {}).get("period", period)  # `params` wins here as it does on the wire
-    window_cap_days = max_window_days(resource, period)
+    if window_cap_days is None:
+        period = (params or {}).get("period", period)  # `params` wins here as it does on the wire
+        window_cap_days = max_window_days(resource, period)
+    if window_cap_days < 1:
+        raise ValueError(f"{resource}: a window cap must be at least 1 day, got {window_cap_days}.")
     try:
         return _split(start, end, timedelta(days=window_cap_days))
     except _UnmeasurableWindow as why:
