@@ -1,15 +1,8 @@
 """Measure what one account holds: each resource's earliest date, newest date and row count.
 
-Run it with `initial_date` and `initial_time` already set: choose a date that predates when
-you first lowered an Aquabyte camera into the sea. A start earlier than your first record
-costs empty requests, not errors. What this prints is what those two settings, and `period`,
-should actually be — nothing in the API answers that, and the answer differs per account.
-
-It loads rather than probes: at `period="D"` one request covers up to 366 days either way,
-which makes the load itself the cheapest measurement.
-
-Resources do not all start on the same date, and do not all end on it. Read the newest dates
-before writing a freshness alert.
+Run it with `initial_date` and `initial_time` set earlier than your first camera went into the
+sea: a start before your first record costs empty requests, not errors. The output is what
+those two settings should be, and how fresh each resource is.
 """
 
 import time
@@ -31,11 +24,9 @@ CURSOR_COLUMNS = {
 }
 
 # The coarsest `period`, whatever config says: this run measures the history, it is not the
-# load you keep.
-#
-# A legal 366-day `/environmental` window at `penId=all` does not return inside 180 s
-# (`specs/README.md#api-quirks-worth-knowing`). 31 is a starting point, not a measured
-# boundary: if that line sits there for minutes, lower it again or bind `pen_id` to one pen.
+# load you keep. A 366-day `/environmental` window at `penId=all` does not answer inside 180 s
+# (`specs/README.md#api-quirks-worth-knowing`), so it is asked for 31 days at a time. Lower
+# that if the resource still hangs.
 source = aquabyte_source()
 source.resources["environmental"].bind(period="D", max_window_days=31)
 source.resources["behaviour_swim_speed"].bind(period="D")
@@ -67,6 +58,4 @@ with pipeline.sql_client() as db:
         earliest, newest, count = rows[0] if rows else ("-", "-", 0)
         print(f"{resource:<27}{earliest!s:<22}{newest!s:<22}{count:>8}")
 
-# Without this the floor reads as a measurement, and a reader plans a backfill around a date
-# that only means "the API would not answer for earlier".
 print("\nwelfare_scores cannot report earlier than 2024-04-20: the API refuses any start before it.")
