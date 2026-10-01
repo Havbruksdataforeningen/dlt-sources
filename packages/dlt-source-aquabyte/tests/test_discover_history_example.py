@@ -17,7 +17,6 @@ from typing import Any
 
 import pytest
 
-from dlt_source_aquabyte import MAX_WINDOW_DAYS
 from tests.conftest import SOURCE_CONFIG, WINDOWED_ENDPOINTS, calls_to, params_sent, serve
 
 EXAMPLE = Path(__file__).parent.parent / "examples" / "discover_history.py"
@@ -31,8 +30,6 @@ def example_run(mock_rest_client, tmp_path: Path, monkeypatch: pytest.MonkeyPatc
     for key, value in SOURCE_CONFIG.items():
         monkeypatch.setenv(f"SOURCES__AQUABYTE__{key.upper()}", str(value))
     monkeypatch.chdir(tmp_path)
-    # The example lowers a window cap, and MAX_WINDOW_DAYS is a process-wide dict.
-    monkeypatch.setitem(MAX_WINDOW_DAYS, ("environmental", "D"), MAX_WINDOW_DAYS[("environmental", "D")])
     monkeypatch.setenv("DLT_DATA_DIR", str(tmp_path / "dlt"))
     mock_rest_client.paginate.side_effect = serve(ROUTES)
 

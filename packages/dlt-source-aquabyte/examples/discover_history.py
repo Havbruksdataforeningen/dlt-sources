@@ -16,7 +16,7 @@ import time
 
 import dlt
 
-from dlt_source_aquabyte import MAX_WINDOW_DAYS, aquabyte_source
+from dlt_source_aquabyte import aquabyte_source
 
 # Each resource's cursor field, spelled as dlt lands it in the destination. `harvest_report`
 # is left out: over a multi-year window neither its range nor its count means anything
@@ -30,15 +30,14 @@ CURSOR_COLUMNS = {
     "behaviour_breathing_index": "from_time",
 }
 
+# The coarsest `period`, whatever config says: this run measures the history, it is not the
+# load you keep.
+#
 # A legal 366-day `/environmental` window at `penId=all` does not return inside 180 s
 # (`specs/README.md#api-quirks-worth-knowing`). 31 is a starting point, not a measured
 # boundary: if that line sits there for minutes, lower it again or bind `pen_id` to one pen.
-MAX_WINDOW_DAYS[("environmental", "D")] = 31
-
-# The coarsest `period`, whatever config says: this run measures the history, it is not the
-# load you keep.
 source = aquabyte_source()
-source.resources["environmental"].bind(period="D")
+source.resources["environmental"].bind(period="D", max_window_days=31)
 source.resources["behaviour_swim_speed"].bind(period="D")
 
 # `/welfareScores` refuses any start before this, so a run reaching further back has to give
