@@ -6,7 +6,8 @@ import json
 import os
 import shutil
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from dataclasses import KW_ONLY, dataclass
 from pathlib import Path
 from typing import Any, cast
@@ -102,23 +103,30 @@ def make_per_pen_data(template: list[dict], pen_id: str) -> list[dict]:
     return [{**copy.deepcopy(r), "penId": pen_id} for r in template]
 
 
-@pytest.fixture
-def without_configured_starts(tmp_path, monkeypatch):
-    """Run with no config at all: no `.dlt/` files, no `SOURCES__*` variables.
-
-    A maintainer's own `.dlt/config.toml` supplies `initial_date` and `initial_time`, which
-    is what a test of the missing-start error needs gone.
-    """
+@contextmanager
+def dlt_project(run_dir: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
+    """Make the `.dlt/` files in `run_dir` dlt's only config: no other project, no `SOURCES__*` variables."""
     for name in [name for name in os.environ if name.startswith("SOURCES__")]:
         monkeypatch.delenv(name, raising=False)
 
     run_context = Container()[PluggableRunContext]
     original_run_dir = run_context.context.run_dir
-    run_context.reload(str(tmp_path))
     try:
+        run_context.reload(str(run_dir))
         yield
     finally:
         run_context.reload(original_run_dir)
+
+
+@pytest.fixture
+def without_configured_starts(tmp_path, monkeypatch):
+    """Run with no config at all.
+
+    A maintainer's own `.dlt/config.toml` supplies `initial_date` and `initial_time`, which
+    is what a test of the missing-start error needs gone.
+    """
+    with dlt_project(tmp_path, monkeypatch):
+        yield
 
 
 @pytest.fixture

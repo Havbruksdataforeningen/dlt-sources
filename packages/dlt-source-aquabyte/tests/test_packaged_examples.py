@@ -14,7 +14,6 @@ Nothing below names a config section. The prefix comes from the source itself, s
 renaming the source's module moves the test, not the consumer.
 """
 
-import os
 import re
 import shutil
 import tomllib
@@ -23,13 +22,11 @@ from typing import Any
 from unittest.mock import patch
 
 import pytest
-from dlt.common.configuration.container import Container
 from dlt.common.configuration.exceptions import ConfigFieldMissingException
-from dlt.common.configuration.specs.pluggable_run_context import PluggableRunContext
 
 import dlt_source_aquabyte.aquabyte as aquabyte_module
 from dlt_source_aquabyte import aquabyte_source
-from tests.conftest import resource_signature
+from tests.conftest import dlt_project, resource_signature
 
 README = Path(__file__).parent.parent / "README.md"
 DLT_DIR = Path(__file__).parent.parent / ".dlt"
@@ -46,35 +43,24 @@ def source_from_examples(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Any
     """Build the source from the example files alone, and return the mocked RESTClient.
 
     Follows the quick start literally: copy both examples, replace the placeholder key,
-    and resolve. Every `SOURCES__*` variable is cleared first so a maintainer's own
-    environment cannot make a broken example look fine.
+    and resolve. Nothing else is read, so a maintainer's own environment cannot make a
+    broken example look fine.
     """
-    for name in [name for name in os.environ if name.startswith("SOURCES__")]:
-        monkeypatch.delenv(name, raising=False)
-
     settings = tmp_path / ".dlt"
     settings.mkdir()
     shutil.copy(CONFIG_EXAMPLE, settings / "config.toml")
     (settings / "secrets.toml").write_text(SECRETS_EXAMPLE.read_text().replace(PLACEHOLDER_KEY, SENTINEL_KEY))
 
-    # `reload` swaps a process-global, so the restore below has to cover the reload
-    # itself, not just the test body.
-    run_context = Container()[PluggableRunContext]
-    original_run_dir = run_context.context.run_dir
-    try:
-        run_context.reload(str(tmp_path))
-        with patch.object(aquabyte_module, "RESTClient") as rest_client:
-            try:
-                source = aquabyte_source()
-            except ConfigFieldMissingException as missing:
-                pytest.fail(
-                    "The example files do not supply everything aquabyte_source() resolves. "
-                    "dlt lists the sections it looked in below; the examples must use one of "
-                    f"them.\n\n{missing}"
-                )
-            yield source, rest_client
-    finally:
-        run_context.reload(original_run_dir)
+    with dlt_project(tmp_path, monkeypatch), patch.object(aquabyte_module, "RESTClient") as rest_client:
+        try:
+            source = aquabyte_source()
+        except ConfigFieldMissingException as missing:
+            pytest.fail(
+                "The example files do not supply everything aquabyte_source() resolves. "
+                "dlt lists the sections it looked in below; the examples must use one of "
+                f"them.\n\n{missing}"
+            )
+        yield source, rest_client
 
 
 def test_secrets_example_resolves_the_api_key(source_from_examples):
