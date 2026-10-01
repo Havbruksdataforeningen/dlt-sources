@@ -18,11 +18,11 @@ from typing import Any
 import pytest
 
 from dlt_source_aquabyte import MAX_WINDOW_DAYS
-from tests.conftest import ENDPOINTS, SOURCE_CONFIG, calls_to, params_sent, serve
+from tests.conftest import SOURCE_CONFIG, WINDOWED_ENDPOINTS, calls_to, params_sent, serve
 
 EXAMPLE = Path(__file__).parent.parent / "examples" / "discover_history.py"
 
-ROUTES = {endpoint.path: endpoint.records for endpoint in ENDPOINTS}
+ROUTES = {endpoint.path: endpoint.records for endpoint in WINDOWED_ENDPOINTS}
 
 
 @pytest.fixture

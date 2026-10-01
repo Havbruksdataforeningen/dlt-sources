@@ -15,21 +15,21 @@ from dlt_source_aquabyte import MAX_WINDOW_DAYS, aquabyte_source, max_window_day
 from dlt_source_aquabyte.windows import _WINDOWLESS_RESOURCES
 from tests.conftest import (
     SOURCE_CONFIG,
-    Endpoint,
-    endpoint,
+    WindowedEndpoint,
     params_sent,
     resource_signature,
     run_source,
     serve,
+    windowed_endpoint,
 )
 
 # One time-based resource and one date-based one, which is the whole of the difference:
 # the same arithmetic on `fromTime`/`toTime` and on `fromDate`/`toDate`.
-ENVIRONMENTAL = endpoint("environmental")
-BIOMASS = endpoint("biomass")
+ENVIRONMENTAL = windowed_endpoint("environmental")
+BIOMASS = windowed_endpoint("biomass")
 
 
-def _run(mock_rest_client, endpoint: Endpoint, name: str, **bound):
+def _run(mock_rest_client, endpoint: WindowedEndpoint, name: str, **bound):
     """Serve the endpoint's mock, run its resource, and return the params of every request."""
     mock_rest_client.paginate.reset_mock()
     mock_rest_client.paginate.side_effect = serve({endpoint.path: endpoint.records})
@@ -39,7 +39,7 @@ def _run(mock_rest_client, endpoint: Endpoint, name: str, **bound):
     return params_sent(mock_rest_client, endpoint.path)
 
 
-def _window(endpoint: Endpoint, start: str, end: str | None = None):
+def _window(endpoint: WindowedEndpoint, start: str, end: str | None = None):
     """The `incremental_*` binding that carries this window."""
     return {endpoint.incremental_argument: dlt.sources.incremental(initial_value=start, end_value=end)}
 

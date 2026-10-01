@@ -7,7 +7,7 @@ import os
 import shutil
 import time
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import KW_ONLY, dataclass
 from pathlib import Path
 from typing import Any, cast
 from unittest.mock import MagicMock, patch
@@ -38,10 +38,6 @@ SOURCE_CONFIG: dict[str, Any] = {
     "base_url": "https://test.api/v3/",
     "api_key": "test-key",
 }
-
-# A backfill window, as (initial_value, end_value) for a bound `dlt.sources.incremental`.
-DATE_WINDOW = ("2026-01-01", "2026-01-31")
-TIME_WINDOW = ("2026-01-01T00:00:00Z", "2026-01-31T00:00:00Z")
 
 
 # --- Teardown ----------------------------------------------------------------
@@ -220,39 +216,48 @@ def assert_all_active_pens(pipeline: Any, table: str) -> None:
 
 
 @dataclass(frozen=True)
+class Cursor:
+    """How a window is spelled on the wire and in config, with a backfill window to bind."""
+
+    start_param: str
+    end_param: str
+    config_key: str
+    window: tuple[str, str]
+    """The `initial_value` and `end_value` of a bound `dlt.sources.incremental`."""
+
+
+DATE_CURSOR = Cursor("fromDate", "toDate", "initial_date", ("2026-01-01", "2026-01-31"))
+TIME_CURSOR = Cursor("fromTime", "toTime", "initial_time", ("2026-01-01T00:00:00Z", "2026-01-31T00:00:00Z"))
+
+
+@dataclass(frozen=True)
 class Endpoint:
-    """A data resource and the endpoint it reads."""
+    """A resource and the endpoint it reads."""
 
     resource: str
     path: str
     mock_file: str
     selector: str
     """The API's envelope key, which is also dlt's `data_selector`."""
-    window_param: str
-    optional_param: tuple[str, str, Any] | None = None
-    """(resource argument, the query param it becomes, a value to send)."""
+    _: KW_ONLY
     single_page: bool = False
 
     @property
     def records(self) -> list[dict]:
         return load_mock(self.mock_file)[self.selector]
 
-    @property
-    def window(self) -> tuple[str, str]:
-        """A backfill window, as the `initial_value` and `end_value` to bind."""
-        return DATE_WINDOW if self.window_param == "fromDate" else TIME_WINDOW
 
-    @property
-    def end_param(self) -> str:
-        return self.window_param.replace("from", "to")
+@dataclass(frozen=True)
+class WindowedEndpoint(Endpoint):
+    """An endpoint read through a cursor, one window per request."""
 
-    @property
-    def config_key(self) -> str:
-        return "initial_date" if self.window_param == "fromDate" else "initial_time"
+    cursor: Cursor
+    optional_param: tuple[str, str, Any] | None = None
+    """(resource argument, the query param it becomes, a value to send)."""
 
     @property
     def configured_start(self) -> str:
-        return SOURCE_CONFIG[self.config_key]
+        return SOURCE_CONFIG[self.cursor.config_key]
 
     @property
     def incremental_argument(self) -> str:
@@ -261,46 +266,52 @@ class Endpoint:
         return next(name for name in signature.parameters if name.startswith("incremental_"))
 
 
-ENDPOINTS = [
-    Endpoint(
+WINDOWED_ENDPOINTS = [
+    WindowedEndpoint(
         "environmental",
         "/environmental",
         "environmental.json",
         "data",
-        "fromTime",
+        TIME_CURSOR,
         optional_param=("period", "period", "15min"),
     ),
-    Endpoint(
+    WindowedEndpoint(
         "biomass",
         "/biomass",
         "biomass.json",
         "biomass",
-        "fromDate",
+        DATE_CURSOR,
         optional_param=("bucket_size", "bucketSize", 500),
     ),
-    Endpoint(
+    WindowedEndpoint(
         "harvest_report",
         "/biomass/harvestReport",
         "harvest_report.json",
         "reports",
-        "fromDate",
+        DATE_CURSOR,
         single_page=True,
     ),
-    Endpoint("lice_count", "/liceCount", "lice_count.json", "liceCount", "fromDate"),
-    Endpoint(
+    WindowedEndpoint("lice_count", "/liceCount", "lice_count.json", "liceCount", DATE_CURSOR),
+    WindowedEndpoint(
         "behaviour_swim_speed",
         "/behaviour/swimSpeed",
         "swim_speed.json",
         "swimSpeed",
-        "fromTime",
+        TIME_CURSOR,
         optional_param=("period", "period", "h"),
     ),
-    Endpoint(
-        "behaviour_breathing_index", "/behaviour/breathingIndex", "breathing_index.json", "breathingIndex", "fromTime"
+    WindowedEndpoint(
+        "behaviour_breathing_index", "/behaviour/breathingIndex", "breathing_index.json", "breathingIndex", TIME_CURSOR
     ),
-    Endpoint("welfare_scores", "/welfareScores", "welfare_scores.json", "welfareScores", "fromDate"),
+    WindowedEndpoint("welfare_scores", "/welfareScores", "welfare_scores.json", "welfareScores", DATE_CURSOR),
+]
+
+ENDPOINTS: list[Endpoint] = [
+    Endpoint("sites", "/sites", "sites.json", "sites", single_page=True),
+    Endpoint("environmental_latest", "/environmental/latest", "environmental_latest.json", "data", single_page=True),
+    *WINDOWED_ENDPOINTS,
 ]
 
 
-def endpoint(resource: str) -> Endpoint:
-    return next(one for one in ENDPOINTS if one.resource == resource)
+def windowed_endpoint(resource: str) -> WindowedEndpoint:
+    return next(one for one in WINDOWED_ENDPOINTS if one.resource == resource)

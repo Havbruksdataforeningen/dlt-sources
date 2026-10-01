@@ -13,7 +13,9 @@ import pytest
 
 from dlt_source_aquabyte import aquabyte_source
 from tests.conftest import (
+    ENDPOINTS,
     SOURCE_CONFIG,
+    Endpoint,
     load_mock,
     params_sent,
     resource_signature,
@@ -23,19 +25,9 @@ from tests.conftest import (
 
 SPEC = json.loads((Path(__file__).parent.parent / "specs" / "openapi.json").read_text())
 
-# Resource → the endpoints it reads. `sites` reads two, switching on `site_id`, so its
-# surface is the union — which is how the per-site endpoint's path param gets checked.
-ENDPOINTS = {
-    "sites": ("/sites", "/sites/{siteId}"),
-    "environmental": ("/environmental",),
-    "environmental_latest": ("/environmental/latest",),
-    "biomass": ("/biomass",),
-    "harvest_report": ("/biomass/harvestReport",),
-    "lice_count": ("/liceCount",),
-    "behaviour_swim_speed": ("/behaviour/swimSpeed",),
-    "behaviour_breathing_index": ("/behaviour/breathingIndex",),
-    "welfare_scores": ("/welfareScores",),
-}
+# `sites` reads a second endpoint, switching on `site_id`, so its surface is the union of
+# the two — which is how the per-site endpoint's path param gets checked.
+ALSO_READS = {"sites": ["/sites/{siteId}"]}
 
 # Params no resource exposes, because a mechanism owns them: `nextToken` belongs to the
 # paginator, and the window params to the resource's incremental, which is where a caller
@@ -50,8 +42,9 @@ def _snake(name: str) -> str:
     return re.sub(r"(?<!^)(?=[A-Z])", "_", name).lower()
 
 
-def _spec_params(paths: tuple[str, ...]) -> set[str]:
-    """Every query and path param the given endpoints document, snake_cased."""
+def _spec_params(endpoint: Endpoint) -> set[str]:
+    """Every query and path param the spec documents for the resource's endpoints, snake_cased."""
+    paths = [endpoint.path, *ALSO_READS.get(endpoint.resource, [])]
     return {
         _snake(param["name"])
         for path in paths
@@ -69,23 +62,23 @@ def _resource_params(resource_name: str) -> set[str]:
     return {name for name in names if name not in NON_API_ARGS and not name.startswith("incremental")}
 
 
-@pytest.mark.parametrize(("resource_name", "paths"), ENDPOINTS.items())
-def test_resource_offers_exactly_its_endpoints_params(resource_name, paths):
+@pytest.mark.parametrize("endpoint", ENDPOINTS, ids=lambda endpoint: endpoint.resource)
+def test_resource_offers_exactly_its_endpoints_params(endpoint):
     """Each resource's signature lists its endpoints' params — no more, no fewer."""
-    expected = _spec_params(paths) - PARAMS_OWNED_BY_MECHANICS
-    assert _resource_params(resource_name) == expected
+    expected = _spec_params(endpoint) - PARAMS_OWNED_BY_MECHANICS
+    assert _resource_params(endpoint.resource) == expected
 
 
-@pytest.mark.parametrize(("resource_name", "paths"), ENDPOINTS.items())
-def test_params_passthrough_reaches_the_request(mock_rest_client, resource_name, paths):
+@pytest.mark.parametrize("endpoint", ENDPOINTS, ids=lambda endpoint: endpoint.resource)
+def test_params_passthrough_reaches_the_request(mock_rest_client, endpoint):
     """A query param the API grows later can be sent without a release, on every resource."""
     mock_rest_client.paginate.side_effect = serve({})
 
     source = aquabyte_source(**SOURCE_CONFIG)
-    source.resources[resource_name].bind(params={"someFutureParam": "yes"})
-    run_source(f"test_params_passthrough_{resource_name}", source, [resource_name])
+    source.resources[endpoint.resource].bind(params={"someFutureParam": "yes"})
+    run_source(f"test_params_passthrough_{endpoint.resource}", source, [endpoint.resource])
 
-    sent = params_sent(mock_rest_client, paths[0])
+    sent = params_sent(mock_rest_client, endpoint.path)
     assert sent, "the resource must reach its endpoint"
     assert all(one["someFutureParam"] == "yes" for one in sent)
 

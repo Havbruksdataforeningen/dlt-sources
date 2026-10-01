@@ -8,8 +8,8 @@ from dlt_source_aquabyte import aquabyte_source
 from tests.conftest import (
     ACTIVE_PEN_IDS,
     ALL_PEN_IDS,
-    ENDPOINTS,
     SOURCE_CONFIG,
+    WINDOWED_ENDPOINTS,
     assert_all_active_pens,
     assert_row_count,
     load_mock,
@@ -18,8 +18,8 @@ from tests.conftest import (
     serve,
 )
 
-ROUTES = {endpoint.path: endpoint.records for endpoint in ENDPOINTS}
-PEN_TABLES = [endpoint.resource for endpoint in ENDPOINTS]
+ROUTES = {endpoint.path: endpoint.records for endpoint in WINDOWED_ENDPOINTS}
+PEN_TABLES = [endpoint.resource for endpoint in WINDOWED_ENDPOINTS]
 
 
 def test_end_to_end_all_resources(mock_rest_client):
@@ -63,11 +63,11 @@ def test_end_to_end_rerun_is_idempotent(mock_rest_client):
     pipeline.run(aquabyte_source(**SOURCE_CONFIG).with_resources(*PEN_TABLES))
 
     backfill = aquabyte_source(**SOURCE_CONFIG)
-    for endpoint in ENDPOINTS:
-        start, end = endpoint.window
+    for endpoint in WINDOWED_ENDPOINTS:
+        start, end = endpoint.cursor.window
         window = dlt.sources.incremental(initial_value=start, end_value=end)
         backfill.resources[endpoint.resource].bind(**{endpoint.incremental_argument: window})
     pipeline.run(backfill.with_resources(*PEN_TABLES))
 
-    for endpoint in ENDPOINTS:
+    for endpoint in WINDOWED_ENDPOINTS:
         assert_row_count(pipeline, endpoint.resource, len(endpoint.records) * len(ACTIVE_PEN_IDS))
