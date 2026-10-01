@@ -79,7 +79,7 @@ def test_backfilling_one_site_leaves_the_other_sites_current(mock_rest_client):
     """`merge_key` scopes scd2 retirement: a targeted read must not retire the rest.
 
     Without it dlt retires every active row absent from the load, so reading one site
-    would retire all the others — the hazard `replace` had, in softer form.
+    would retire all the others.
     """
     sites_list = load_mock("sites.json")["sites"]
     pipeline = make_pipeline("test_sites_scd2_partial")
@@ -112,7 +112,7 @@ def test_a_changed_pen_versions_its_site(mock_rest_client, kind, change):
 
     dlt's default row hash covers nested data, so any pen change lands a new site
     version rather than leaving the site row — and its `pens` snapshot — behind. The
-    site's own fields version it too, as they always did.
+    site's own fields version it too.
     """
     site = load_mock("sites.json")["sites"][0]
     pens = [{**pen, **change} if pen["id"] == "pen-001" else pen for pen in site["pens"]]
@@ -130,9 +130,7 @@ def test_each_site_version_lists_the_pens_it_was_loaded_with(mock_rest_client):
     """The nested `pens` snapshot cannot go stale, on the current row or a retired one.
 
     The snapshot is the only record of a site's pens, and consumers unnest it, so it has
-    to be the pens of that version. It used to freeze instead: while a site versioned on
-    its own fields only, the snapshot stayed at whenever those last changed, which for a
-    site is rarely.
+    to be the pens of that version.
     """
     site = load_mock("sites.json")["sites"][0]
     renamed = [{**pen, "name": "Renamed"} if pen["id"] == "pen-001" else pen for pen in site["pens"]]
