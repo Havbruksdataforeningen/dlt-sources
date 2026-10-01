@@ -5,6 +5,7 @@ Where the numbers come from: `specs/README.md#api-quirks-worth-knowing`.
 """
 
 import logging
+from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
@@ -34,6 +35,19 @@ from here — a `period` this is not keyed on still has one.
 
 Window = tuple[Any, Any]
 """One request's window: the value to send as the start param, and the one for the end."""
+
+
+@dataclass(frozen=True)
+class WindowParams:
+    """The query params that carry a window, and the config key its cursor starts from."""
+
+    start: str
+    end: str
+    config_key: str
+
+
+DATE_PARAMS = WindowParams("fromDate", "toDate", "initial_date")
+TIME_PARAMS = WindowParams("fromTime", "toTime", "initial_time")
 
 DEFAULT_PERIOD = "D"
 """The `period` the API computes when none is sent."""
@@ -74,7 +88,7 @@ def max_window_days(resource: str, period: str | None = None) -> int:
 
 def windows_to_request(
     resource: str,
-    start_param: str,
+    window_params: WindowParams,
     incremental: dlt.sources.incremental[str] | None,
     params: dict[str, Any] | None,
     period: str | None = None,
@@ -87,28 +101,47 @@ def windows_to_request(
     """
     start = incremental.last_value if incremental is not None else None
     end = incremental.end_value if incremental is not None else None
-    period = (params or {}).get("period", period)  # `params` wins here as it does on the wire
-    if params and (start_param in params or start_param.replace("from", "to") in params):
+    caller_owns_window = bool(params) and (window_params.start in params or window_params.end in params)
+    if start is None or caller_owns_window:
         return [(start, end)]
-    if start is None:
-        # No cursor value at all. Whether that is fatal is the caller's check.
-        return [(start, end)]
-    if not isinstance(start, str) or not isinstance(end, str | None):
-        return _unsplit_with_warning(resource, period, start, end, "they are not both strings")
 
+    period = (params or {}).get("period", period)  # `params` wins here as it does on the wire
+    window_cap_days = max_window_days(resource, period)
+    try:
+        return _split(start, end, timedelta(days=window_cap_days))
+    except _UnmeasurableWindow as why:
+        # dlt hides the API's `detail` by default, so the refusal this may cause arrives as a
+        # bare `400 Client Error` that explains nothing. `REFERENCE.md#logging`.
+        logger.warning(
+            "%s: cannot measure the window %r to %r because %s, so it goes out as one request. "
+            "The API refuses one wider than the %s-day window cap.",
+            resource,
+            start,
+            end,
+            why,
+            window_cap_days,
+        )
+        return [(start, end)]
+
+
+class _UnmeasurableWindow(Exception):
+    """The start and end cannot be subtracted; the message says why."""
+
+
+def _split(start: Any, end: Any, window_cap: timedelta) -> list[Window]:
+    if not isinstance(start, str) or not isinstance(end, str | None):
+        raise _UnmeasurableWindow("they are not both strings")
     try:
         span_start = _as_date_or_time(start)
         span_end = _as_date_or_time(end) if end is not None else _today_or_now(span_start)
+        width = span_end - span_start
     except ValueError:
-        return _unsplit_with_warning(resource, period, start, end, "one of them is not ISO 8601")
-    window_cap = timedelta(days=max_window_days(resource, period))
-    end_text = end if end is not None else _written_like(span_end, start)
-
-    try:
-        fits = span_end - span_start <= window_cap
+        raise _UnmeasurableWindow("one of them is not ISO 8601") from None
     except TypeError:
-        return _unsplit_with_warning(resource, period, start, end, "they are different kinds of value")
-    if fits:
+        raise _UnmeasurableWindow("they are different kinds of value") from None
+
+    end_text = end if end is not None else _written_like(span_end, start)
+    if width <= window_cap:
         return [(start, end_text)]
 
     # The API measures a window end to end, so every sub-window may be a full `window_cap` wide.
@@ -122,25 +155,6 @@ def windows_to_request(
     starts = [start, *(_written_like(edge, start) for edge in edges[1:])]
     ends = [*(_written_like(edge - gap_between_windows, start) for edge in edges[1:]), end_text]
     return list(zip(starts, ends, strict=True))
-
-
-def _unsplit_with_warning(resource: str, period: str | None, start: Any, end: Any, reason: str) -> list[Window]:
-    """Send a window this cannot measure, and say so — the 400 it may cause explains nothing.
-
-    dlt hides the API's `detail` unless `RUNTIME__HTTP_SHOW_ERROR_BODY` is set, so a refusal
-    arrives as a bare `400 Client Error` with no way to tell an over-wide window from a bad
-    parameter. `REFERENCE.md#logging`.
-    """
-    logger.warning(
-        "%s: cannot measure the window %r to %r because %s, so it goes out as one request. "
-        "The API refuses one wider than the %s-day window cap.",
-        resource,
-        start,
-        end,
-        reason,
-        max_window_days(resource, period),
-    )
-    return [(start, end)]
 
 
 def _as_date_or_time(cursor: str) -> date:

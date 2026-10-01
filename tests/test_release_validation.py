@@ -68,7 +68,7 @@ def changelog_disagreement(package: str, version: str, changelog: str, released:
         if "## [Unreleased]" not in changelog:
             return f"{package} has never been released, so CHANGELOG.md should collect entries under '## [Unreleased]' (docs/new-package.md)."
         return None
-    if f"## [{version}]" not in changelog:
+    if not validate_release.changelog_has_section(changelog, version):
         return f"{package} declares {version} in pyproject.toml with no '## [{version}]' section in CHANGELOG.md. Write the entry, or bump the version back (docs/release.md, step 3)."
     return None
 
@@ -109,7 +109,9 @@ def test_every_release_tag_has_the_changelog_section_it_was_cut_from():
     undescribed = [
         f"{package}/v{version}"
         for package, version in tags
-        if f"## [{version}]" not in (REPO_ROOT / "packages" / package / "CHANGELOG.md").read_text(encoding="utf-8")
+        if not validate_release.changelog_has_section(
+            (REPO_ROOT / "packages" / package / "CHANGELOG.md").read_text(encoding="utf-8"), version
+        )
     ]
 
     assert not undescribed, f"tagged, but described by no changelog section: {', '.join(undescribed)}"
