@@ -1,159 +1,84 @@
 # Specs
 
-`openapi.json` is the Aquabyte API's own OpenAPI document, and the source of truth for
-this package. Everything about the API itself — auth, base URL, rate limit, the
-`nextToken` pagination protocol, what changed in v3.1 — is in there, most of it under
-`info.description`.
+A dated copy of Elhub's own documentation of the Energy Data API, the source of truth
+for this package. The API is v0, and Elhub says breaking changes may come, so the copy
+is dated: when something breaks, a fresh fetch diffs against it.
 
-| | |
-|---|---|
-| Fetched from | <https://api.aquabyte.ai/v3/openapi.json> |
-| `info.version` | `v3.1` |
-| Fetched on | 2026-08-15 |
+| File | Source | Fetched |
+|---|---|---|
+| `openapi.yaml` | <https://api.elhub.no/energy-data/v0/openapi.yaml> | 2026-10-13 |
+| `meta-metering-points.json` | <https://api.elhub.no/energy-data/v0/meta/metering-points> — the datasets of the metering-points entity: scopes, columns, filters and date policies | 2026-10-13 |
+| `dataset-guidelines.md` | The text of <https://api.elhub.no/energy-data-api/dataset-guidelines> and the dataset notes on <https://api.elhub.no/energy-data-api/metering-points>, as rendered — the pages are a JavaScript app | 2026-10-13 |
 
-Refresh it by overwriting the file from that URL and running the tests —
-`tests/test_param_surface.py` asserts every resource's signature against it. The
-filename stays put, so `git log -p specs/openapi.json` reads as a history of the API's
-own changes.
+Refresh the first two with `curl` against their URLs and run the tests. The third has to be
+read out of the website. Elhub's change log and known issues:
+<https://api.elhub.no/energy-data-api/change-logs> ·
+<https://elhub.no/kjente-feil-i-elhubs-api/>.
 
-This package targets v3.1 only. The v3.0 endpoints are the `/pens/{penId}/…` path
-variants, which the spec marks `deprecated: true` and which nothing here reads — `REFERENCE.md`
-says why under "What the source does not expose". The notes from that migration
-were deleted once it was done; `git log` has them if the history is ever wanted.
+`meta-metering-points.json` is the authority on what each dataset accepts; read it before
+guessing at a parameter, a scope or a date window.
 
 **Where the API and this spec disagree, the API wins.** The package is built against what
-the API actually returns, not against what `openapi.json` says it should. The differences
-found so far are below. They are short internal notes, not a bug report: feedback for
-Aquabyte is sent to them directly rather than kept here.
+the API returns, not against what the documents say it should. What was measured is below.
 
 ## API quirks worth knowing
 
-> **Observed against the live API on 2026-08-17.** Aquabyte have been told about these, so
-> any of them may have been fixed since. Re-check before building on one, and update this
-> section — and the fixtures that model it — when you do.
+> **Observed against the live API on 2026-10-07 and 2026-10-13**, with the scope
+> `elhub:enduser` and the dataset `METERING_VALUES_HOUR_RESTRICTED`. Re-check before
+> building on one, and update this section when you do.
 
-The API does a few things `openapi.json` does not describe. The source does not paper over
-them: records land as sent, so these reach whoever reads the data. The ones that change how
-you read it:
+The ones that decide what the source does:
 
-- ~~**`behaviour_swim_speed` and `behaviour_breathing_index` return timestamps with no time
-  zone**~~ — **fixed by Aquabyte, verified live 2026-08-31.** Both now send `Z`
-  (`2026-08-30T00:00:00Z`), matching `environmental`. Kept here because consumers who
-  normalised around the old form should know it is gone, and because a stored cursor written
-  before the fix is a zoneless string sitting next to zoned ones. Drop this entry once no
-  live table still holds the old spelling.
-- **`lice_count` omits its five count fields entirely on a zero-sample record**, rather than
-  sending nulls. Those columns are typed by the source's column hints and land as `NULL`, so `sampleSize = 0`
-  is the condition to filter on, not `adultFemale IS NULL`.
-- **`biomass.weightDist` spans only the weights observed, which `openapi.json` does not say.**
-  `interval` holds each bucket's **lower** edge, starts at `0`, and stops at the bucket
-  holding the heaviest fish in the pen — nothing pads it to a fixed maximum, so the bucket
-  count follows the population as much as `bucketSize` does. A pen of smolt returns one or
-  two buckets; a pen averaging 4.7 kg at `bucketSize=250` returns thirty-seven.
-  `distribution` holds shares summing to 1, one per edge, and any bucket in the range — the
-  first included — can be `0`. Both arrays can be empty. (2026-08-20.)
+- **Only `METERING_VALUES_HOUR_RESTRICTED` answers `elhub:enduser`.** The day, month and
+  year datasets (`METERING_VALUES_PER_DIRECTION_*_RESTRICTED`) return `403` with that scope,
+  although `meta-metering-points.json` lists `end-user` among their audiences. Aggregate
+  downstream.
+- **There is no endpoint that lists metering points.** The dataset call without an id,
+  `GET /metering-points?dataset=METERING_VALUES_HOUR_RESTRICTED`, returns every metering
+  point the token reads, each with its values in the window. Without dates that window is
+  the **last 24 hours counted from the request**, so a call at 13:00 holds yesterday's
+  hours from 14:00 on, and nothing of today, which is not inserted yet. That call is how
+  `metering_points` discovers them.
+- **With an id, the whole retained history comes in one call.** `GET /metering-points/{id}`
+  takes a window of up to 3 years and 41 days (`datePolicyWithId` in the metadata), and a
+  three-year hourly history is one response of 26,280 values. The list call without an id
+  is capped at one day (`datePolicyWithoutId`).
+- **`insertDateTime` is a filter, and it is inclusive.** Sent with an id and no dates, the
+  API answers with its widest window and returns every value inserted *at or after* that
+  instant: an old `insertDateTime` is the whole history, the stored one is yesterday plus
+  any correction. It works without an id too, inside the 24-hour window. A value inserted
+  exactly at the instant is included, so a run re-fetches the boundary rows it already has.
+- **Empty is `204 No Content` with no body**, not an empty list: an `insertDateTime` newer
+  than the latest insert, a window with no values, a company with no metering points.
+- **Yesterday's hours are inserted around 02:05 Europe/Oslo** (`insertDateTime` observed at
+  02:01 to 02:04 on consecutive days, one insert per metering point per day). Schedule a
+  daily load after 03:00.
+- **`resolution` varies per metering point.** `PT60M` and `PT15M` both occur, so one point
+  can carry 96 values a day where another carries 24. Never assume hourly rows.
 
-Two the source normally keeps away from you. It measures every window, splits one wider than
-the window cap, and always sends an end. Two requests escape that: one carries a window you
-put in `params`, which the source sends on unchanged, and one carries a cursor value the
-source cannot read as a date or a time, which it warns about and sends as a single request,
-with no end. Know both quirks for those:
+Two about dates:
 
-- **A window has a maximum width, per endpoint and per granularity.** A wider request is refused
-  (`400 ... is larger than N days`), not truncated — and a request that sends no end is
-  measured from its start to the start of the current UTC day, the quirk below, so this hits
-  daily loads as well as backfills. The finer the granularity, the shorter the window cap. Nothing about it is in
-  `openapi.json`.
+- **A `startDate` exactly 3 years and 41 days back is refused** with `400`; a week inside
+  the limit is fine. Elhub deletes data older than that, so every day a first load waits,
+  a day of history is gone. Let the API infer the start (send `insertDateTime` and no dates)
+  rather than computing one at the edge.
+- **`endDate` at midnight does not include the hour that starts at that midnight.** A window
+  `startDate=2026-10-01T00:00:00+02:00&endDate=2026-10-03T00:00:00+02:00` returned values
+  starting from `2026-10-01T00:00` to `2026-10-02T23:00` — 48 values, two whole days. The
+  documentation says both ends are inclusive; in practice treat the pair as half-open on
+  `startTime`. Dates are `yyyy-MM-dd'T'HH:mm:ssXXX` in Europe/Oslo and must be URL-encoded,
+  which `requests` does for you.
 
-  | Endpoint | `period` | Max window |
-  |---|---|---|
-  | `/environmental` | `15min` | **7 days** |
-  | `/environmental` | `h` | **31 days** |
-  | `/behaviour/swimSpeed` | `h` | **31 days** |
-  | every endpoint at `D` or omitted | | 366 days |
+And three about getting a request through at all:
 
-  **The window cap is on `to - from`, not on the dates covered.** So a legal `toDate` window
-  covers one more calendar date than the cap allows days, and a `toTime` window covers
-  exactly as many, `toTime` being exclusive. All ten (endpoint, `period`) pairs bisected live on 2026-08-28: N returns
-  `200` and N+1 returns `400`, every time. The source splits its own windows to fit.
-
-  Two things for anyone re-probing this. The error text differs by endpoint — `Requested
-  **date** range` on the date endpoints, `Requested **time** range` on the `fromTime` ones —
-  so parse both if you read N out of it. And send a single `penId`: the window cap is checked before
-  any data is fetched, so a refusal is instant, while a legal 366-day `/environmental` window
-  at `penId=all` does not return inside 180 s. The pen does not change the verdict.
-
-- **A request that sends no `toTime`/`toDate` is served up to the start of the current UTC
-  day**, not up to the request time. Today's data is never in the answer, however late in the
-  day you ask. The API echoes the window it chose, which is the only thing that makes this
-  visible. Two requests three seconds apart, both sent at 11:29 UTC on 2026-08-27:
-
-  ```text
-  GET /v3/environmental?penId=all&fromTime=2026-08-26T00:00:00Z&period=15min
-  → "toTime":"2026-08-27T00:00:00Z"     newest bucket 2026-08-26T23:45Z
-
-  GET /v3/environmental?penId=all&fromTime=2026-08-26T00:00:00Z&toTime=2026-08-27T11:29:50Z&period=15min
-  → "toTime":"2026-08-27T11:29:50Z"     newest bucket 2026-08-27T11:15Z
-  ```
-
-  The lag depends on the UTC date the job runs on, not the local date its schedule is written
-  in: a 01:20 Europe/Oslo cron runs at 23:20 on the previous UTC date, so it loads data two
-  days old, with no error and no missing rows to show for it. (2026-08-27.)
-
-One the source leaves to you, because only you know how far back you meant to go:
-
-- **`/welfareScores` refuses any window starting before 2024-04-20**, with
-  `400 Welfare data is not available for dates before April 20, 2024` — a refusal, not an
-  empty result. So an `initial_date` older than that fails `welfare_scores` on every run,
-  while the six other resources load normally, and no amount of window splitting helps: the
-  floor is on the start date itself. Set the resource's own `incremental_date` no earlier
-  than the floor. (2026-08-20.)
-
-And one that bites when you are debugging rather than reading:
-
-- **The API ignores a query parameter it does not recognise instead of rejecting it.**
-  Verified by sending an invented parameter name, which returned `200` and a normal result
-  set. So a mistyped parameter is indistinguishable from a correct request — send `fromDat`
-  instead of `fromDate` and you get the endpoint's own default window with nothing to tell
-  you the window you asked for was dropped. Invalid *values* are rejected properly
-  (`period=15min` on an endpoint allowing only `h` and `D` returns `422`); it is only unknown
-  *names* that pass silently.
-
-- **`/behaviour/breathingIndex` takes a `period` its OpenAPI document does not list, and
-  allows only the daily one.** `period=h` returns `400 period must be daily` and
-  `period=15min` a `422` naming the `h`/`D` enum — so the parameter is recognised and acted
-  on, not ignored as an unknown name would be. The granularity is therefore fixed, which is why
-  the resource is keyed on `penId` + `fromTime` without `toTime`. Reported upstream in #29.
-  (2026-08-20.)
-
-- **dlt hides the `detail` that says which limit you hit.** `http_show_error_body` defaults
-  to `False`, so a refusal reaches your logs as `400 Client Error: Bad Request` and nothing
-  more. Set `RUNTIME__HTTP_SHOW_ERROR_BODY=true` before debugging against this API.
-
-### Identifiers
-
-Which key to use depends on what you are joining to, and the answer is different inside
-and outside this dataset.
-
-**Joining Aquabyte data to Aquabyte data: use `id`.** Every data endpoint stamps its
-records with `penId`, and that value is the `id` on the pen — verified live. So a pen's
-`id`, read off the site record it is nested in, joins to `biomass.pen_id` and so on, and
-there is no alternative: `penCode` does not appear on the data endpoints at all.
-
-**Joining Aquabyte data to your own systems: `penCode` is the best available today.**
-`pen.id` is Aquabyte's internal auto-increment key. It is stable within their system, which
-is what makes it right for the join above, but it means nothing in anyone else's — no
-system of yours knows it. `penCode` is the operator-set label, so it is the only field that
-carries across. Know what you are relying on: the format is the operator's choice rather
-than anything the API defines, so it is a business key by convention, not by guarantee, and
-a label derived from a site name can move if that site is renamed.
-
-For sites, `governmentSiteNumber` is the equivalent and a stronger one, being externally
-assigned rather than chosen locally. It was present and non-null on every site.
-
-**The fields meant for exactly this — `external_site_id` on a site and `external_id` on a
-pen — came back empty.** Both are declared by the API, both are absent from every response,
-and both land as `NULL`. They carry a customer's own identifiers for a third-party system,
-so an empty column most likely means the account has not populated them rather than
-anything being wrong. If they get filled in, they become the right answer to the second
-question above and `penCode` stops having to serve.
+- **`Accept` and `User-Agent` are mandatory.** A request without either is `403`, with
+  no body that says why. The source sends both on every request.
+- **The Maskinporten grant needs a `jti`, and `exp - iat` of at most 120 s.** Without a
+  unique `jti` two grants in the same second are the same grant, and Maskinporten refuses a
+  grant it has seen (`Grant has been used before`). The token's `expires_in` is set on the
+  client in Digdir's self-service portal (1200 s on the one this package was verified with).
+- **A delegated company is read with the `consumer_org` claim**, the organisation number of
+  the company that delegated `elhub:enduser` to the client's organisation in Altinn.
+  `MP-250` means Elhub has not granted the scope to that organisation; `MP-251` means the
+  delegation in Altinn is missing or hit the wrong service. Which Altinn service, and how to
+  delegate, is a matter for the consumer's own organisation, not for this package.

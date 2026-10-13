@@ -1,0 +1,633 @@
+{
+  "meta": {
+    "created": "2026-10-13T12:41:23+02:00",
+    "lastUpdated": "2026-10-13T12:41:23+02:00"
+  },
+  "links": {
+    "self": "https://api.elhub.no/energy-data/v0/meta/metering-points"
+  },
+  "data": {
+    "type": "entity",
+    "id": "metering-point",
+    "attributes": {
+      "description": "",
+      "noOfDataSets": 7,
+      "datasets": [
+        {
+          "name": "METERING_VALUES_HOUR_RESTRICTED",
+          "description": "Metering values for end users and hour",
+          "resolution": "hourly",
+          "openDataSet": false,
+          "columns": [
+            {
+              "name": "direction",
+              "type": "String",
+              "description": "Direction of the metering value."
+            },
+            {
+              "name": "endTime",
+              "type": "String",
+              "description": "The end time of the interval."
+            },
+            {
+              "name": "endUserId",
+              "type": "String",
+              "description": "End user ID for the metering value."
+            },
+            {
+              "name": "insertDateTime",
+              "type": "String",
+              "description": "Insert date time for the metering value."
+            },
+            {
+              "name": "measurementName",
+              "type": "String",
+              "description": "Measurement name of the metering value."
+            },
+            {
+              "name": "productCode",
+              "type": "Long",
+              "description": "Product code of the metering value. <a href='https://dok.elhub.no/e27/product-identifier' target='_new'>product identifier</a>"
+            },
+            {
+              "name": "quantityKwh",
+              "type": "Float",
+              "description": "The quantity in kWh for the metering value."
+            },
+            {
+              "name": "resolution",
+              "type": "String",
+              "description": "Resolution of channel. PT60M(60 min intervals) or PT15M(15 min intervals). <a href='https://dok.elhub.no/e27/resolution' target='_new'>resolution</a>"
+            },
+            {
+              "name": "startTime",
+              "type": "String",
+              "description": "The start time of the interval."
+            }
+          ],
+          "maxDateRange": "One day",
+          "exportable": false,
+          "filters": [
+            {
+              "name": "endUserId",
+              "values": "a valid end user org number"
+            },
+            {
+              "name": "insertDateTime",
+              "values": "e.g. 2023-01-01T00:00:00%2B02:00"
+            },
+            {
+              "name": "includeAllMeasurements (only for elhub:thirdParty scope)",
+              "values": "Y, N",
+              "defaultValue": "N"
+            }
+          ],
+          "scopes": [
+            "elhub:enduser",
+            "elhub:thirdparty"
+          ],
+          "routeAvailability": "ALL",
+          "datePolicyWithoutId": "DateWindowPolicy(maxWindow=PolicyWindow(years=0, months=0, days=1, hours=0), defaultWindow=PolicyWindow(years=0, months=0, days=1, hours=0), maxAgeFromNow=PolicyWindow(years=3, months=0, days=41, hours=0))",
+          "datePolicyWithId": "DateWindowPolicy(maxWindow=PolicyWindow(years=3, months=0, days=41, hours=0), defaultWindow=PolicyWindow(years=0, months=0, days=1, hours=0), maxAgeFromNow=PolicyWindow(years=3, months=0, days=41, hours=0))",
+          "audiences": [
+            "end-user",
+            "third-party"
+          ],
+          "topics": [
+            "metering-values"
+          ]
+        },
+        {
+          "name": "METERING_VALUES_PER_DIRECTION_DAY_RESTRICTED",
+          "description": "Metering values per direction for a day",
+          "resolution": "daily",
+          "openDataSet": false,
+          "columns": [
+            {
+              "name": "direction",
+              "type": "String",
+              "description": "Direction of the energy measured."
+            },
+            {
+              "name": "endUserId",
+              "type": "String",
+              "description": "If Company end user, this is the organization number for the end user. Not set for non-company end users."
+            },
+            {
+              "name": "lastUpdateTime",
+              "type": "String",
+              "description": "Last update time for the metering value."
+            },
+            {
+              "name": "maxInsertTime",
+              "type": "String",
+              "description": "Max insert time for the metering value."
+            },
+            {
+              "name": "measurementName",
+              "type": "String",
+              "description": "Name of the measurement."
+            },
+            {
+              "name": "meteringPointId",
+              "type": "String",
+              "description": "Unique identifier for the metering point."
+            },
+            {
+              "name": "productCode",
+              "type": "Long",
+              "description": "Product code of the metering value."
+            },
+            {
+              "name": "quantityKwh",
+              "type": "Float",
+              "description": "Quantity in kWh for the metering value."
+            },
+            {
+              "name": "resolution",
+              "type": "String",
+              "description": "Resolution of the metering value."
+            },
+            {
+              "name": "thirdParty",
+              "type": "String",
+              "description": "Identifier for the third party associated with the metering values."
+            },
+            {
+              "name": "thirdPartyOrgNumber",
+              "type": "String",
+              "description": "Organization number of the third party."
+            },
+            {
+              "name": "usageDateId",
+              "type": "Int",
+              "description": "Usage date ID for the metering value."
+            }
+          ],
+          "maxDateRange": "One day",
+          "exportable": false,
+          "filters": [],
+          "scopes": [
+            "elhub:thirdparty"
+          ],
+          "routeAvailability": "ID",
+          "datePolicyWithId": "DateWindowPolicy(maxWindow=PolicyWindow(years=3, months=0, days=41, hours=0), defaultWindow=PolicyWindow(years=0, months=0, days=1, hours=0), maxAgeFromNow=PolicyWindow(years=3, months=0, days=41, hours=0))",
+          "audiences": [
+            "end-user",
+            "third-party"
+          ],
+          "topics": [
+            "metering-values"
+          ]
+        },
+        {
+          "name": "METERING_VALUES_PER_DIRECTION_MONTH_RESTRICTED",
+          "description": "Metering values per direction for a month",
+          "resolution": "monthly",
+          "openDataSet": false,
+          "columns": [
+            {
+              "name": "direction",
+              "type": "String",
+              "description": "Direction of the energy measured. In(production) or Out(consumption)."
+            },
+            {
+              "name": "endUserId",
+              "type": "String",
+              "description": "If Company end user, this is the organization number for the end user. Not set for non-company end users."
+            },
+            {
+              "name": "lastUpdateTime",
+              "type": "String",
+              "description": "Last update time for the metering value."
+            },
+            {
+              "name": "maxInsertTime",
+              "type": "String",
+              "description": "Max insert time for the metering value."
+            },
+            {
+              "name": "maxUsageDateId",
+              "type": "Int",
+              "description": "Maximum usage date ID for the metering value."
+            },
+            {
+              "name": "meteringPointId",
+              "type": "String",
+              "description": "Unique identifier for the metering point."
+            },
+            {
+              "name": "minUsageDateId",
+              "type": "Int",
+              "description": "Minimum usage date ID for the metering value."
+            },
+            {
+              "name": "numberOfDays",
+              "type": "Int",
+              "description": "Number of days in the month for the metering value."
+            },
+            {
+              "name": "quantityKwh",
+              "type": "Float",
+              "description": "Quantity in kWh for the metering value."
+            },
+            {
+              "name": "thirdParty",
+              "type": "String",
+              "description": "Identifier for the third party associated with the metering values."
+            },
+            {
+              "name": "thirdPartyOrgNumber",
+              "type": "String",
+              "description": "Organization number of the third party."
+            },
+            {
+              "name": "yearMonth",
+              "type": "Int",
+              "description": "Year and month for the metering value."
+            }
+          ],
+          "maxDateRange": "One month",
+          "exportable": false,
+          "filters": [],
+          "scopes": [
+            "elhub:thirdparty"
+          ],
+          "routeAvailability": "ID",
+          "datePolicyWithId": "DateWindowPolicy(maxWindow=PolicyWindow(years=0, months=1, days=0, hours=0), defaultWindow=PolicyWindow(years=0, months=1, days=0, hours=0), maxAgeFromNow=PolicyWindow(years=3, months=0, days=41, hours=0))",
+          "audiences": [
+            "end-user",
+            "third-party"
+          ],
+          "topics": [
+            "metering-values"
+          ]
+        },
+        {
+          "name": "METERING_VALUES_PER_DIRECTION_YEAR_RESTRICTED",
+          "description": "Metering values per direction for a year",
+          "resolution": "yearly",
+          "openDataSet": false,
+          "columns": [
+            {
+              "name": "direction",
+              "type": "String",
+              "description": "Direction of the energy measured. In(production) or Out(consumption)."
+            },
+            {
+              "name": "endUserId",
+              "type": "String",
+              "description": "Identifier for the end user associated with the metering values."
+            },
+            {
+              "name": "lastUpdateTime",
+              "type": "String",
+              "description": "Timestamp when this aggregate was last updated."
+            },
+            {
+              "name": "maxInsertTime",
+              "type": "String",
+              "description": "Timestamp of the latest insertion of the metering values received in Elhub."
+            },
+            {
+              "name": "maxUsageDateId",
+              "type": "Int",
+              "description": "Last day in month with meter reads. YYYYMMDD format. "
+            },
+            {
+              "name": "meteringPointId",
+              "type": "String",
+              "description": "Unique identifier for the metering point."
+            },
+            {
+              "name": "minUsageDateId",
+              "type": "Int",
+              "description": "First day in year with meter reads. YYYYMMDD format. "
+            },
+            {
+              "name": "numberOfDays",
+              "type": "Int",
+              "description": "Number of days in the year for the metering values."
+            },
+            {
+              "name": "quantityKwh",
+              "type": "Float",
+              "description": "Quantity of energy in kilowatt-hours (kWh)."
+            },
+            {
+              "name": "thirdParty",
+              "type": "String",
+              "description": "Identifier for the third party associated with the metering values."
+            },
+            {
+              "name": "thirdPartyOrgNumber",
+              "type": "String",
+              "description": "Organization number of the third party."
+            },
+            {
+              "name": "year",
+              "type": "Int",
+              "description": "Year for the metering values. YYYY format"
+            }
+          ],
+          "maxDateRange": "One year",
+          "exportable": false,
+          "filters": [],
+          "scopes": [
+            "elhub:thirdparty"
+          ],
+          "routeAvailability": "ID",
+          "datePolicyWithId": "DateWindowPolicy(maxWindow=PolicyWindow(years=3, months=0, days=41, hours=0), defaultWindow=PolicyWindow(years=1, months=0, days=0, hours=0), maxAgeFromNow=PolicyWindow(years=3, months=0, days=41, hours=0))",
+          "audiences": [
+            "end-user",
+            "third-party"
+          ],
+          "topics": [
+            "metering-values"
+          ]
+        },
+        {
+          "name": "INSTALLED_CAPACITY_PER_METERING_POINT_DAILY_RESTRICTED",
+          "description": "Installed capacity for a production metering point (E18/E19)",
+          "resolution": "daily",
+          "openDataSet": false,
+          "columns": [
+            {
+              "name": "consumptionCode",
+              "type": "String",
+              "description": "Consumption code. See <a href='https://dok.elhub.no/e27/consumption-code' target='_new'>Elhub documentation.</a>."
+            },
+            {
+              "name": "gridAreaId",
+              "type": "String",
+              "description": "Grid area ID"
+            },
+            {
+              "name": "gridAreaName",
+              "type": "String",
+              "description": "Grid area name"
+            },
+            {
+              "name": "gridOwnerId",
+              "type": "String",
+              "description": "Grid owner ID"
+            },
+            {
+              "name": "gridOwnerName",
+              "type": "String",
+              "description": "Grid owner name"
+            },
+            {
+              "name": "installedCapacity",
+              "type": "Float",
+              "description": "Sum of installed capacity of all metering point. E18(production) and E19(combined/prosumers) only. Direction In only(production), meaning consumption is ignored."
+            },
+            {
+              "name": "latitude",
+              "type": "java.math.BigDecimal",
+              "description": "Latitude coordinate of the metering point"
+            },
+            {
+              "name": "longitude",
+              "type": "java.math.BigDecimal",
+              "description": "Longitude coordinate of the metering point"
+            },
+            {
+              "name": "meteringPointTypeCode",
+              "type": "String",
+              "description": "Metering point type code"
+            },
+            {
+              "name": "municipalityNumber",
+              "type": "String",
+              "description": "Municipality number"
+            },
+            {
+              "name": "naceCode",
+              "type": "String",
+              "description": "NACE code"
+            },
+            {
+              "name": "postalCode",
+              "type": "String",
+              "description": "Postal code of the metering point"
+            },
+            {
+              "name": "priceAreaId",
+              "type": "String",
+              "description": "Price area ID"
+            },
+            {
+              "name": "productionGroup",
+              "type": "String",
+              "description": "Production group"
+            },
+            {
+              "name": "productionStartDate",
+              "type": "String",
+              "description": "Production start date"
+            },
+            {
+              "name": "usageDate",
+              "type": "String",
+              "description": "Usage date"
+            }
+          ],
+          "maxDateRange": "One day",
+          "exportable": false,
+          "filters": [
+            {
+              "name": "usageDate",
+              "values": "e.g. 2023-01-01"
+            },
+            {
+              "name": "meteringPointType",
+              "values": "E18, E19"
+            },
+            {
+              "name": "includeSubGrid",
+              "values": "Y, N"
+            }
+          ],
+          "scopes": [
+            "elhub:publicstakeholder"
+          ],
+          "routeAvailability": "ALL",
+          "audiences": [
+            "grid-owner",
+            "public-stakeholder"
+          ],
+          "topics": [
+            "installed-capacity"
+          ]
+        },
+        {
+          "name": "COMPARISON_NORGESPRIS",
+          "description": "Provides grid owners the estimated Norgespris cost for the metering points they have contracts with, similar to what end users see in MinSide.",
+          "resolution": "yearly",
+          "openDataSet": false,
+          "columns": [
+            {
+              "name": "costNorwayPrice",
+              "type": "Float",
+              "description": "The cost using Norway price in NOK. quantityKwh*norwayPrice. VAT is included except for metering Points located in Troms, Finnmark and Nordland."
+            },
+            {
+              "name": "costSpotPrice",
+              "type": "Float",
+              "description": "The cost using Spot price in NOK. quantityKwh*spotPrice. VAT is included except for metering Points located in Troms, Finnmark and Nordland."
+            },
+            {
+              "name": "costSupportPrice",
+              "type": "Float",
+              "description": "The cost of the Support price in NOK. quantityKwh*supportPrice. VAT is included except for metering Points located in Troms, Finnmark and Nordland."
+            },
+            {
+              "name": "endTime",
+              "type": "String",
+              "description": "The end time of the interval."
+            },
+            {
+              "name": "hasExceededMonthlyNorwayThreshold",
+              "type": "Boolean",
+              "description": "If the interval has crossed the monthly threshold for Norway price. The first interval that crosses the threshold will have FALSE, the following will have TRUE."
+            },
+            {
+              "name": "hasExceededMonthlySupportThreshold",
+              "type": "Boolean",
+              "description": "If the interval has crossed the monthly threshold for Support price. The first interval that crosses the threshold will have FALSE, the following will have TRUE."
+            },
+            {
+              "name": "norwayPrice",
+              "type": "Float",
+              "description": "Norway price in NOK/kWh. VAT is included except for metering Points located in Troms, Finnmark and Nordland. After monthly treshold is crossed, Norway price = Spot Price."
+            },
+            {
+              "name": "quantityKwh",
+              "type": "Float",
+              "description": "The quantity in kWh for the metering value."
+            },
+            {
+              "name": "spotPrice",
+              "type": "Float",
+              "description": "Spot price in NOK/kWh. VAT is included except for metering Points located in Troms, Finnmark and Nordland."
+            },
+            {
+              "name": "startTime",
+              "type": "String",
+              "description": "The start time of the interval."
+            },
+            {
+              "name": "supportPrice",
+              "type": "Float",
+              "description": "Support price in NOK/kWh. VAT is included except for metering Points located in Troms, Finnmark and Nordland. After monthly treshold is crossed OR price is lower than the support price upper bound, Support price = Spot Price."
+            }
+          ],
+          "maxDateRange": "One year",
+          "exportable": false,
+          "filters": [
+            {
+              "name": "granularity",
+              "values": "YEARLY, MONTHLY, DAILY, INTERVAL",
+              "defaultValue": "MONTHLY"
+            }
+          ],
+          "scopes": [
+            "elhub:gridowner",
+            "elhub:serviceprovider",
+            "elhub:balancesupplier",
+            "elhub:thirdparty"
+          ],
+          "routeAvailability": "ID",
+          "datePolicyWithId": "DateWindowPolicy(maxWindow=PolicyWindow(years=3, months=0, days=41, hours=0), defaultWindow=PolicyWindow(years=3, months=0, days=41, hours=0), maxAgeFromNow=PolicyWindow(years=3, months=0, days=41, hours=0))",
+          "audiences": [
+            "energy-supplier",
+            "grid-owner",
+            "third-party",
+            "service-provider"
+          ],
+          "topics": [
+            "norgespris-support"
+          ]
+        },
+        {
+          "name": "PRODUCTION_REVENUE_PER_YEAR_RESTRICTED",
+          "description": "Aggregated revenue per production plant in a year",
+          "resolution": "yearly",
+          "openDataSet": false,
+          "columns": [
+            {
+              "name": "endTime",
+              "type": "String",
+              "description": "The end time of the aggregated interval."
+            },
+            {
+              "name": "lastUpdatedTime",
+              "type": "String",
+              "description": "Last updated time of the aggregates."
+            },
+            {
+              "name": "meteringPointId",
+              "type": "String",
+              "description": "Metering point identifier."
+            },
+            {
+              "name": "productionGroup",
+              "type": "String",
+              "description": "Production Group identifier."
+            },
+            {
+              "name": "productionPlantId",
+              "type": "Long",
+              "description": "The production plant identifier."
+            },
+            {
+              "name": "productionTypeCode",
+              "type": "String",
+              "description": "Code identifying the primary production type for the metering point. See <a href='https://dok.elhub.no/e27/referansedata-for-produksjonstype' target='_new'>production type</a>."
+            },
+            {
+              "name": "quantityKwh",
+              "type": "java.math.BigDecimal",
+              "description": "The aggregated quantity in kWh for the metering point during the interval."
+            },
+            {
+              "name": "revenueNok",
+              "type": "java.math.BigDecimal",
+              "description": "The aggregated revenue (quantity_per_interval (kWh) * spot_price_per_interval (NOK/kWh from Nordpool)) in NOK for the metering point during the interval."
+            },
+            {
+              "name": "startTime",
+              "type": "String",
+              "description": "The start time of the aggregated interval."
+            }
+          ],
+          "maxDateRange": "One year",
+          "exportable": false,
+          "filters": [
+            {
+              "name": "productionPlantId",
+              "values": "a valid production plant Id"
+            },
+            {
+              "name": "productionGroup",
+              "values": "hydro, wind"
+            }
+          ],
+          "scopes": [
+            "elhub:enduser"
+          ],
+          "routeAvailability": "ALL",
+          "datePolicyWithoutId": "DateWindowPolicy(maxWindow=PolicyWindow(years=3, months=0, days=41, hours=0), defaultWindow=PolicyWindow(years=1, months=0, days=0, hours=0), maxAgeFromNow=PolicyWindow(years=3, months=0, days=41, hours=0))",
+          "datePolicyWithId": "DateWindowPolicy(maxWindow=PolicyWindow(years=3, months=0, days=41, hours=0), defaultWindow=PolicyWindow(years=1, months=0, days=0, hours=0), maxAgeFromNow=PolicyWindow(years=3, months=0, days=41, hours=0))",
+          "audiences": [
+            "end-user"
+          ],
+          "topics": [
+            "production"
+          ]
+        }
+      ]
+    }
+  }
+}
