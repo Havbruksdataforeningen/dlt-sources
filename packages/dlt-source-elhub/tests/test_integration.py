@@ -14,13 +14,12 @@ Missing credentials cause a hard error — not a skip. The tests read one day, n
 history: a bound window on one metering point, and the list call for the last 24 hours.
 """
 
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
 import dlt
 import pytest
-from dlt.common import pendulum
 
 from dlt_source_elhub import ALL_RETAINED_HISTORY, elhub_source
 from tests.conftest import cursors, make_pipeline, query, row_count
@@ -46,7 +45,7 @@ def require_credentials():
 
 def _yesterday() -> tuple[str, str]:
     """Yesterday in Oslo, as a half-open window of API dates."""
-    today = pendulum.now(OSLO).start_of("day")
+    today = datetime.now(OSLO).replace(hour=0, minute=0, second=0, microsecond=0)
     return (today - timedelta(days=1)).isoformat(), today.isoformat()
 
 

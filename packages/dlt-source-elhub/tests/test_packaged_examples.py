@@ -105,7 +105,7 @@ def _commented_resource_params(config_example: str, prefix: str) -> dict[str, li
     for line in config_example.splitlines():
         section = re.match(rf"^#\s*\[{re.escape(prefix)}(\w+)\]", line)
         if section:
-            current = section.group(1)
+            current = str(section.group(1))
             documented.setdefault(current, [])
             continue
         param = re.match(r"^#\s*(\w+)\s*=", line)

@@ -139,13 +139,13 @@ class FakeElhub:
 
     def send(self, prepared: PreparedRequest) -> Response:
         parts = urlsplit(prepared.url or "")
-        body = prepared.body.decode() if isinstance(prepared.body, bytes) else (prepared.body or "")
+        body = prepared.body.decode() if isinstance(prepared.body, bytes) else str(prepared.body or "")
         self.requests.append(
             Recorded(
                 method=prepared.method or "GET",
                 path=parts.path,
                 params={key: value[0] for key, value in parse_qs(parts.query).items()},
-                headers=dict(prepared.headers),
+                headers={key: str(value) for key, value in prepared.headers.items()},
                 form={key: value[0] for key, value in parse_qs(body).items()},
             )
         )
