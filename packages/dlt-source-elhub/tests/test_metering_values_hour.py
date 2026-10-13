@@ -227,11 +227,11 @@ def test_two_companies_share_a_pipeline(api: FakeElhub):
     api.route(API_PATH, {"data": [{"type": "metering-points", "id": POINT, "attributes": {}}]})
     api.route_point(POINT, payload_for(POINT, [_value("2026-10-12T00:00:00+02:00", "2026-10-13T02:04:25+02:00")]))
     pipeline = make_pipeline("test_values_companies")
-    run(pipeline, source(consumer_org="977106206"), "metering_values_hour")
+    run(pipeline, source(consumer_org="999999991"), "metering_values_hour")
 
     api.route(API_PATH, {"data": [{"type": "metering-points", "id": OTHER, "attributes": {}}]})
     api.route_point(OTHER, payload_for(OTHER, [_value("2026-10-12T00:00:00+02:00", "2026-10-13T02:01:13+02:00")]))
-    run(pipeline, source(consumer_org="976543718"), "metering_values_hour")
+    run(pipeline, source(consumer_org="999999992"), "metering_values_hour")
 
     assert set(cursors(pipeline)) == {POINT, OTHER}
     assert row_count(pipeline, "metering_values_hour") == 2

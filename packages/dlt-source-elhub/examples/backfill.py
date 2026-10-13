@@ -12,7 +12,7 @@ source = elhub_source()
 source.metering_values_hour.bind(start_date="2026-10-01", end_date="2026-10-03")
 
 # Leave this out to backfill every metering point the list call returns.
-source.metering_points.bind(metering_point_ids=["707057500083917012"])
+source.metering_points.bind(metering_point_ids=["707057500000000001"])
 
 pipeline = dlt.pipeline(pipeline_name="elhub_backfill", destination="duckdb", dataset_name="elhub_data")
 

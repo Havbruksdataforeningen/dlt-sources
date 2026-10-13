@@ -8,7 +8,7 @@ from dlt_source_elhub import elhub_source
 # number as consumer_org, after the company has delegated the scope to the client's
 # organisation in Altinn. The sources share the pipeline, and so the cursors, safely: a
 # metering point id is unique across Elhub, and each point keeps its own cursor.
-COMPANIES = ["977106206", "976543718", "932585340"]
+COMPANIES = ["999999991", "999999992", "999999993"]
 
 pipeline = dlt.pipeline(pipeline_name="elhub", destination="duckdb", dataset_name="elhub_data")
 

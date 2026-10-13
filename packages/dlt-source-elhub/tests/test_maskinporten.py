@@ -52,8 +52,8 @@ def test_every_grant_is_unique():
 
 
 def test_consumer_org_is_claimed_only_when_set():
-    claims = _claims(_auth(consumer_org="977106206").grant())
-    assert claims["consumer_org"] == "977106206"
+    claims = _claims(_auth(consumer_org="999999991").grant())
+    assert claims["consumer_org"] == "999999991"
 
 
 def test_an_escaped_private_key_signs_too():

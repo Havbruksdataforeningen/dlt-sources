@@ -27,7 +27,7 @@ user_agent = "my-company-elhub-pipeline"
 # The README's "Configuring a resource" says what each one costs.
 
 # [sources.elhub.metering_points]
-# metering_point_ids = ["707057500083917012"]
+# metering_point_ids = ["707057500000000001"]
 # start_date = "2026-10-12"
 # end_date = "2026-10-13"
 

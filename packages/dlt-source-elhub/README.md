@@ -70,8 +70,8 @@ Three things worth knowing before your first query:
 Each resource takes its endpoint's params in snake_case. A date is `YYYY-MM-DD`, read as midnight in Europe/Oslo; an ISO 8601 instant with an offset works too.
 
 ```python
-source = elhub_source(consumer_org="977106206")
-source.metering_points.bind(metering_point_ids=["707057500083917012"])
+source = elhub_source(consumer_org="999999991")
+source.metering_points.bind(metering_point_ids=["707057500000000001"])
 source.metering_values_hour.bind(start_date="2026-10-01", end_date="2026-10-03")
 pipeline.run(source)
 ```

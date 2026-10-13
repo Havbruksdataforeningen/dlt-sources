@@ -20,7 +20,7 @@ Three things follow, and they are the reason for the design:
 
 ```python
 pipeline.state["sources"]["elhub_source"]["resources"]["metering_values_hour"]["insert_date_time"]
-# {'707057500083917012': '2026-10-13T02:04:25+02:00', ...}
+# {'707057500000000001': '2026-10-13T02:04:25+02:00', ...}
 ```
 
 Delete a point's entry and the next run loads that point's history again. Delete the pipeline's state and every point does. A cursor never moves backwards: a response holding only inserts older than the cursor, which a bound window can return, leaves it alone.
@@ -31,7 +31,7 @@ Bind `start_date` and `end_date` on `metering_values_hour` and the request carri
 
 ```python
 source = elhub_source()
-source.metering_points.bind(metering_point_ids=["707057500083917012"])
+source.metering_points.bind(metering_point_ids=["707057500000000001"])
 source.metering_values_hour.bind(start_date="2026-10-01", end_date="2026-10-03")
 ```
 
@@ -44,7 +44,7 @@ The ids a backfill reads are the ones the list call returns, which are the point
 A Maskinporten token is issued for one organisation. Reading a company that delegated the scope to your client's organisation in Altinn means a token with that company's organisation number as the `consumer_org` claim, so each company is its own source:
 
 ```python
-for company in ["977106206", "976543718"]:
+for company in ["999999991", "999999992"]:
     pipeline.run(elhub_source(consumer_org=company))
 ```
 
