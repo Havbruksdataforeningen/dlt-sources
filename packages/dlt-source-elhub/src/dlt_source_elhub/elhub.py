@@ -6,8 +6,11 @@ dated copy under `specs/`. Only `METERING_VALUES_HOUR_RESTRICTED` is read; it is
 
 Each resource takes its endpoint's params in snake_case, plus a `params` escape hatch merged into the
 query string last. Bind them per resource or set them in config under `[sources.elhub.<resource>]`.
+Dates are `YYYY-MM-DD` (midnight, Europe/Oslo) or ISO 8601 with an offset.
 """
 
+import logging
+from collections.abc import Sequence
 from datetime import datetime
 from typing import Any
 
@@ -16,6 +19,8 @@ from dlt.sources.helpers.rest_client.client import RESTClient
 
 from dlt_source_elhub.columns import METERING_POINT_COLUMNS, METERING_VALUES_HOUR_COLUMNS
 from dlt_source_elhub.maskinporten import MaskinportenAuth, MaskinportenCredentials
+
+logger = logging.getLogger(__name__)
 
 DATASET = "METERING_VALUES_HOUR_RESTRICTED"
 VALUES_KEY = "meteringValuesHour"
@@ -83,6 +88,7 @@ def elhub_source(
 
     @dlt.resource(write_disposition="merge", primary_key="id", columns=METERING_POINT_COLUMNS)
     def metering_points(
+        metering_point_ids: Sequence[str] | None = None,
         start_date: str | None = None,
         end_date: str | None = None,
         params: dict[str, Any] | None = None,
@@ -92,8 +98,12 @@ def elhub_source(
         The API has no list endpoint: this is the dataset call without an id, which returns every
         metering point with values in the window, the last 24 hours when no dates are sent. The
         values themselves are left to `metering_values_hour`, which reads each point with a cursor.
+        `metering_point_ids` keeps only those points, and so limits what `metering_values_hour` reads.
         """
+        wanted = set(metering_point_ids) if metering_point_ids is not None else None
         for item in _items(client, "/metering-points", _query(params, startDate=start_date, endDate=end_date)):
+            if wanted is not None and item["id"] not in wanted:
+                continue
             attributes = {key: value for key, value in item.get("attributes", {}).items() if key != VALUES_KEY}
             record = {key: value for key, value in item.items() if key != "attributes"}
             yield {**record, "attributes": attributes} if attributes else record
@@ -134,6 +144,8 @@ def elhub_source(
             newest = _newest(cursors.get(point_id), values)
             if newest is not None:
                 cursors[point_id] = newest
+        # dlt reports nothing for a point that returned nothing, so this is the one line that says so.
+        logger.info("metering point %s: %d values since %s", point_id, len(values), since)
         yield values
 
     return metering_points, metering_values_hour

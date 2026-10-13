@@ -22,15 +22,15 @@ user_agent = "my-company-elhub-pipeline"
 
 # Query params belong to the resource that sends them, so they are configured per
 # resource — the same names the API documents, in snake_case. Everything below is
-# optional, and binding one of them means the resource sends exactly that window: the
-# stored cursor is neither read nor advanced. Dates are yyyy-MM-dd'T'HH:mm:ssXXX in
-# Europe/Oslo. The README's "Configuring a resource" says what each one costs.
+# optional, and binding a window means the resource sends exactly that: the stored
+# cursor is neither read nor advanced. A date is YYYY-MM-DD, midnight in Europe/Oslo.
+# The README's "Configuring a resource" says what each one costs.
 
 # [sources.elhub.metering_points]
-# start_date = "2026-10-12T00:00:00+02:00"
-# end_date = "2026-10-13T00:00:00+02:00"
+# metering_point_ids = ["707057500083917012"]
+# start_date = "2026-10-12"
+# end_date = "2026-10-13"
 
 # [sources.elhub.metering_values_hour]
-# start_date = "2026-10-01T00:00:00+02:00"
-# end_date = "2026-10-13T00:00:00+02:00"
-# insert_date_time = "2026-10-01T00:00:00+02:00"
+# start_date = "2026-10-01"
+# end_date = "2026-10-13"

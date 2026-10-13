@@ -21,7 +21,7 @@ from zoneinfo import ZoneInfo
 import dlt
 import pytest
 
-from dlt_source_elhub import ALL_RETAINED_HISTORY, elhub_source
+from dlt_source_elhub import elhub_source
 from tests.conftest import cursors, make_pipeline, query, row_count
 
 pytestmark = [pytest.mark.integration]
@@ -61,7 +61,7 @@ def test_the_list_call_discovers_metering_points_with_values_in_the_last_24_hour
 def test_a_bound_window_on_one_point_loads_that_day_and_leaves_no_cursor():
     start, end = _yesterday()
     source: Any = elhub_source(user_agent="dlt-source-elhub-tests")
-    source.metering_values_hour.bind(start_date=start, end_date=end, insert_date_time=ALL_RETAINED_HISTORY)
+    source.metering_values_hour.bind(start_date=start, end_date=end)
     pipeline = make_pipeline("integ_window")
     pipeline.run(source.with_resources("metering_values_hour"))
 

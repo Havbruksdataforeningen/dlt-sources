@@ -9,8 +9,8 @@ from tests.conftest import resource_signature, source
 
 SPEC = Path(__file__).parent.parent / "specs" / "openapi.yaml"
 
-NOT_QUERY_PARAMS = {"params", "metering_point", "meta"}
-"""The escape hatch, the transformer's item, and the `meta` argument dlt adds to every transformer."""
+NOT_QUERY_PARAMS = {"params", "metering_point_ids", "metering_point", "meta"}
+"""The escape hatch, the id filter, the transformer's item, and the `meta` argument dlt adds to every transformer."""
 
 
 def _documented_query_params(path: str) -> set[str]:

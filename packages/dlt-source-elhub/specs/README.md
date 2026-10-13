@@ -66,7 +66,9 @@ Two about dates:
   `startDate=2026-10-01T00:00:00+02:00&endDate=2026-10-03T00:00:00+02:00` returned values
   starting from `2026-10-01T00:00` to `2026-10-02T23:00` — 48 values, two whole days. The
   documentation says both ends are inclusive; in practice treat the pair as half-open on
-  `startTime`. Dates are `yyyy-MM-dd'T'HH:mm:ssXXX` in Europe/Oslo and must be URL-encoded,
+  `startTime`. A plain `yyyy-MM-dd` is accepted as well and means midnight in Europe/Oslo
+  (`startDate=2026-10-01&endDate=2026-10-03` returned the same 48 values, 2026-10-13); the
+  full form is `yyyy-MM-dd'T'HH:mm:ssXXX` in Europe/Oslo and must be URL-encoded,
   which `requests` does for you.
 
 And three about getting a request through at all:

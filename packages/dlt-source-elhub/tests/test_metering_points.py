@@ -44,6 +44,20 @@ def test_an_attribute_other_than_the_values_is_kept(api: FakeElhub):
     assert json.loads(row[0]) == {"status": "Active"}
 
 
+def test_metering_point_ids_keeps_only_those_points_and_what_they_feed(api_with_fixtures: FakeElhub):
+    """The filter sits on the list, so the values transformer reads only the kept points."""
+    listing = point_ids(load_mock("metering_points_hour_all.json"))
+    kept, dropped = listing[0], listing[1]
+    src = source()
+    src.metering_points.bind(metering_point_ids=[kept])
+    pipeline = make_pipeline("test_points_filter")
+    run(pipeline, src, "metering_points", "metering_values_hour")
+
+    assert query(pipeline, "SELECT id FROM metering_points") == [(kept,)]
+    assert query(pipeline, "SELECT DISTINCT metering_point_id FROM metering_values_hour") == [(kept,)]
+    assert api_with_fixtures.calls_to_point(kept) and not api_with_fixtures.calls_to_point(dropped)
+
+
 def test_the_dataset_is_always_named_and_dates_are_passed_as_given(api: FakeElhub):
     api.route(API_PATH, None)
     src = source()

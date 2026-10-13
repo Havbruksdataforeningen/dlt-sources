@@ -67,11 +67,12 @@ Three things worth knowing before your first query:
 
 ## Configuring a resource
 
-Each resource takes its endpoint's params in snake_case. Dates are `yyyy-MM-dd'T'HH:mm:ssXXX` in Europe/Oslo.
+Each resource takes its endpoint's params in snake_case. A date is `YYYY-MM-DD`, read as midnight in Europe/Oslo; an ISO 8601 instant with an offset works too.
 
 ```python
 source = elhub_source(consumer_org="977106206")
-source.metering_values_hour.bind(start_date="2026-10-01T00:00:00+02:00", end_date="2026-10-03T00:00:00+02:00")
+source.metering_points.bind(metering_point_ids=["707057500083917012"])
+source.metering_values_hour.bind(start_date="2026-10-01", end_date="2026-10-03")
 pipeline.run(source)
 ```
 
@@ -79,8 +80,9 @@ pipeline.run(source)
 |---|---|
 | `consumer_org` | On the source. The organisation number of a company that delegated the scope to your client's organisation in Altinn; the token is then issued on its behalf. Leave it out to read the client's own organisation. One source per company. |
 | `initial_insert_date_time` | On the source. Where a point the pipeline has not seen starts: values inserted at or after this instant. Left out, everything Elhub retains. |
+| `metering_point_ids` | On `metering_points`. Keep only these ids; `metering_values_hour` then reads only them. For one new point's history, or a backfill of a few. |
 | `start_date`, `end_date` | On both resources. On `metering_points` they move the discovery window, at most one day wide. On `metering_values_hour` they make the request a backfill: the window is sent as given, and the stored cursor is neither read nor advanced. The end is exclusive on `startTime` in practice. |
-| `insert_date_time` | On `metering_values_hour`. Sent instead of the cursor, which is then neither read nor advanced. A backfill sends `ALL_RETAINED_HISTORY` here to get every value in its window. |
+| `insert_date_time` | On `metering_values_hour`. Sent instead of the cursor, which is then neither read nor advanced: values inserted at or after it, over the API's widest window when no dates are bound. |
 | `params` | On every resource, merged into the query string last, so it wins over every named param. The escape hatch for a param the API grows later. |
 | `user_agent`, `headers` | On the source. Elhub answers `403` to a request without a `User-Agent`; `headers` adds any other, such as `X-Elhub-GLN` under another scope. |
 
@@ -88,8 +90,8 @@ Params can also be set in config, per resource:
 
 ```toml
 [sources.elhub.metering_values_hour]
-start_date = "2026-10-01T00:00:00+02:00"
-end_date = "2026-10-03T00:00:00+02:00"
+start_date = "2026-10-01"
+end_date = "2026-10-03"
 ```
 
 ## Compatibility

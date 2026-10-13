@@ -27,20 +27,15 @@ Delete a point's entry and the next run loads that point's history again. Delete
 
 ### Backfilling
 
-Bind `start_date`, `end_date` or `insert_date_time` on `metering_values_hour` and the request carries exactly that, and nothing else from the state: the stored cursor is neither read nor advanced. `insert_date_time` must then be sent too, because without it the API's default window with an id is one day; `ALL_RETAINED_HISTORY` asks for every value in the window:
+Bind `start_date` and `end_date` on `metering_values_hour` and the request carries exactly that, and nothing from the state: the stored cursor is neither read nor advanced. Bind `metering_point_ids` on `metering_points` to backfill a few points rather than all:
 
 ```python
-from dlt_source_elhub import ALL_RETAINED_HISTORY, elhub_source
-
 source = elhub_source()
-source.metering_values_hour.bind(
-    start_date="2026-10-01T00:00:00+02:00",
-    end_date="2026-10-03T00:00:00+02:00",
-    insert_date_time=ALL_RETAINED_HISTORY,
-)
+source.metering_points.bind(metering_point_ids=["707057500083917012"])
+source.metering_values_hour.bind(start_date="2026-10-01", end_date="2026-10-03")
 ```
 
-The window is sent as given. `endDate` is documented as inclusive, but a midnight `endDate` does not return the hour that starts at it ([measured](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-elhub/specs/README.md#api-quirks-worth-knowing)), so treat the pair as half-open on `startTime`. There is no window splitting to do: with an id the API takes the whole retained range in one request.
+The window is sent as given. A date is `YYYY-MM-DD`, midnight in Europe/Oslo, or an ISO 8601 instant with an offset. `endDate` is documented as inclusive, but a midnight `endDate` does not return the hour that starts at it ([measured](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-elhub/specs/README.md#api-quirks-worth-knowing)), so treat the pair as half-open on `startTime`. There is no window splitting to do: with an id the API takes the whole retained range in one request.
 
 The ids a backfill reads are the ones the list call returns, which are the points with values in the last 24 hours. A point that has stopped reporting is not listed, and so not backfilled; `metering_points` takes `start_date` and `end_date` of its own, at most a day apart, to list the points of another day.
 
@@ -80,7 +75,7 @@ source.max_table_nesting = 2
 
 ## Logging
 
-The package logs one thing of its own, at DEBUG on `dlt_source_elhub.maskinporten`: that a token was issued, with the scope and `consumer_org`. Never the token, the grant or the key. Everything else it does, it raises.
+The package logs two things of its own. One line per metering point and run at INFO on `dlt_source_elhub.elhub`, with the point's id, how many values it returned and since when: dlt reports nothing for a point that returned nothing, and a pipeline that must notice an empty point hears it here. And at DEBUG on `dlt_source_elhub.maskinporten`, that a token was issued, with the scope and `consumer_org`. Never the token, the grant or the key. Everything else it does, it raises.
 
 dlt logs every request on the logger named `dlt` at INFO, off by default. Two `[runtime]` settings are worth knowing, each with an env var (`RUNTIME__LOG_LEVEL` and so on):
 
