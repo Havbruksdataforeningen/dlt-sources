@@ -2,13 +2,14 @@
 
 Shared [dlt](https://dlthub.com/) source packages for Havbruksdataforeningen members — one repo, one folder per source, each published as its own package.
 
-> **Status: pre-1.0.** `dlt-source-aquabyte` is verified against the live Aquabyte API and heading for its first release. Folders here may still move; what a package promises its users is covered by its own version.
+> **Status: pre-1.0.** `dlt-source-aquabyte` is released and verified against the live Aquabyte API; `dlt-source-elhub` is verified live and heading for its first release. Folders here may still move; what a package promises its users is covered by its own version.
 
 ## Source packages
 
 | Source package | Description |
 |---|---|
 | [`dlt-source-aquabyte`](packages/dlt-source-aquabyte/) | Aquabyte — camera-based monitoring of farmed salmon (sites, pens, biomass, lice, welfare, environment) |
+| [`dlt-source-elhub`](packages/dlt-source-elhub/) | Elhub — the metering points and hourly electricity metering values of your own organisation, via Maskinporten |
 
 ## Layout
 

@@ -1,0 +1,25 @@
+# Copy to .dlt/config.toml. Secrets go in secrets.toml, see secrets.toml.example.
+
+[sources.elhub]
+# Elhub answers 403 to a request without a User-Agent. Name yourself.
+user_agent = "my-company-elhub-pipeline"
+
+# A company that delegated the scope to your client's organisation in Altinn. Leave it out to
+# read your own organisation. One source per company: see examples/companies.py.
+# consumer_org = "999999999"
+
+# Where an unseen metering point starts: values inserted at or after this instant. Left out,
+# everything Elhub retains (3 years and 41 days, one request per point).
+# initial_insert_date_time = "2026-10-01T00:00:00+02:00"
+
+# Per-resource params, in snake_case as the API names them. A bound window is sent as given and
+# the stored cursor is neither read nor advanced. A date is YYYY-MM-DD, midnight in Europe/Oslo.
+
+# [sources.elhub.metering_points]
+# metering_point_ids = ["707057500000000001"]
+# start_date = "2026-10-12"
+# end_date = "2026-10-13"
+
+# [sources.elhub.metering_values_hour]
+# start_date = "2026-10-01"
+# end_date = "2026-10-13"
