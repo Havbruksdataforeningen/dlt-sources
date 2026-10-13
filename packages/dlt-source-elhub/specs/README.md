@@ -77,8 +77,9 @@ And three about getting a request through at all:
   no body that says why. The source sends both on every request.
 - **The Maskinporten grant needs a `jti`, and `exp - iat` of at most 120 s.** Without a
   unique `jti` two grants in the same second are the same grant, and Maskinporten refuses a
-  grant it has seen (`Grant has been used before`). The token's `expires_in` is set on the
-  client in Digdir's self-service portal (1200 s on the one this package was verified with).
+  grant it has seen (`Grant has been used before`). The access token's lifetime is set per
+  client in Digdir's self-service portal (default and recommended 120 s), and the API
+  provider may override it; the source renews from `expires_in`, whatever it is.
 - **A delegated company is read with the `consumer_org` claim**, the organisation number of
   the company that delegated `elhub:enduser` to the client's organisation in Altinn.
   `MP-250` means Elhub has not granted the scope to that organisation; `MP-251` means the

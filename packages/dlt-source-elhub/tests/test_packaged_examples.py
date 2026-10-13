@@ -1,12 +1,5 @@
-"""The packaged `.dlt/*.example` files are checked by using them.
-
-A consumer's first act is to copy these two files and fill in a client, so a section name
-that dlt does not look in is a broken quick start. These tests copy them into a throwaway
-dlt project and build the source with no arguments and no environment variables: whatever
-the examples fail to supply, the source fails to resolve.
-
-The README inlines the same two files, so it is held to the examples here as well.
-"""
+"""The packaged `.dlt/*.example` files are checked by using them: copied into a throwaway dlt project,
+the source is built with no arguments and no environment. The README inlines the same two files."""
 
 import re
 import shutil
@@ -33,7 +26,7 @@ SENTINEL_CLIENT_ID = "sentinel-client-id"
 
 @pytest.fixture
 def source_from_examples(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Any:
-    """Build the source from the example files alone, and return the mocked RESTClient."""
+    """The source built from the example files alone, with the RESTClient mocked."""
     settings = tmp_path / ".dlt"
     settings.mkdir()
     shutil.copy(CONFIG_EXAMPLE, settings / "config.toml")
@@ -68,7 +61,7 @@ def test_config_example_supplies_what_the_source_reads(source_from_examples):
 
 
 def test_config_example_documents_only_real_resource_params(source_from_examples):
-    """The commented per-resource blocks name resources and params that still exist."""
+    """Commented-out blocks are the one thing nothing else would notice going stale."""
     source, _ = source_from_examples
     documented = _commented_resource_params(CONFIG_EXAMPLE.read_text(), prefix=f"sources.{source.section}.")
     assert documented, "Expected the config example to document at least one per-resource param"
@@ -99,7 +92,7 @@ def test_readme_quick_start_matches_the_packaged_examples():
 
 
 def _commented_resource_params(config_example: str, prefix: str) -> dict[str, list[str]]:
-    """Parse the commented-out `# [<prefix><resource>]` blocks into resource → params."""
+    """The commented-out `# [<prefix><resource>]` blocks, as resource → params."""
     documented: dict[str, list[str]] = {}
     current: str | None = None
     for line in config_example.splitlines():
@@ -115,7 +108,7 @@ def _commented_resource_params(config_example: str, prefix: str) -> dict[str, li
 
 
 def _readme_toml_blocks() -> list[dict[str, Any]]:
-    """Every ```toml fenced block in the README, parsed."""
+    """Every ```toml block in the README, parsed."""
     blocks = re.findall(r"```toml\n(.*?)```", README.read_text(), re.DOTALL)
     assert len(blocks) >= 2, "Expected the README quick start to show config.toml and secrets.toml"
     return [tomllib.loads(block) for block in blocks]

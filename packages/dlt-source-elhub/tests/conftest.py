@@ -1,9 +1,4 @@
-"""Shared fixtures and helpers for the Elhub source tests.
-
-Every test talks to a fake transport mounted under `requests`, so the whole real stack runs —
-the RESTClient, the Maskinporten token exchange, the headers, the query string — and only the
-socket is gone. What a test asserts on is what went over the wire and what landed in DuckDB.
-"""
+"""Shared fixtures: a fake transport under `requests`, so the whole real stack runs and only the socket is gone."""
 
 import inspect
 import json
@@ -31,8 +26,8 @@ MOCK_DIR = Path(__file__).parent / "mock_responses"
 API_PATH = "/energy-data/v0/metering-points"
 TOKEN_PATH = "/token"  # noqa: S105  # a URL path, not a password
 
-TOKEN_LIFETIME = 1200
-"""`expires_in` the fake Maskinporten answers, the value the live client is configured with."""
+TOKEN_LIFETIME = 120
+"""`expires_in` the fake Maskinporten answers: Digdir's default, set per client in the self-service portal."""
 
 
 def load_mock(filename: str) -> dict[str, Any]:
@@ -70,7 +65,7 @@ def credentials(private_key: str = PRIVATE_PEM) -> MaskinportenCredentials:
 
 
 def source(**kwargs: Any) -> Any:
-    """The source with test credentials, so no `.dlt/` or environment is consulted for them."""
+    """The source with test credentials, so no `.dlt/` or environment is consulted."""
     return elhub_source(credentials=credentials(), **kwargs)
 
 
@@ -84,7 +79,7 @@ def dlt_writes_to_tmp_path(tmp_path, monkeypatch):
 
 @contextmanager
 def dlt_project(run_dir: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
-    """Make the `.dlt/` files in `run_dir` dlt's only config: no other project, no `SOURCES__*` variables."""
+    """The `.dlt/` files in `run_dir` as dlt's only config: no other project, no `SOURCES__*` variables."""
     for name in [name for name in os.environ if name.startswith("SOURCES__")]:
         monkeypatch.delenv(name, raising=False)
 
@@ -110,11 +105,9 @@ class Recorded:
 
 @dataclass
 class FakeElhub:
-    """Routes `path -> payload` and records every request the session sends.
+    """Routes `path -> payload` (`None` for `204`), answers the token endpoint, and records every request.
 
-    A payload is the JSON body of a `200`, or `None` for `204 No Content`. A path that is not
-    routed answers `404`, which the RESTClient raises, so a test fails loudly instead of
-    silently loading nothing. The Maskinporten token endpoint is routed from the start.
+    An unrouted path is `404`, which the RESTClient raises, so a test fails loudly rather than loading nothing.
     """
 
     routes: dict[str, Any] = field(default_factory=dict)
@@ -174,7 +167,7 @@ def _response(prepared: PreparedRequest, status: int, payload: dict[str, Any] | 
 
 @pytest.fixture
 def api(monkeypatch: pytest.MonkeyPatch) -> FakeElhub:
-    """Swap the HTTP transport under `requests` for the fake, for every session in the process."""
+    """The fake transport, for every `requests` session in the process."""
     fake = FakeElhub()
 
     def send(self: HTTPAdapter, request: PreparedRequest, **kwargs: Any) -> Response:
@@ -186,7 +179,7 @@ def api(monkeypatch: pytest.MonkeyPatch) -> FakeElhub:
 
 @pytest.fixture
 def api_with_fixtures(api: FakeElhub) -> FakeElhub:
-    """The fake serving the two anonymised responses: the list, and each listed point by id."""
+    """The fake serving the anonymised list response, and each listed point by id."""
     listing = load_mock("metering_points_hour_all.json")
     api.route(API_PATH, listing)
     for item in listing["data"]:
@@ -195,7 +188,7 @@ def api_with_fixtures(api: FakeElhub) -> FakeElhub:
 
 
 def make_pipeline(pipeline_name: str) -> Any:
-    """A DuckDB pipeline in a throwaway dataset, for tests that load more than once."""
+    """A DuckDB pipeline in a throwaway dataset."""
     return dlt.pipeline(
         pipeline_name=pipeline_name,
         destination="duckdb",
@@ -223,16 +216,12 @@ def row_count(pipeline: Any, table: str) -> int:
 
 
 def cursors(pipeline: Any) -> dict[str, str]:
-    """The per-metering-point cursors the source stored, by metering point id."""
+    """The per-metering-point cursors the source stored."""
     sources = pipeline.state.get("sources", {})
     (state,) = sources.values() if sources else ({},)
     return dict(state.get("resources", {}).get("metering_values_hour", {}).get("insert_date_time", {}))
 
 
 def resource_signature(source_: Any, resource_name: str) -> Any:
-    """The signature of the function behind a resource.
-
-    Reaching through `_pipe.gen` is dlt's private shape, so it is spelled out once here
-    rather than in each test that needs a resource's declared arguments.
-    """
+    """`_pipe.gen` is dlt's private shape, spelled out once here."""
     return inspect.signature(source_.resources[resource_name]._pipe.gen)

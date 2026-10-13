@@ -4,10 +4,8 @@ import dlt
 
 from dlt_source_elhub import elhub_source
 
-# Dates are YYYY-MM-DD in Europe/Oslo, and the end is exclusive in practice: this window is the
-# whole of October 1st and 2nd. Binding one is what makes this a backfill rather than a load:
-# the request carries it instead of the point's cursor, and the cursor is neither consulted nor
-# advanced, so the daily load is unaffected. Merge makes re-loading the same values idempotent.
+# A bound window is sent instead of the point's cursor, which is neither read nor advanced. The end is
+# exclusive in practice: this is the whole of October 1st and 2nd. Merge makes re-loading idempotent.
 source = elhub_source()
 source.metering_values_hour.bind(start_date="2026-10-01", end_date="2026-10-03")
 

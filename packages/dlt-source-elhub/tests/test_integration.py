@@ -1,17 +1,8 @@
-"""Integration tests against the real Elhub API.
+"""Against the real Elhub API: `uv run pytest -m integration`.
 
-Run with: uv run pytest -m integration
-
-Credentials come from dlt's config — a `.dlt/secrets.toml` with `[sources.elhub.credentials]`,
-or the environment:
-
-    SOURCES__ELHUB__CREDENTIALS__CLIENT_ID
-    SOURCES__ELHUB__CREDENTIALS__KID
-    SOURCES__ELHUB__CREDENTIALS__PRIVATE_KEY
-    SOURCES__ELHUB__CONSUMER_ORG      # optional: a company that delegated the scope
-
-Missing credentials cause a hard error — not a skip. The tests read one day, never the
-history: a bound window on one metering point, and the list call for the last 24 hours.
+Credentials come from dlt's config: `[sources.elhub.credentials]` in `.dlt/secrets.toml`, or
+`SOURCES__ELHUB__CREDENTIALS__{CLIENT_ID,KID,PRIVATE_KEY}` and optionally `SOURCES__ELHUB__CONSUMER_ORG`.
+Missing credentials fail, not skip. The tests read one day, never the history.
 """
 
 from datetime import datetime, timedelta
@@ -44,7 +35,7 @@ def require_credentials():
 
 
 def _yesterday() -> tuple[str, str]:
-    """Yesterday in Oslo, as a half-open window of API dates."""
+    """Yesterday in Oslo as `[start, end)`."""
     today = datetime.now(OSLO).replace(hour=0, minute=0, second=0, microsecond=0)
     return (today - timedelta(days=1)).isoformat(), today.isoformat()
 

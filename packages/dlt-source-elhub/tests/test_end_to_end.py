@@ -1,4 +1,4 @@
-"""End-to-end: both resources of elhub_source, one pipeline run, and a run that finds nothing new."""
+"""Both resources in one run, and a run that finds nothing new."""
 
 from tests.conftest import (
     API_PATH,
@@ -38,5 +38,5 @@ def test_a_run_with_nothing_new_changes_nothing(api_with_fixtures: FakeElhub):
 
     assert cursors(pipeline) == stored
     assert (row_count(pipeline, "metering_points"), row_count(pipeline, "metering_values_hour")) == (points, values)
-    # A point is re-listed every run, so its row's load id says when it was last seen.
+    # The load id on a point's row is when it was last listed.
     assert query(pipeline, "SELECT DISTINCT _dlt_load_id FROM metering_points") == [(second.loads_ids[0],)]

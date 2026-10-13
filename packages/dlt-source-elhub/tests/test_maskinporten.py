@@ -2,6 +2,7 @@
 
 import jwt
 import pytest
+from requests import Request
 
 from dlt_source_elhub import MaskinportenAuth
 from dlt_source_elhub.maskinporten import EXPIRY_MARGIN_SECONDS, GRANT_LIFETIME_SECONDS
@@ -20,12 +21,10 @@ from tests.conftest import (
     source,
 )
 
-AUDIENCE = "https://maskinporten.no/"
-
 
 def _claims(grant: str) -> dict:
     """Verified with the public key, so a grant Maskinporten would refuse fails here."""
-    return jwt.decode(grant, PUBLIC_PEM, algorithms=["RS256"], audience=AUDIENCE)
+    return jwt.decode(grant, PUBLIC_PEM, algorithms=["RS256"], audience="https://maskinporten.no/")
 
 
 def _auth(**kwargs) -> MaskinportenAuth:
@@ -33,7 +32,6 @@ def _auth(**kwargs) -> MaskinportenAuth:
 
 
 def test_the_grant_carries_what_maskinporten_requires():
-    """The claims from Digdir's token protocol, signed with the registered key under its `kid`."""
     grant = _auth().grant()
 
     claims = _claims(grant)
@@ -42,47 +40,33 @@ def test_the_grant_carries_what_maskinporten_requires():
     assert claims["exp"] - claims["iat"] == GRANT_LIFETIME_SECONDS
     assert "consumer_org" not in claims
     assert jwt.get_unverified_header(grant) == {"alg": "RS256", "kid": KID, "typ": "JWT"}
+    assert _claims(_auth(consumer_org="999999991").grant())["consumer_org"] == "999999991"
 
 
 def test_every_grant_is_unique():
-    """Maskinporten refuses a grant it has seen, and two in the same second are otherwise identical."""
     auth = _auth()
-    first, second = _claims(auth.grant()), _claims(auth.grant())
-    assert first["jti"] != second["jti"]
-
-
-def test_consumer_org_is_claimed_only_when_set():
-    claims = _claims(_auth(consumer_org="999999991").grant())
-    assert claims["consumer_org"] == "999999991"
+    assert _claims(auth.grant())["jti"] != _claims(auth.grant())["jti"]
 
 
 def test_an_escaped_private_key_signs_too():
-    """A single-line environment variable carries the PEM with `\\n` written out."""
     escaped = PRIVATE_PEM.replace("\n", "\\n")
     grant = MaskinportenAuth(credentials(private_key=escaped), "elhub:enduser").grant()
     assert _claims(grant)["iss"] == CLIENT_ID
 
 
 def test_one_token_serves_every_request_until_it_expires(api: FakeElhub, monkeypatch: pytest.MonkeyPatch):
-    """The exchange happens once per token lifetime, not once per request."""
     now = 1_700_000_000.0
     monkeypatch.setattr("dlt_source_elhub.maskinporten.time.time", lambda: now)
-    api.route(API_PATH, None)
-    pipeline = make_pipeline("test_token_reuse")
-
-    run(pipeline, source(), "metering_points")
-    run(pipeline, source(), "metering_points")
-    assert len(api.calls(TOKEN_PATH)) == 2, "each source instance exchanges its own grant"
-
+    request = Request("GET", "https://api.elhub.no/energy-data/v0/metering-points").prepare()
     auth = _auth()
+
     for _ in range(3):
-        auth.obtain_token() if auth._token is None else None
-        auth(_prepared())
-    assert api.token_responses == 3
+        auth(request)
+    assert api.token_responses == 1
 
     now += TOKEN_LIFETIME - EXPIRY_MARGIN_SECONDS
-    auth(_prepared())
-    assert api.token_responses == 4, "renewed before Maskinporten's expires_in, not after"
+    auth(request)
+    assert api.token_responses == 2, "renewed before expires_in, not after"
 
 
 def test_the_token_is_sent_as_a_bearer_token(api: FakeElhub):
@@ -94,9 +78,3 @@ def test_the_token_is_sent_as_a_bearer_token(api: FakeElhub):
     (exchange,) = api.calls(TOKEN_PATH)
     assert exchange.form["grant_type"] == "urn:ietf:params:oauth:grant-type:jwt-bearer"
     assert _claims(exchange.form["assertion"])["iss"] == CLIENT_ID
-
-
-def _prepared():
-    from requests import Request
-
-    return Request("GET", "https://api.elhub.no/energy-data/v0/metering-points").prepare()

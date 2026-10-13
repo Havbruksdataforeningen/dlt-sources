@@ -1,7 +1,4 @@
-"""Column hints per resource — the API's own field names, typed per `specs/meta-metering-points.json`.
-
-Why they are here at all, and what they do not cover: `REFERENCE.md#column-types`.
-"""
+"""Column hints: the API's own field names, typed per `specs/meta-metering-points.json`."""
 
 from dlt.common.schema.typing import TTableSchemaColumns
 
@@ -10,8 +7,7 @@ METERING_POINT_COLUMNS: TTableSchemaColumns = {
     "type": {"data_type": "text"},
 }
 
-# `meteringPointId` is the one column the API does not put on a value: it is the `id` of the
-# metering point the value is nested under, named as Elhub names it on its other datasets.
+# `meteringPointId` is the id of the point the value is nested under, named as Elhub's other datasets name it.
 METERING_VALUES_HOUR_COLUMNS: TTableSchemaColumns = {
     "meteringPointId": {"data_type": "text", "nullable": False},
     "startTime": {"data_type": "text", "nullable": False},

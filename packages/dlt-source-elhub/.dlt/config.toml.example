@@ -1,30 +1,19 @@
-# Elhub Energy Data API — dlt pipeline configuration
-# Copy this file to config.toml and adjust as needed:
-#   cp .dlt/config.toml.example .dlt/config.toml
-#
-# CI never reads this file: the default test run is offline and needs no
-# credentials. Both files are yours to create locally.
+# Copy to .dlt/config.toml. Secrets go in secrets.toml, see secrets.toml.example.
 
 [sources.elhub]
 # Elhub answers 403 to a request without a User-Agent. Name yourself.
 user_agent = "my-company-elhub-pipeline"
 
-# Organisation number of the company whose metering points to read, when that company has
-# delegated the scope to the client's organisation in Altinn. Leave it out to read the
-# client's own organisation. One source per company: see examples/companies.py.
+# A company that delegated the scope to your client's organisation in Altinn. Leave it out to
+# read your own organisation. One source per company: see examples/companies.py.
 # consumer_org = "999999999"
 
-# Where a metering point the source has not seen before starts: values inserted at or after
-# this instant, ISO 8601 with offset. Left out, it is everything Elhub retains, which is
-# 3 years and 41 days of history in one request per metering point. Set a recent instant
-# for a first run that loads only what is new. REFERENCE.md explains the cursor.
+# Where an unseen metering point starts: values inserted at or after this instant. Left out,
+# everything Elhub retains (3 years and 41 days, one request per point).
 # initial_insert_date_time = "2026-10-01T00:00:00+02:00"
 
-# Query params belong to the resource that sends them, so they are configured per
-# resource — the same names the API documents, in snake_case. Everything below is
-# optional, and binding a window means the resource sends exactly that: the stored
-# cursor is neither read nor advanced. A date is YYYY-MM-DD, midnight in Europe/Oslo.
-# The README's "Configuring a resource" says what each one costs.
+# Per-resource params, in snake_case as the API names them. A bound window is sent as given and
+# the stored cursor is neither read nor advanced. A date is YYYY-MM-DD, midnight in Europe/Oslo.
 
 # [sources.elhub.metering_points]
 # metering_point_ids = ["707057500000000001"]
