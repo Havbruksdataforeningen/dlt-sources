@@ -5,10 +5,11 @@ This repository holds one context per source package, plus the shared language b
 ## Contexts
 
 - [dlt-source-aquabyte](./packages/dlt-source-aquabyte/CONTEXT.md) — Aquabyte, a supplier of camera-based monitoring of farmed salmon in sea pens. Their API reports sites, pens, biomass, lice, welfare, behaviour and environment.
+- [dlt-source-elhub](./packages/dlt-source-elhub/CONTEXT.md) — Elhub, the Norwegian electricity market's data hub. Their Energy Data API reports an organisation's metering points and their metering values, behind Maskinporten.
 
 ## Relationships
 
-- **Package → package**: none, deliberately. Packages share conventions, not code. A term that two packages both need belongs in this file, not in a shared library.
+- **Package → package**: none, deliberately. Packages share conventions, not code. A term that two packages both need belongs in this file, not in a shared library. `dlt-source-elhub` exposes `MaskinportenAuth`, which another Maskinporten-protected API would need too; a package for one copies it rather than depending on this one.
 - **Package → consumer**: a consumer installs one package from PyPI and never sees this repository. Terms below that describe the repository itself (such as workspace) are ours, not theirs.
 
 ## Shared language
