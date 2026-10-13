@@ -1,91 +1,78 @@
-# Aquabyte
+# Elhub
 
-Aquabyte supplies camera-based monitoring of farmed salmon in sea pens, and their API reports what the cameras observe. This package is true to that API: the terms below are Aquabyte's, and we keep their meaning even where a member company uses a different word internally.
+Elhub is the Norwegian data hub for the electricity market, and its Energy Data API reports what the grid companies meter. This package is true to that API: the terms below are Elhub's, and we keep their meaning even where a member company uses a different word internally.
 
 Shared repository terms are in [CONTEXT-MAP.md](../../CONTEXT-MAP.md).
 
 ## Language
 
-### Places
+### Things metered
 
-**Site**:
-A licensed farming location holding a group of pens. Identified by `id`, with an optional `external_site_id` for the operator's own identifier.
-_Avoid_: farm, locality, lokalitet, facility
+**Metering point**:
+One point where electricity is metered, identified by an 18-digit id (GS1 `målepunkt-ID`). The unit everything in the API hangs on, and the key of `metering_points`. Belongs to one **end user** at a time.
+_Avoid_: meter, installation, målepunkt (in code and English text)
 
-**Pen**:
-One net pen holding a population of fish, belonging to a site. Identified by `id`, with an optional `penCode`. The API accepts the literal value `all` for `penId`, which is the default this package sends.
-_Avoid_: cage, merd, unit
+**Metering value**:
+One metered quantity of energy over one interval of one metering point: `startTime` to `endTime`, `quantityKwh`, a `direction`, a `resolution`. One row of `metering_values_hour`.
+_Avoid_: reading, measurement (that is a channel, below), consumption (that is one direction)
 
-**Active pen**:
-A pen currently holding fish, and therefore the only kind that returns data. A pen that exists but holds no fish is **inactive**. Most resources return data for active pens only.
+**Direction**:
+Which way the energy flowed: `Out` of the grid, which is consumption, or `In` to the grid, which is production. One metering point can carry both, so the direction is part of the key.
+_Avoid_: type, flow
 
-### Measurements
+**Resolution**:
+How long one interval is: `PT60M` or `PT15M`. Set per metering point by its grid company, and it can change. Carried on every value, never assumed.
+_Avoid_: granularity, frequency, period
 
-**Biomass**:
-The daily estimate of fish weight in a pen, including `avgWeight`, `sampleSize`, `kFactor` and `cv`.
-_Avoid_: weight, standing stock
+**Measurement**:
+The channel a value was read from, named like `EH.ELECTRIC.KWH.1.3`. Under `elhub:enduser` only the settled channel of each direction is returned; the thirdparty scope can ask for all of them.
+_Avoid_: series, meter channel
 
-**K-factor**:
-The condition factor reported alongside biomass — a measure of fish weight relative to length.
-_Avoid_: condition score (that is a welfare term, not this)
+### Time
 
-**CV**:
-The coefficient of variation of the weight distribution in a pen. Reported as `cv` on biomass and as `coefficientOfVariation` on a harvest report — the same idea under two names, because the API names them differently.
+**Insert time**:
+`insertDateTime`, when Elhub stored the value. It is the API's filter and this package's cursor: a correction is a new insert of an old interval. Yesterday's values are inserted around 02:05 Europe/Oslo.
+_Avoid_: updated, loaded, received
 
-**Harvest report**:
-A per-pen report produced around slaughter, covering the planned or actual harvest: feeding and slaughter dates, temperature, loss factor, packing method, superior rate, and average round and packed weights.
-_Avoid_: slaughter report, harvest plan
+**Window**:
+The usage interval one request asks for, `startDate` to `endDate`, in Europe/Oslo with the offset written out. At most one day without an id, up to the whole **retention** with one.
+_Avoid_: range, span, period
 
-**Round weight**:
-The weight of the whole fish. Distinct from **packed weight**, the weight after processing. The API reports both, in grams.
+**Retention**:
+How long Elhub keeps a value: three years and 41 days. Also the widest window and the oldest allowed start. What is older is gone, and no backfill gets it back.
+_Avoid_: history limit, max age
 
-**Superior rate**:
-The share of harvested fish graded as superior quality.
+### Access
 
-**Lice count**:
-A sampled count of sea lice on fish in a pen, split by stage: `adultFemale`, `mobile`, and `caligus`. The `*Converted` fields are the API's own temperature-adjusted values.
-_Avoid_: lus, parasite count
+**Scope**:
+The Maskinporten permission a token carries. `elhub:enduser` reads your own organisation's metering points; `elhub:thirdparty` reads on behalf of others and needs GLN headers. This package is verified with the first.
 
-**Caligus**:
-*Caligus elongatus*, counted separately from salmon lice.
-_Avoid_: skottelus (in code and English text)
+**Dataset**:
+Elhub's name for one shape of data on one entity, such as `METERING_VALUES_HOUR_RESTRICTED`. Which datasets a scope may read is in the entity's metadata (`specs/meta-metering-points.json`). `_RESTRICTED` means a token is needed.
+_Avoid_: endpoint, table
 
-**Welfare score**:
-An assessment of visible damage on fish in a pen, reported per **category** — `bodyWound`, `scaleLoss`, `mechHeadWound` and so on. Which categories exist is the API's call and changes between versions, so the set lives in `specs/openapi.json` and nowhere else; the package never enumerates them. Each category carries counts at severity **score 1, 2 and 3**, split into **active** and **healed** findings.
-_Avoid_: health score, injury score
+**End user**:
+The organisation a metering point belongs to, as Elhub sees it: `endUserId` on a value is its organisation number. The consumer of this package is normally one end user, or a group of them.
+_Avoid_: customer, owner
 
-**Environmental data point**:
-A pen's environmental readings over a time window (`fromTime`–`toTime`): temperature, camera depth, oxygen, salinity and fish density, as averages. Distinct from **environmental live**, which is the latest single reading at one `time` rather than a window.
-_Avoid_: sensor reading, telemetry
+**Consumer org**:
+Maskinporten's name for the organisation a token is issued on behalf of, when it is not the client's own: the `consumer_org` claim, an organisation number. It is how one client reads several companies.
+_Avoid_: subsidiary, tenant, company id
 
-**Behaviour**:
-The camera-derived measures of how fish are acting, as opposed to how they measure. Two resources: **swim speed** and **breathing index**.
-
-**Breathing index**:
-Aquabyte's measure of respiration rate in a pen, used as a stress and gill-health indicator.
+**Delegation**:
+The act, in Altinn, by which one organisation lets another's Maskinporten client use a scope on its behalf. Done by the delegating organisation; without it, `consumer_org` is refused with `MP-251`.
 
 ### Requests
 
-**Window**:
-The timespan one request asks for, as a start and an end: `fromDate`–`toDate` on the date resources, `fromTime`–`toTime` on the time resources. `toDate` is inclusive; `toTime` is exclusive.
-_Avoid_: range, span, interval
+**Cursor**:
+This package's per-metering-point record of the latest insert time it has loaded, stored in dlt's resource state under the point's id. Not Elhub's term; Elhub has no notion of a client's progress.
+_Avoid_: watermark, checkpoint, state (that is where it lives)
 
-**Period**:
-The API's name for how coarse the rows are: `15min`, `h` or `D`. `D` when none is sent. Only `environmental` and `behaviour_swim_speed` take one.
-_Avoid_: grain, resolution. In prose, "granularity" is the word for what `period` controls; in code it is `period`.
+**List call**:
+The dataset call without an id, which returns every metering point the token reads together with their values in the window. The only way the API lists metering points.
+_Avoid_: list endpoint (there is none)
 
-**Record cap**:
-The most records one result set carries, 10 000, after which `nextToken` pages the rest. Documented in `openapi.json`, unlike the window cap — and independent of it: a window the API accepts can still page.
-_Avoid_: result cap, page size
+## Uncertain — confirm with Elhub
 
-**Window cap**:
-The widest window the API accepts, per resource and per period, in days. Measured, not documented; `max_window_days` resolves one and the table behind it is `MAX_WINDOW_DAYS`. A wider window is refused, so the source splits it into several requests.
-_Avoid_: limit, max range, and **cap** on its own — the API has a record cap and a rate limit too, so the word alone says which limit only by luck
-
-## Uncertain — confirm with a domain expert
-
-These are used in the API and mapped by this package, but the definitions above are inferred from field names and general aquaculture usage, not from Aquabyte documentation we have read:
-
-- **Loss factor** on a harvest report — assumed to be the expected weight loss between live and packed weight.
-- **Packing method** — the permitted values are not documented here.
-- **Fish density** on an environmental data point — the unit is not stated in the API response.
+- **`productCode`** on a value — assumed to identify the product per Elhub's [product identifier](https://dok.elhub.no/e27/product-identifier) list; one value, `8716867000030`, has been seen.
+- **Whether a metering point's `resolution` can change over its life**, and what then happens to its history. The key assumes an interval is identified by its `startTime`, so a change leaves no overlap after the next load of the day in question.
