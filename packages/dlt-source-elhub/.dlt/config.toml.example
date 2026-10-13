@@ -1,49 +1,36 @@
-# Aquabyte API v3 — dlt pipeline configuration
+# Elhub Energy Data API — dlt pipeline configuration
 # Copy this file to config.toml and adjust as needed:
 #   cp .dlt/config.toml.example .dlt/config.toml
 #
 # CI never reads this file: the default test run is offline and needs no
 # credentials. Both files are yours to create locally.
 
-[sources.aquabyte]
-# Base URL for the Aquabyte API v3
-# Docs: https://api.aquabyte.ai/v3/
-base_url = "https://api.aquabyte.ai/v3/"
+[sources.elhub]
+# Elhub answers 403 to a request without a User-Agent. Name yourself.
+user_agent = "my-company-elhub-pipeline"
 
-# Where the date-based incremental cursors start on a first run
-# (biomass, harvest_report, lice_count, welfare_scores). Format: YYYY-MM-DD
-initial_date = "2020-01-01"
+# Organisation number of the company whose metering points to read, when that company has
+# delegated the scope to the client's organisation in Altinn. Leave it out to read the
+# client's own organisation. One source per company: see examples/companies.py.
+# consumer_org = "999999999"
 
-# Where the time-based incremental cursors start on a first run
-# (environmental, behaviour_swim_speed, behaviour_breathing_index). Format: ISO 8601
-initial_time = "2020-01-01T00:00:00Z"
+# Where a metering point the source has not seen before starts: values inserted at or after
+# this instant, ISO 8601 with offset. Left out, it is everything Elhub retains, which is
+# 3 years and 41 days of history in one request per metering point. Set a recent instant
+# for a first run that loads only what is new. REFERENCE.md explains the cursor.
+# initial_insert_date_time = "2026-10-01T00:00:00+02:00"
 
 # Query params belong to the resource that sends them, so they are configured per
 # resource — the same names the API documents, in snake_case. Everything below is
-# optional: leave a param out and the API's own default applies.
-#
-# Which values each one takes, what it defaults to, and what it costs you are in the
-# README under "Configuring a resource" — kept there so there is one place to update.
-# The full param list is the spec: specs/openapi.json, or https://api.aquabyte.ai/v3/docs.
-#
-# period and bucket_size decide the granularity of the data itself, so they are worth deciding
-# before the first load rather than after it. Read that section before setting them.
+# optional, and binding one of them means the resource sends exactly that window: the
+# stored cursor is neither read nor advanced. Dates are yyyy-MM-dd'T'HH:mm:ssXXX in
+# Europe/Oslo. The README's "Configuring a resource" says what each one costs.
 
-# The values below are the finest granularity each resource offers, which is the useful
-# default for a raw layer: you can always aggregate later, but detail you never loaded
-# is gone. The cost is rows and requests — 15min is 96x the rows of D, and a finer
-# granularity also buys a narrower window cap (7 days at 15min, 31 at h, 366 at D), so a
-# backfill is split into more requests against a 1000/hour limit.
-# behaviour_breathing_index takes no period: that endpoint is daily-only.
+# [sources.elhub.metering_points]
+# start_date = "2026-10-12T00:00:00+02:00"
+# end_date = "2026-10-13T00:00:00+02:00"
 
-# [sources.aquabyte.environmental]
-# period = "15min"
-
-# [sources.aquabyte.behaviour_swim_speed]
-# period = "h"
-
-# [sources.aquabyte.biomass]
-# bucket_size = 1000
-
-# [sources.aquabyte.welfare_scores]
-# pen_id = "all"
+# [sources.elhub.metering_values_hour]
+# start_date = "2026-10-01T00:00:00+02:00"
+# end_date = "2026-10-13T00:00:00+02:00"
+# insert_date_time = "2026-10-01T00:00:00+02:00"
