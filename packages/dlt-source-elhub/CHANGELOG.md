@@ -4,6 +4,8 @@ All notable changes to `dlt-source-elhub`, written for people using the package.
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-10-13
+
 ### Added
 
 - Initial release: a dlt source for Elhub's Energy Data API — `metering_points`, the metering points an organisation can read, and `metering_values_hour`, their hourly or quarter-hourly metering values. What each resource loads and how to configure it is in the [README](README.md).

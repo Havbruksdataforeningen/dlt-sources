@@ -1,6 +1,6 @@
 [project]
 name = "dlt-source-elhub"
-version = "0.1.0rc1"
+version = "0.1.0"
 description = "dlt source package for Elhub's Energy Data API: metering points and hourly metering values, via Maskinporten"
 readme = "README.md"
 requires-python = ">=3.11"
