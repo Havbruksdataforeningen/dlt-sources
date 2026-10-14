@@ -13,7 +13,7 @@ import jwt
 from dlt.common.configuration.specs import CredentialsConfiguration, configspec
 from dlt.common.typing import TSecretStrValue
 from dlt.sources.helpers import requests
-from requests import PreparedRequest
+from requests import HTTPError, PreparedRequest, Response
 from requests.auth import AuthBase
 
 logger = logging.getLogger(__name__)
@@ -23,6 +23,37 @@ GRANT_LIFETIME_SECONDS = 120
 
 EXPIRY_MARGIN_SECONDS = 30
 """Renew this long before `expires_in`, so no request carries a token that expires in flight."""
+
+REFUSAL_BODY_LIMIT = 1000
+"""How much of a refusal that is not Maskinporten's JSON (a proxy's HTML page, say) the message keeps."""
+
+
+class MaskinportenError(Exception):
+    """Maskinporten refused the grant.
+
+    The message carries Maskinporten's own `error` and `error_description`, where the reason lives
+    (`MP-250`: the scope is not granted to the organisation, `MP-251`: the delegation is missing). A
+    bare `400 Client Error` says none of that, and dlt's `http_show_error_body` never reaches the token
+    endpoint. The grant itself stays out of the message.
+    """
+
+    def __init__(self, status: int, reason: str, scope: str, consumer_org: str | None):
+        self.status = status
+        self.reason = reason
+        self.scope = scope
+        self.consumer_org = consumer_org
+        super().__init__(
+            f"Maskinporten refused the grant for scope={scope} consumer_org={consumer_org}: {status} {reason}"
+        )
+
+
+def _refusal(response: Response) -> str:
+    """`error: error_description` when Maskinporten answered, the raw body when something else did."""
+    try:
+        body = response.json()
+        return f"{body['error']}: {body['error_description']}"
+    except (ValueError, KeyError, TypeError):
+        return response.text.strip()[:REFUSAL_BODY_LIMIT] or response.reason or ""
 
 
 @configspec
@@ -77,10 +108,17 @@ class MaskinportenAuth(AuthBase):
         return jwt.encode(claims, self.credentials.pem(), algorithm="RS256", headers={"kid": self.credentials.kid})
 
     def obtain_token(self) -> None:
-        response = requests.post(
-            f"{self.credentials.maskinporten_url}/token",
-            data={"grant_type": "urn:ietf:params:oauth:grant-type:jwt-bearer", "assertion": self.grant()},
-        )
+        try:
+            response = requests.post(
+                f"{self.credentials.maskinporten_url}/token",
+                data={"grant_type": "urn:ietf:params:oauth:grant-type:jwt-bearer", "assertion": self.grant()},
+            )
+        except HTTPError as error:
+            if error.response is None:
+                raise
+            raise MaskinportenError(
+                error.response.status_code, _refusal(error.response), self.scope, self.consumer_org
+            ) from error
         body = response.json()
         self._token = body["access_token"]
         self._expires_at = time.time() + int(body["expires_in"]) - EXPIRY_MARGIN_SECONDS
