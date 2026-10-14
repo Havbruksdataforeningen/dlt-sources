@@ -2,9 +2,9 @@
 
 import jwt
 import pytest
-from requests import Request
+from requests import HTTPError, Request
 
-from dlt_source_elhub import MaskinportenAuth
+from dlt_source_elhub import MaskinportenAuth, MaskinportenError
 from dlt_source_elhub.maskinporten import EXPIRY_MARGIN_SECONDS, GRANT_LIFETIME_SECONDS
 from tests.conftest import (
     API_PATH,
@@ -67,6 +67,31 @@ def test_one_token_serves_every_request_until_it_expires(api: FakeElhub, monkeyp
     now += TOKEN_LIFETIME - EXPIRY_MARGIN_SECONDS
     auth(request)
     assert api.token_responses == 2, "renewed before expires_in, not after"
+
+
+def test_a_refusal_says_why_in_maskinportens_words(api: FakeElhub):
+    """`400 Client Error` on its own is useless; `MP-250`/`MP-251` in the body is the whole diagnosis."""
+    api.refuse_tokens(400, {"error": "invalid_grant", "error_description": "MP-250 Consumer 999999991 has no access"})
+
+    with pytest.raises(MaskinportenError) as excinfo:
+        _auth(consumer_org="999999991").obtain_token()
+
+    error = excinfo.value
+    assert str(error) == (
+        "Maskinporten refused the grant for scope=elhub:enduser consumer_org=999999991: "
+        "400 invalid_grant: MP-250 Consumer 999999991 has no access"
+    )
+    assert (error.status, error.scope, error.consumer_org) == (400, "elhub:enduser", "999999991")
+    assert isinstance(error.__cause__, HTTPError)
+    (grant,) = api.grants
+    assert grant not in str(error), "the signed grant is a credential and stays out of logs"
+
+
+def test_a_refusal_that_is_not_maskinportens_keeps_the_body(api: FakeElhub):
+    api.refuse_tokens(502, "<html>upstream unavailable</html>")
+
+    with pytest.raises(MaskinportenError, match=r"502 <html>upstream unavailable</html>$"):
+        _auth().obtain_token()
 
 
 def test_the_token_is_sent_as_a_bearer_token(api: FakeElhub):

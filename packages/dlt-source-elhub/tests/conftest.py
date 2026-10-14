@@ -113,6 +113,8 @@ class FakeElhub:
     routes: dict[str, Any] = field(default_factory=dict)
     requests: list[Recorded] = field(default_factory=list)
     token_responses: int = 0
+    refusal: tuple[int, dict[str, Any] | str] | None = None
+    """What the token endpoint answers instead of a token: a status with Maskinporten's JSON, or a raw body."""
 
     def route(self, path: str, payload: dict[str, Any] | None) -> None:
         self.routes[path] = payload
@@ -122,6 +124,9 @@ class FakeElhub:
 
     def calls(self, path: str) -> list[Recorded]:
         return [one for one in self.requests if one.path == path]
+
+    def refuse_tokens(self, status: int, body: dict[str, Any] | str) -> None:
+        self.refusal = (status, body)
 
     def calls_to_point(self, point_id: str) -> list[Recorded]:
         return self.calls(f"{API_PATH}/{point_id}")
@@ -143,6 +148,8 @@ class FakeElhub:
             )
         )
         if parts.path == TOKEN_PATH:
+            if self.refusal is not None:
+                return _response(prepared, *self.refusal)
             self.token_responses += 1
             token = {"access_token": f"token-{self.token_responses}", "expires_in": TOKEN_LIFETIME}
             return _response(prepared, 200, token)
@@ -152,12 +159,16 @@ class FakeElhub:
         return _response(prepared, 204, None) if payload is None else _response(prepared, 200, payload)
 
 
-def _response(prepared: PreparedRequest, status: int, payload: dict[str, Any] | None) -> Response:
+def _response(prepared: PreparedRequest, status: int, payload: dict[str, Any] | str | None) -> Response:
+    """A `str` payload is a raw body, as a proxy in front of Maskinporten would send one."""
     response = Response()
     response.status_code = status
-    response.reason = {200: "OK", 204: "No Content", 404: "Not Found"}[status]
-    response._content = b"" if payload is None else json.dumps(payload).encode()
-    if payload is not None:
+    response.reason = {200: "OK", 204: "No Content", 400: "Bad Request", 404: "Not Found", 502: "Bad Gateway"}[status]
+    if isinstance(payload, str):
+        response._content = payload.encode()
+    else:
+        response._content = b"" if payload is None else json.dumps(payload).encode()
+    if isinstance(payload, dict):
         response.headers["Content-Type"] = "application/json"
     response.encoding = "utf-8"
     response.url = prepared.url or ""
