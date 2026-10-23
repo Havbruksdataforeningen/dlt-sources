@@ -4,6 +4,8 @@ All notable changes to `dlt-source-elhub`, written for people using the package.
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-10-23
+
 ### Fixed
 
 - A refused token request raises `MaskinportenError`, whose message carries Maskinporten's own `error` and `error_description` (`MP-250`, `MP-251`, ...) together with the scope and `consumer_org`. Before, it was requests' bare `400 Client Error`: dlt's `http_show_error_body` applies to the REST client, not to the token endpoint, so the reason never reached the logs. The signed grant stays out of the message. The exception is exported from the package.
