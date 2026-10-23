@@ -46,7 +46,7 @@ pipeline = dlt.pipeline(pipeline_name="elhub", destination="duckdb", dataset_nam
 pipeline.run(elhub_source())
 ```
 
-There is no separate backfill step. The first run loads everything Elhub retains for every metering point — three years and 41 days, one request per point — and every run after loads what was inserted since, per point. Schedule it after 03:00 Europe/Oslo: yesterday's hours are inserted around 02:05. Run it soon: Elhub deletes data older than three years and 41 days, so each day a first load waits, a day of history is gone.
+There is no separate backfill step. The first run loads everything Elhub retains for every metering point — three years and 41 days, one request per point — and every run after loads what was inserted since, per point. Schedule it after 09:00 Europe/Oslo, when Elhub has forwarded yesterday to end users; each grid company delivers at its own time before 07:00. Run it soon: Elhub deletes data older than three years and 41 days, so each day a first load waits, a day of history is gone.
 
 Two more examples, a page each: [`backfill.py`](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-elhub/examples/backfill.py) re-loads one window without touching the cursors, and [`companies.py`](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-elhub/examples/companies.py) reads several companies with one client. From a checkout, run one with `python examples/<name>.py`.
 
@@ -61,7 +61,7 @@ Both read the dataset `METERING_VALUES_HOUR_RESTRICTED`, the only one the `elhub
 
 Three things worth knowing before your first query:
 
-- **`metering_points` is the list of ids, found the only way Elhub offers.** There is no list endpoint; the dataset call without an id returns every point with values in the last 24 hours. A point lands as the API's `id` and `type`, with the values left to the other table. A point gone from the list keeps its row; its `_dlt_load_id` says when it was last seen.
+- **`metering_points` is the list of ids, found the only way Elhub offers.** There is no list endpoint; the dataset call without an id returns every point with values in the last 24 hours. A point lands as the API's `id` and `type`, with the values left to the other table. A point the list leaves out on a later run is remembered and still asked, so a late or missing day heals by itself — [how](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-elhub/REFERENCE.md#a-point-the-list-leaves-out-is-still-asked). When a point last had values is in `metering_values_hour`, not in `_dlt_load_id`.
 - **`metering_values_hour` is one row per value**, with the point's `id` as `meteringPointId`. `resolution` is `PT60M` on most points and `PT15M` on some, so never assume 24 rows a day. `direction` is `Out` for consumption and `In` for production, both loaded. A corrected value overwrites the old one, because the key is the interval, not the insert.
 - **The cursor is per metering point**, stored in dlt's resource state under the point's id. That is what makes a new point load its history on first contact, and several companies safe in one pipeline — [how it works](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-elhub/REFERENCE.md#the-cursor-is-per-metering-point).
 

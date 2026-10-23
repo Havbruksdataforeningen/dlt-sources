@@ -16,14 +16,25 @@ Three things follow, and they are the reason for the design:
 
 **Why `insertDateTime` is the cursor, not `startTime`.** The API's filter is on when a value was inserted, which is monotonic on Elhub's side; the usage time is not, because corrections and late readings land out of order. The filter is inclusive, so every run re-fetches the values inserted at exactly the cursor's instant — one day's values per point, 24 or 96 rows, written once more by the merge. That is cheaper to accept than to avoid: it cannot miss a value inserted in the same second as the cursor.
 
+### A point the list leaves out is still asked
+
+The list call returns only the points with values in its window. A point whose grid company delivers late, or whose meter has a fault, drops out of it for that day, and a point that is not asked is not loaded. So `metering_points` remembers every point the list call has returned, under the `consumer_org` it was listed for, and yields the remembered points of this `consumer_org` on every later run, listed or not. Each is then asked from its own cursor, and catches up whatever it missed as soon as Elhub has it.
+
+- **A point is only asked by the company it was listed for.** The state is shared by every source in the pipeline, and Elhub answers another company's point with a `204`, not a refusal. A point listed for a new `consumer_org` (the end user changed) moves to it.
+- **A point that never comes back is asked every run**, one request answered `204`. Whether a silent point is a failure is your pipeline's call: the values table says when it last had values. Delete its entry below to stop asking it.
+- **`metering_point_ids` limits the remembered points as well.**
+
 **What the state looks like**, and what you can do to it:
 
 ```python
-pipeline.state["sources"]["elhub_source"]["resources"]["metering_values_hour"]["insert_date_time"]
+resources = pipeline.state["sources"]["elhub_source"]["resources"]
+resources["metering_values_hour"]["insert_date_time"]
 # {'707057500000000001': '2026-10-13T02:04:25+02:00', ...}
+resources["metering_points"]["consumer_org"]
+# {'707057500000000001': '999999991', ...}   # None: the client's own organisation
 ```
 
-Delete a point's entry and the next run loads that point's history again. Delete the pipeline's state and every point does. A cursor never moves backwards: a response holding only inserts older than the cursor, which a bound window can return, leaves it alone.
+Delete a point's cursor and the next run loads that point's history again; delete its `consumer_org` entry and it is asked only when listed. Delete the pipeline's state and every point does. A cursor never moves backwards: a response holding only inserts older than the cursor, which a bound window can return, leaves it alone.
 
 ### Backfilling
 
@@ -37,7 +48,7 @@ source.metering_values_hour.bind(start_date="2026-10-01", end_date="2026-10-03")
 
 The window is sent as given. A date is `YYYY-MM-DD`, midnight in Europe/Oslo, or an ISO 8601 instant with an offset. `endDate` is documented as inclusive, but a midnight `endDate` does not return the hour that starts at it ([measured](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-elhub/specs/README.md#api-quirks-worth-knowing)), so treat the pair as half-open on `startTime`. There is no window splitting to do: with an id the API takes the whole retained range in one request.
 
-The ids a backfill reads are the ones the list call returns, which are the points with values in the last 24 hours. A point that has stopped reporting is not listed, and so not backfilled; `metering_points` takes `start_date` and `end_date` of its own, at most a day apart, to list the points of another day.
+The ids a backfill reads are the ones the list call returns plus the remembered ones, [above](#a-point-the-list-leaves-out-is-still-asked). A point the pipeline has never seen listed is not backfilled; `metering_points` takes `start_date` and `end_date` of its own, at most a day apart, to list the points of another day.
 
 ### Several companies
 
@@ -75,7 +86,7 @@ source.max_table_nesting = 2
 
 ## Logging
 
-The package logs two things of its own. One line per metering point and run at INFO on `dlt_source_elhub.elhub`, with the point's id, how many values it returned and since when: dlt reports nothing for a point that returned nothing, and a pipeline that must notice an empty point hears it here. And at DEBUG on `dlt_source_elhub.maskinporten`, that a token was issued, with the scope and `consumer_org`. Never the token, the grant or the key. Everything else it does, it raises.
+The package logs three things of its own. One line per metering point and run at INFO on `dlt_source_elhub.elhub`, with the point's id, how many values it returned and since when: dlt reports nothing for a point that returned nothing, and a pipeline that must notice an empty point hears it here. One line at INFO on the same logger for each remembered point the list call left out, `metering point <id>: not listed, asked anyway`. And at DEBUG on `dlt_source_elhub.maskinporten`, that a token was issued, with the scope and `consumer_org`. Never the token, the grant or the key. Everything else it does, it raises.
 
 dlt logs every request on the logger named `dlt` at INFO, off by default. Two `[runtime]` settings are worth knowing, each with an env var (`RUNTIME__LOG_LEVEL` and so on):
 

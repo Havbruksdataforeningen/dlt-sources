@@ -31,7 +31,7 @@ _Avoid_: series, meter channel
 ### Time
 
 **Insert time**:
-`insertDateTime`, when Elhub stored the value. It is the API's filter and this package's cursor: a correction is a new insert of an old interval. Yesterday's values are inserted around 02:05 Europe/Oslo.
+`insertDateTime`, when Elhub stored the value. It is the API's filter and this package's cursor: a correction is a new insert of an old interval. When yesterday's values are inserted depends on the grid company, before 07:00 Europe/Oslo; Elhub forwards them to end users by 09:00.
 _Avoid_: updated, loaded, received
 
 **Window**:
@@ -69,8 +69,11 @@ This package's per-metering-point record of the latest insert time it has loaded
 _Avoid_: watermark, checkpoint, state (that is where it lives)
 
 **List call**:
-The dataset call without an id, which returns every metering point the token reads together with their values in the window. The only way the API lists metering points.
+The dataset call without an id, which returns every metering point the token reads together with their values in the window. The only way the API lists metering points. A point without values in the window is not listed.
 _Avoid_: list endpoint (there is none)
+
+**Known metering point**:
+A metering point the list call has returned for a **consumer org** on some run, remembered in dlt's resource state under that consumer org. Asked for its values on every later run of that consumer org, listed or not. Not Elhub's term.
 
 ## Uncertain — confirm with Elhub
 

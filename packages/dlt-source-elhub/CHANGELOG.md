@@ -4,6 +4,11 @@ All notable changes to `dlt-source-elhub`, written for people using the package.
 
 ## [Unreleased]
 
+### Changed
+
+- `metering_points` remembers every point the list call returns, under its `consumer_org`, and yields it on later runs of that `consumer_org` even when the list leaves it out. Before, a point whose grid company delivered after the run, or that had a day without values, was not asked that day, and a point that stayed out was never loaded again; its cursor now catches it up on the next run. The table can hold points the day's list did not return, so `_dlt_load_id` no longer says when a point was last listed. Points loaded with an earlier version are remembered the next time they are listed. [Reference](REFERENCE.md#a-point-the-list-leaves-out-is-still-asked).
+- The recommended schedule is after 09:00 Europe/Oslo, when Elhub has forwarded yesterday to end users, not after 03:00: the insert time depends on the grid company, and 02:05 held for only one.
+
 ## [0.1.1] - 2026-10-23
 
 ### Fixed

@@ -1,8 +1,20 @@
 """The `metering_points` resource: how metering points are discovered, and what a row holds."""
 
 import json
+from typing import Any
 
-from tests.conftest import API_PATH, FakeElhub, load_mock, make_pipeline, point_ids, query, run, source
+from dlt_source_elhub import ALL_RETAINED_HISTORY
+from tests.conftest import (
+    API_PATH,
+    FakeElhub,
+    load_mock,
+    make_pipeline,
+    payload_for,
+    point_ids,
+    query,
+    run,
+    source,
+)
 
 
 def test_one_row_per_metering_point_without_its_values(api_with_fixtures: FakeElhub):
@@ -71,3 +83,78 @@ def test_the_headers_elhub_requires_and_the_ones_a_caller_adds(api: FakeElhub):
     assert default.headers["Accept"] == "application/json" and default.headers["User-Agent"]
     assert custom.headers["User-Agent"] == "acme-pipeline"
     assert custom.headers["X-Elhub-GLN"] == "7080000000000"
+
+
+DRIFT, NT145 = "999999991", "999999992"
+POINT, OTHER = "707057500000000001", "707057500000000002"
+INSERTED = "2026-10-13T06:15:10+02:00"
+
+
+def _listing(*ids: str) -> dict:
+    return {"data": [{"type": "metering-points", "id": point_id, "attributes": {}} for point_id in ids]}
+
+
+def _value(inserted: str = INSERTED) -> dict:
+    return {
+        "startTime": "2026-10-12T00:00:00+02:00",
+        "endTime": "2026-10-12T01:00:00+02:00",
+        "quantityKwh": 1.0,
+        "resolution": "PT60M",
+        "measurementName": "EH.ELECTRIC.KWH.1.3",
+        "productCode": 8716867000030,
+        "direction": "Out",
+        "endUserId": DRIFT,
+        "insertDateTime": inserted,
+    }
+
+
+def _two_points_listed_then_one(api: FakeElhub, **source_args) -> Any:
+    """First run lists both points; the second lists only `POINT`, as the list call does when
+    `OTHER`'s grid operator has not delivered yesterday yet."""
+    api.route(API_PATH, _listing(POINT, OTHER))
+    api.route_point(POINT, payload_for(POINT, [_value()]))
+    api.route_point(OTHER, payload_for(OTHER, [_value()]))
+    pipeline = make_pipeline("test_points_known")
+    run(pipeline, source(**source_args), "metering_points", "metering_values_hour")
+    api.route(API_PATH, _listing(POINT))
+    return pipeline
+
+
+def test_a_point_the_list_leaves_out_is_still_asked_from_its_cursor(api: FakeElhub):
+    pipeline = _two_points_listed_then_one(api, consumer_org=DRIFT)
+    run(pipeline, source(consumer_org=DRIFT), "metering_points", "metering_values_hour")
+
+    assert len(api.calls_to_point(OTHER)) == 2
+    assert api.calls_to_point(OTHER)[-1].params["insertDateTime"] == INSERTED
+    assert query(pipeline, "SELECT id FROM metering_points ORDER BY id") == [(POINT,), (OTHER,)]
+
+
+def test_a_company_asks_only_its_own_known_points(api: FakeElhub):
+    pipeline = _two_points_listed_then_one(api, consumer_org=DRIFT)
+    api.route(API_PATH, None)
+    run(pipeline, source(consumer_org=NT145), "metering_points", "metering_values_hour")
+
+    assert len(api.calls_to_point(POINT)) == 1 and len(api.calls_to_point(OTHER)) == 1
+
+
+def test_a_point_listed_under_another_company_moves_to_it(api: FakeElhub):
+    pipeline = _two_points_listed_then_one(api, consumer_org=DRIFT)
+    api.route(API_PATH, _listing(OTHER))
+    run(pipeline, source(consumer_org=NT145), "metering_points", "metering_values_hour")
+    api.route(API_PATH, None)
+    run(pipeline, source(consumer_org=DRIFT), "metering_points", "metering_values_hour")
+
+    assert [call.params.get("insertDateTime") for call in api.calls_to_point(OTHER)] == [
+        ALL_RETAINED_HISTORY,
+        INSERTED,
+    ]
+
+
+def test_metering_point_ids_limits_the_known_points_too(api: FakeElhub):
+    pipeline = _two_points_listed_then_one(api)
+    api.route(API_PATH, None)
+    src = source()
+    src.metering_points.bind(metering_point_ids=[POINT])
+    run(pipeline, src, "metering_points", "metering_values_hour")
+
+    assert len(api.calls_to_point(POINT)) == 2 and len(api.calls_to_point(OTHER)) == 1

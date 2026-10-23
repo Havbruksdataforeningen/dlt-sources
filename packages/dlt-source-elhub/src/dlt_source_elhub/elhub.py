@@ -83,19 +83,31 @@ def elhub_source(
         end_date: str | None = None,
         params: dict[str, Any] | None = None,
     ):
-        """Every metering point the token reads, from `GET /metering-points`.
+        """Every metering point the token reads: the ones `GET /metering-points` lists, and the ones it
+        listed for this `consumer_org` on an earlier run.
 
         The API has no list endpoint: this is the dataset call without an id, which returns every
-        point with values in the window (the last 24 hours by default). The values are left to
+        point with values in the window (the last 24 hours by default). A point whose values are late
+        or missing drops out of it, so each listed point is remembered in the resource state under its
+        `consumer_org`, and yielded on later runs whether listed or not. The values are left to
         `metering_values_hour`; `metering_point_ids` limits both.
         """
         wanted = set(metering_point_ids) if metering_point_ids is not None else None
+        owners: dict[str, str | None] = dlt.current.resource_state().setdefault("consumer_org", {})
+        listed: set[str] = set()
         for item in _items(client, "/metering-points", _query(params, startDate=start_date, endDate=end_date)):
+            listed.add(item["id"])
+            owners[item["id"]] = consumer_org
             if wanted is not None and item["id"] not in wanted:
                 continue
             attributes = {key: value for key, value in item.get("attributes", {}).items() if key != VALUES_KEY}
             record = {key: value for key, value in item.items() if key != "attributes"}
             yield {**record, "attributes": attributes} if attributes else record
+        for point_id, owner in owners.items():
+            if owner != consumer_org or point_id in listed or (wanted is not None and point_id not in wanted):
+                continue
+            logger.info("metering point %s: not listed, asked anyway", point_id)
+            yield {"type": "metering-points", "id": point_id}
 
     @dlt.transformer(
         data_from=metering_points,
