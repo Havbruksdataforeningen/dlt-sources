@@ -46,7 +46,7 @@ pipeline = dlt.pipeline(pipeline_name="elhub", destination="duckdb", dataset_nam
 pipeline.run(elhub_source())
 ```
 
-There is no separate backfill step. The first run loads everything Elhub retains for every metering point — three years and 41 days, one request per point — and every run after loads what was inserted since, per point. Schedule it after 03:00 Europe/Oslo: yesterday's hours are inserted around 02:05. Run it soon: Elhub deletes data older than three years and 41 days, so each day a first load waits, a day of history is gone.
+There is no separate backfill step. The first run loads everything Elhub retains for every metering point — three years and 41 days, one request per point — and every run after loads what was inserted since, per point. Schedule it after 09:00 Europe/Oslo, when Elhub has forwarded yesterday to end users; each grid company delivers at its own time before 07:00. Run it soon: Elhub deletes data older than three years and 41 days, so each day a first load waits, a day of history is gone.
 
 Two more examples, a page each: [`backfill.py`](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-elhub/examples/backfill.py) re-loads one window without touching the cursors, and [`companies.py`](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-elhub/examples/companies.py) reads several companies with one client. From a checkout, run one with `python examples/<name>.py`.
 
