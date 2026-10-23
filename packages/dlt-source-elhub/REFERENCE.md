@@ -82,7 +82,7 @@ dlt logs every request on the logger named `dlt` at INFO, off by default. Two `[
 | Setting | What it buys |
 |---|---|
 | `log_level` | `"INFO"` shows each request. Not `"DEBUG"` against the real API: dlt's REST client then logs request headers, and the bearer token rides in one. |
-| `http_show_error_body` | `true` shows Elhub's own `errors[].detail` on a `4xx`, which dlt otherwise strips to `400 Client Error`. Safe: it widens the response body, not the request. |
+| `http_show_error_body` | `true` shows Elhub's own `errors[].detail` on a `4xx`, which dlt otherwise strips to `400 Client Error`. Safe: it widens the response body, not the request. Maskinporten's refusals need no setting: `MaskinportenError` always carries the `error_description`. |
 
 The rest is in dlt's [running in production](https://dlthub.com/docs/running-in-production/running#set-the-log-level-and-format) guide.
 
