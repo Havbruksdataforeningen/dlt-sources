@@ -4,6 +4,10 @@ All notable changes to `dlt-source-elhub`, written for people using the package.
 
 ## [Unreleased]
 
+### Fixed
+
+- The recommended schedule is after 09:00 Europe/Oslo, when Elhub has forwarded yesterday to end users, not after 03:00. The insert time depends on the grid company: 02:05 held for one, another delivers around 06:15, and a daily load at 03:30 with the default list window left that company's metering points out. [API quirks](specs/README.md#api-quirks-worth-knowing).
+
 ## [0.1.1] - 2026-10-23
 
 ### Fixed
