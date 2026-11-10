@@ -4,7 +4,13 @@ All notable changes to `dlt-source-elhub`, written for people using the package.
 
 ## [Unreleased]
 
+### Added
+
+- `metering_points` takes a `start_date`/`end_date` window wider than a day and lists it a day at a time, each point once, since the API lists at most a day per request. Bind the same window on both resources and a backfill reads every metering point the end user had in it, including one it has since lost: Elhub lists a point only for the days it belonged to the end user, and by id returns that period's values. Before, a backfill read only the points listed in the last 24 hours. [Reference](REFERENCE.md#backfilling), #85.
+
 ### Fixed
+
+- The README no longer says the first run loads every metering point the end user ever had. It loads the points listed in the last 24 hours; a backfill over the retention finds the others.
 
 - The recommended schedule is after 09:00 Europe/Oslo, when Elhub has forwarded yesterday to end users, not after 03:00. The insert time depends on the grid company: 02:05 held for one, another delivers around 06:15, and a daily load at 03:30 with the default list window left that company's metering points out. [API quirks](specs/README.md#api-quirks-worth-knowing).
 

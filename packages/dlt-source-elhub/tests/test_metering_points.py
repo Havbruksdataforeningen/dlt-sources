@@ -2,7 +2,18 @@
 
 import json
 
-from tests.conftest import API_PATH, FakeElhub, load_mock, make_pipeline, point_ids, query, run, source
+from tests.conftest import (
+    API_PATH,
+    FakeElhub,
+    load_mock,
+    make_pipeline,
+    payload_for,
+    point_ids,
+    query,
+    run,
+    source,
+    values_of,
+)
 
 
 def test_one_row_per_metering_point_without_its_values(api_with_fixtures: FakeElhub):
@@ -51,6 +62,45 @@ def test_the_dataset_is_always_named_and_dates_are_passed_as_given(api: FakeElhu
         "startDate": "2026-10-12",
         "endDate": "2026-10-13T00:00:00+02:00",
     }
+
+
+def test_a_window_wider_than_a_day_finds_the_points_the_end_user_has_since_lost(api: FakeElhub):
+    """Elhub lists a point for the days it belonged to the end user, and by id returns that period."""
+    listed = {"2026-02-27": ["kept", "lost"], "2026-02-28": ["kept", "lost"], "2026-03-01": ["kept", "new"]}
+    api.route(API_PATH, lambda params: {"data": [{"id": point} for point in listed[params["startDate"]]]})
+    value = values_of(load_mock("metering_points_hour_by_id.json"))[0]
+    for point in ["kept", "lost", "new"]:
+        api.route_point(point, payload_for(point, [value]))
+    src = source()
+    src.metering_points.bind(start_date="2026-02-27", end_date="2026-03-02")
+    pipeline = make_pipeline("test_points_days")
+    run(pipeline, src, "metering_points", "metering_values_hour")
+
+    assert [(call.params["startDate"], call.params["endDate"]) for call in api.calls(API_PATH)] == [
+        ("2026-02-27", "2026-02-28"),
+        ("2026-02-28", "2026-03-01"),
+        ("2026-03-01", "2026-03-02"),
+    ]
+    assert query(pipeline, "SELECT id FROM metering_points ORDER BY id") == [("kept",), ("lost",), ("new",)]
+    assert [len(api.calls_to_point(point)) for point in ["kept", "lost", "new"]] == [1, 1, 1]
+    assert query(pipeline, "SELECT DISTINCT metering_point_id FROM metering_values_hour ORDER BY 1") == [
+        ("kept",),
+        ("lost",),
+        ("new",),
+    ]
+
+
+def test_the_days_of_a_window_stay_at_oslo_midnight_across_daylight_saving(api: FakeElhub):
+    api.route(API_PATH, None)
+    src = source()
+    src.metering_points.bind(start_date="2026-03-28T00:00:00+01:00", end_date="2026-03-31T00:00:00+02:00")
+    run(make_pipeline("test_points_dst"), src, "metering_points")
+
+    assert [(call.params["startDate"], call.params["endDate"]) for call in api.calls(API_PATH)] == [
+        ("2026-03-28T00:00:00+01:00", "2026-03-29T00:00:00+01:00"),
+        ("2026-03-29T00:00:00+01:00", "2026-03-30T00:00:00+02:00"),
+        ("2026-03-30T00:00:00+02:00", "2026-03-31T00:00:00+02:00"),
+    ]
 
 
 def test_no_content_is_no_rows(api: FakeElhub):

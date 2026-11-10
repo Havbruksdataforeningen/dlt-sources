@@ -9,7 +9,7 @@ Shared repository terms are in [CONTEXT-MAP.md](../../CONTEXT-MAP.md).
 ### Things metered
 
 **Metering point**:
-One point where electricity is metered, identified by an 18-digit id (GS1 `målepunkt-ID`). The unit everything in the API hangs on, and the key of `metering_points`. Belongs to one **end user** at a time.
+One point where electricity is metered, identified by an 18-digit id (GS1 `målepunkt-ID`). The unit everything in the API hangs on, and the key of `metering_points`. Belongs to one **end user** at a time; an end user that loses it still reads its values for the period it had it.
 _Avoid_: meter, installation, målepunkt (in code and English text)
 
 **Metering value**:
@@ -69,7 +69,7 @@ This package's per-metering-point record of the latest insert time it has loaded
 _Avoid_: watermark, checkpoint, state (that is where it lives)
 
 **List call**:
-The dataset call without an id, which returns every metering point the token reads together with their values in the window. The only way the API lists metering points. A point without values in the window is not listed.
+The dataset call without an id, which returns every metering point the token reads together with their values in the window. The only way the API lists metering points, at most a day at a time. A point without values in the window is not listed, so a past day lists the points the end user had that day.
 _Avoid_: list endpoint (there is none)
 
 ## Uncertain — confirm with Elhub

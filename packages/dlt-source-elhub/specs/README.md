@@ -23,7 +23,7 @@ the API returns, not against what the documents say it should. What was measured
 
 ## API quirks worth knowing
 
-> **Observed against the live API on 2026-10-07, 2026-10-13 and 2026-10-24**, with the scope
+> **Observed against the live API on 2026-10-07, 2026-10-13, 2026-10-24 and 2026-11-10**, with the scope
 > `elhub:enduser` and the dataset `METERING_VALUES_HOUR_RESTRICTED`. Re-check before
 > building on one, and update this section when you do.
 
@@ -44,6 +44,16 @@ The ones that decide what the source does:
   three-year hourly history is one response of 26,280 values. The list call without an id
   is capped at one day (`datePolicyWithoutId`): a week is `400` *"The time period from
   startDate to endDate cannot exceed one day"* (2026-10-24).
+- **Access follows the end user's period, not the point.** Listing past days, one a week
+  over January–March 2026 for three companies, showed each company the points it had on
+  that day: a point that moved between two of them on 1 March was listed for the old
+  one up to February and for the new one from March. Asked by id, the old end user got
+  the values up to 28 February and nothing after, the new one from 1 March, each value
+  with its own `endUserId`. So a backfill finds a lost point only by listing the days it
+  still belonged to the end user (2026-11-10).
+- **The values begin three years back, not three years and 41 days.** A point held
+  throughout returned 26,280 hourly values by id, the first on the day three years before
+  the request; the 41 days are in the window the API accepts (2026-11-10).
 - **`insertDateTime` is a filter, and it is inclusive.** Sent with an id and no dates, the
   API answers with its widest window and returns every value inserted *at or after* that
   instant: an old `insertDateTime` is the whole history, the stored one is yesterday plus

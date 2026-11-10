@@ -15,9 +15,10 @@ user_agent = "my-company-elhub-pipeline"
 # Per-resource params, in snake_case as the API names them. A bound window is sent as given and
 # the stored cursor is neither read nor advanced. A date is YYYY-MM-DD, midnight in Europe/Oslo.
 
+# A window wider than a day on metering_points is listed a day at a time.
 # [sources.elhub.metering_points]
 # metering_point_ids = ["707057500000000001"]
-# start_date = "2026-10-12"
+# start_date = "2026-10-01"
 # end_date = "2026-10-13"
 
 # [sources.elhub.metering_values_hour]

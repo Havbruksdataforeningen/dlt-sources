@@ -46,9 +46,11 @@ pipeline = dlt.pipeline(pipeline_name="elhub", destination="duckdb", dataset_nam
 pipeline.run(elhub_source())
 ```
 
-There is no separate backfill step. The first run loads everything Elhub retains for every metering point — three years and 41 days, one request per point — and every run after loads what was inserted since, per point. Schedule it after 09:00 Europe/Oslo, when Elhub has forwarded yesterday to end users; each grid company delivers at its own time before 07:00. Run it soon: Elhub deletes data older than three years and 41 days, so each day a first load waits, a day of history is gone.
+The first run loads everything Elhub retains for every metering point it lists — three years and 41 days, one request per point — and every run after loads what was inserted since, per point. Schedule it after 09:00 Europe/Oslo, when Elhub has forwarded yesterday to end users; each grid company delivers at its own time before 07:00. Run it soon: Elhub deletes data older than three years and 41 days, so each day a first load waits, a day of history is gone.
 
-Two more examples, a page each: [`backfill.py`](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-elhub/examples/backfill.py) re-loads one window without touching the cursors, and [`companies.py`](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-elhub/examples/companies.py) reads several companies with one client. From a checkout, run one with `python examples/<name>.py`.
+A run lists the points with values in the last 24 hours, so a point the end user had earlier and has since lost is not among them. [`backfill.py`](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-elhub/examples/backfill.py) over the whole retention finds those.
+
+Two more examples, a page each: [`backfill.py`](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-elhub/examples/backfill.py) re-loads one window for every point the end user had in it, without touching the cursors, and [`companies.py`](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-elhub/examples/companies.py) reads several companies with one client. From a checkout, run one with `python examples/<name>.py`.
 
 ## What it loads
 
@@ -61,7 +63,7 @@ Both read the dataset `METERING_VALUES_HOUR_RESTRICTED`, the only one the `elhub
 
 Three things worth knowing before your first query:
 
-- **`metering_points` is the list of ids, found the only way Elhub offers.** There is no list endpoint; the dataset call without an id returns every point with values in the last 24 hours. A point lands as the API's `id` and `type`, with the values left to the other table. A point gone from the list keeps its row; its `_dlt_load_id` says when it was last seen.
+- **`metering_points` is the list of ids, found the only way Elhub offers.** There is no list endpoint; the dataset call without an id returns every point with values in the last 24 hours, or in the window you bind. A point lands as the API's `id` and `type`, with the values left to the other table. A point gone from the list keeps its row; its `_dlt_load_id` says when it was last seen.
 - **`metering_values_hour` is one row per value**, with the point's `id` as `meteringPointId`. `resolution` is `PT60M` on most points and `PT15M` on some, so never assume 24 rows a day. `direction` is `Out` for consumption and `In` for production, both loaded. A corrected value overwrites the old one, because the key is the interval, not the insert.
 - **The cursor is per metering point**, stored in dlt's resource state under the point's id. That is what makes a new point load its history on first contact, and several companies safe in one pipeline — [how it works](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-elhub/REFERENCE.md#the-cursor-is-per-metering-point).
 
@@ -81,7 +83,7 @@ pipeline.run(source)
 | `consumer_org` | On the source. The organisation number of a company that delegated the scope to your client's organisation in Altinn; the token is then issued on its behalf. Leave it out to read the client's own organisation. One source per company. |
 | `initial_insert_date_time` | On the source. Where a point the pipeline has not seen starts: values inserted at or after this instant. Left out, everything Elhub retains. |
 | `metering_point_ids` | On `metering_points`. Keep only these ids; `metering_values_hour` then reads only them. For one new point's history, or a backfill of a few. |
-| `start_date`, `end_date` | On both resources. On `metering_points` they move the discovery window, at most one day wide. On `metering_values_hour` they make the request a backfill: the window is sent as given, and the stored cursor is neither read nor advanced. The end is exclusive on `startTime` in practice. |
+| `start_date`, `end_date` | On both resources. On `metering_points` they set the discovery window: the API lists at most a day per request, so a wider window is listed a day at a time, and finds every point the end user had in it. On `metering_values_hour` they make the request a backfill: the window is sent as given, and the stored cursor is neither read nor advanced. The end is exclusive on `startTime` in practice. |
 | `insert_date_time` | On `metering_values_hour`. Sent instead of the cursor, which is then neither read nor advanced: values inserted at or after it, over the API's widest window when no dates are bound. |
 | `params` | On every resource, merged into the query string last, so it wins over every named param. The escape hatch for a param the API grows later. |
 | `user_agent`, `headers` | On the source. Elhub answers `403` to a request without a `User-Agent`; `headers` adds any other, such as `X-Elhub-GLN` under another scope. |

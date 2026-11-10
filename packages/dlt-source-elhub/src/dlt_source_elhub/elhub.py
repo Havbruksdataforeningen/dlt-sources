@@ -6,9 +6,10 @@ escape hatch merged into the query string last.
 """
 
 import logging
-from collections.abc import Sequence
-from datetime import datetime
+from collections.abc import Iterator, Sequence
+from datetime import datetime, timedelta
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import dlt
 from dlt.sources.helpers.rest_client.client import RESTClient
@@ -20,6 +21,9 @@ logger = logging.getLogger(__name__)
 
 DATASET = "METERING_VALUES_HOUR_RESTRICTED"
 VALUES_KEY = "meteringValuesHour"
+
+OSLO = ZoneInfo("Europe/Oslo")
+"""How the API reads a date without an offset."""
 
 ALL_RETAINED_HISTORY = "2000-01-01T00:00:00+01:00"
 """An `insertDateTime` older than anything Elhub holds: with an id and no dates, the API then answers
@@ -40,6 +44,33 @@ def _items(client: RESTClient, path: str, params: dict[str, Any]) -> list[dict[s
         return []
     data = response.json()["data"]
     return data if isinstance(data, list) else [data]
+
+
+def _instant(text: str) -> datetime:
+    moment = datetime.fromisoformat(text)
+    return moment if moment.tzinfo else moment.replace(tzinfo=OSLO)
+
+
+def _days(start_date: str | None, end_date: str | None) -> Iterator[tuple[str | None, str | None]]:
+    """The list call takes at most one day, so a wider window is walked a day at a time.
+
+    A step is a calendar day in Europe/Oslo, so a boundary stays at midnight across daylight saving.
+    """
+    if start_date is None or end_date is None:
+        yield start_date, end_date
+        return
+    day, end = _instant(start_date).astimezone(OSLO), _instant(end_date)
+    if day + timedelta(days=1) >= end:
+        yield start_date, end_date
+        return
+    as_dates = "T" not in start_date and "T" not in end_date
+    while day < end:
+        following = min(day + timedelta(days=1), end)
+        if as_dates:
+            yield day.date().isoformat(), following.date().isoformat()
+        else:
+            yield day.isoformat(), following.isoformat()
+        day = following
 
 
 def _newest(cursor: str | None, values: list[dict[str, Any]]) -> str | None:
@@ -86,16 +117,20 @@ def elhub_source(
         """Every metering point the token reads, from `GET /metering-points`.
 
         The API has no list endpoint: this is the dataset call without an id, which returns every
-        point with values in the window (the last 24 hours by default). The values are left to
-        `metering_values_hour`; `metering_point_ids` limits both.
+        point with values in the window (the last 24 hours by default). A window wider than a day
+        lists each day in it, so a point the end user had then and has since lost is found too.
+        The values are left to `metering_values_hour`; `metering_point_ids` limits both.
         """
         wanted = set(metering_point_ids) if metering_point_ids is not None else None
-        for item in _items(client, "/metering-points", _query(params, startDate=start_date, endDate=end_date)):
-            if wanted is not None and item["id"] not in wanted:
-                continue
-            attributes = {key: value for key, value in item.get("attributes", {}).items() if key != VALUES_KEY}
-            record = {key: value for key, value in item.items() if key != "attributes"}
-            yield {**record, "attributes": attributes} if attributes else record
+        seen: set[str] = set()
+        for day_start, day_end in _days(start_date, end_date):
+            for item in _items(client, "/metering-points", _query(params, startDate=day_start, endDate=day_end)):
+                if item["id"] in seen or (wanted is not None and item["id"] not in wanted):
+                    continue
+                seen.add(item["id"])
+                attributes = {key: value for key, value in item.get("attributes", {}).items() if key != VALUES_KEY}
+                record = {key: value for key, value in item.items() if key != "attributes"}
+                yield {**record, "attributes": attributes} if attributes else record
 
     @dlt.transformer(
         data_from=metering_points,
