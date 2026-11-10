@@ -561,7 +561,7 @@ dev = [
 
 [[package]]
 name = "dlt-source-elhub"
-version = "0.2.0"
+version = "0.3.0"
 source = { editable = "packages/dlt-source-elhub" }
 dependencies = [
     { name = "dlt" },
