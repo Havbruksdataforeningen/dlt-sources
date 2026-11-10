@@ -37,7 +37,7 @@ source.metering_values_hour.bind(start_date="2023-11-11", end_date="2026-11-10")
 
 The window is sent as given. A date is `YYYY-MM-DD`, midnight in Europe/Oslo, or an ISO 8601 instant with an offset. `endDate` is documented as inclusive, but a midnight `endDate` does not return the hour that starts at it ([measured](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-elhub/specs/README.md#api-quirks-worth-knowing)), so treat the pair as half-open on `startTime`. There is no window splitting to do: with an id the API takes the whole retained range in one request.
 
-The ids a backfill reads are the ones the list call returns, and it returns the points with values in its window: the last 24 hours unless you bind one. A point the end user has lost, to another end user or because it closed, is listed only for the days it belonged to the end user, and by id returns the values of that period. The API lists at most a day per request, so `metering_points` lists a wider window a day at a time, each point once: a three-year window is about 1,100 list calls before the one call per point.
+The ids a backfill reads are the ones the list call returns, and it returns the points with values in its window: the last 24 hours unless you bind one. A point the end user has lost, to another end user or because it closed, is listed only for the days it belonged to the end user, and by id returns the values of that period. The API lists at most a day per request, so `metering_points` lists a wider window a day at a time, each point once: a three-year window is about 1,100 list calls before the one call per point, paced by Elhub's rate limit.
 
 Add `metering_point_ids` on `metering_points` to backfill a few points rather than all.
 
@@ -73,11 +73,11 @@ source.max_table_nesting = 2
 
 **Pagination.** The metering-points responses carry a `links.self` and no next link; a three-year history arrives as one response. The source reads each response whole.
 
-**Rate limiting.** Elhub documents none, and the source does no throttling: one request to list, one per metering point.
+**Rate limiting.** Elhub refuses with `429` past its limit, with no `Retry-After` ([measured](specs/README.md#api-quirks-worth-knowing)). The source does not pace itself: it asks again, logging a WARNING each time, for as long as the source params `request_max_attempts` and `request_max_retry_delay` allow, then raises. Elhub calls its limit an experiment; if it changes, set them in `[sources.elhub]`. dlt's `RUNTIME__REQUEST_*` settings do not reach the source's client.
 
 ## Logging
 
-The package logs two things of its own. One line per metering point and run at INFO on `dlt_source_elhub.elhub`, with the point's id, how many values it returned and since when: dlt reports nothing for a point that returned nothing, and a pipeline that must notice an empty point hears it here. And at DEBUG on `dlt_source_elhub.maskinporten`, that a token was issued, with the scope and `consumer_org`. Never the token, the grant or the key. Everything else it does, it raises.
+The package logs three things of its own. One line per metering point and run at INFO on `dlt_source_elhub.elhub`, with the point's id, how many values it returned and since when: dlt reports nothing for a point that returned nothing, and a pipeline that must notice an empty point hears it here. And at DEBUG on `dlt_source_elhub.maskinporten`, that a token was issued, with the scope and `consumer_org`. A WARNING on `dlt_source_elhub.elhub` for each `429`, so a run sitting out the rate limit says why. Never the token, the grant or the key. Everything else it does, it raises.
 
 dlt logs every request on the logger named `dlt` at INFO, off by default. Two `[runtime]` settings are worth knowing, each with an env var (`RUNTIME__LOG_LEVEL` and so on):
 

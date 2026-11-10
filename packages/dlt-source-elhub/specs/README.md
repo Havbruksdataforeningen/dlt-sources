@@ -71,6 +71,13 @@ The ones that decide what the source does:
   for one grid company, 06:11–06:38 for another, with a correction now and then after 12:00.
   Schedule a daily load after 09:00, and bind the list call to yesterday: its default 24
   hours before the request leaves out a point whose grid company has not delivered yet.
+- **About 100 calls, then `429` for two minutes.** The portal says *"Currently the rate
+  limit is 5 calls per second per user. The IP address of the user will be used for rate
+  limiting"* (api.elhub.no, read 2026-11-10). Measured the same day, the list call for one
+  day repeated without pause: 100 calls answered in 16 s, the 101st refused with `429`, a
+  plain-text body saying Elhub is *"experimenting with rate limits"*, and no `Retry-After`
+  or rate-limit headers. The refusal lifted 117–125 s later; asking every 5 s meanwhile did
+  not prolong it. A daily load stays under it, a backfill over years does not.
 - **`resolution` varies per metering point.** `PT60M` and `PT15M` both occur, so one point
   can carry 96 values a day where another carries 24. Never assume hourly rows.
 

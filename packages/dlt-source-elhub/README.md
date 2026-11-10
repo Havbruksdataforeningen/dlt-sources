@@ -87,6 +87,7 @@ pipeline.run(source)
 | `insert_date_time` | On `metering_values_hour`. Sent instead of the cursor, which is then neither read nor advanced: values inserted at or after it, over the API's widest window when no dates are bound. |
 | `params` | On every resource, merged into the query string last, so it wins over every named param. The escape hatch for a param the API grows later. |
 | `user_agent`, `headers` | On the source. Elhub answers `403` to a request without a `User-Agent`; `headers` adds any other, such as `X-Elhub-GLN` under another scope. |
+| `request_max_attempts`, `request_max_retry_delay` | On the source. How long a `429` or `5xx` is retried: attempts per request, and the longest pause between them in seconds. The defaults outlast [Elhub's rate limit as measured](specs/README.md#api-quirks-worth-knowing); if Elhub changes it, change these. |
 
 Params can also be set in config, per resource:
 
