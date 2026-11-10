@@ -2,10 +2,13 @@
 
 import inspect
 import json
+import math
 import os
+import time
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
+from http import HTTPStatus
 from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlsplit
@@ -28,6 +31,12 @@ TOKEN_PATH = "/token"  # noqa: S105  # a URL path, not a password
 
 TOKEN_LIFETIME = 120
 """`expires_in` the fake Maskinporten answers: Digdir's default, set per client in the self-service portal."""
+
+ELHUB_RATE_LIMITED = (
+    "This is a public service, we're experimenting with rate limits, so everybody can utilize it.\n"
+    "Please see our 'Terms of Service' on https://api.elhub.no/\n"
+)
+"""Elhub's `429` body, verbatim (2026-11-10): plain text, no `Retry-After`."""
 
 
 Payload = dict[str, Any] | None
@@ -112,7 +121,8 @@ class FakeElhub:
     """Routes `path -> payload` (`None` for `204`, a callable for one that depends on the query), answers the
     token endpoint, and records every request.
 
-    An unrouted path is `404`, which the RESTClient raises, so a test fails loudly rather than loading nothing.
+    An unrouted path is `404`, which the source raises, so a test fails loudly rather than loading nothing.
+    Time passes only when the client sleeps: `slept` is that clock.
     """
 
     routes: dict[str, Route] = field(default_factory=dict)
@@ -120,6 +130,15 @@ class FakeElhub:
     token_responses: int = 0
     refusal: tuple[int, dict[str, Any] | str] | None = None
     """What the token endpoint answers instead of a token: a status with Maskinporten's JSON, or a raw body."""
+    slept: float = 0.0
+    rate_limited_until: float = 0.0
+
+    def rate_limit(self, seconds: float = math.inf) -> None:
+        """Answer every API call `429`, as Elhub does past its limit, until the client has slept `seconds`."""
+        self.rate_limited_until = self.slept + seconds
+
+    def sleep(self, seconds: float) -> None:
+        self.slept += seconds
 
     def route(self, path: str, payload: Route) -> None:
         self.routes[path] = payload
@@ -158,6 +177,8 @@ class FakeElhub:
             self.token_responses += 1
             token = {"access_token": f"token-{self.token_responses}", "expires_in": TOKEN_LIFETIME}
             return _response(prepared, 200, token)
+        if self.slept < self.rate_limited_until:
+            return _response(prepared, 429, ELHUB_RATE_LIMITED)
         if parts.path not in self.routes:
             return _response(prepared, 404, {"errors": [{"status": "404", "title": f"no route for {parts.path}"}]})
         payload = self.routes[parts.path]
@@ -170,7 +191,7 @@ def _response(prepared: PreparedRequest, status: int, payload: dict[str, Any] | 
     """A `str` payload is a raw body, as a proxy in front of Maskinporten would send one."""
     response = Response()
     response.status_code = status
-    response.reason = {200: "OK", 204: "No Content", 400: "Bad Request", 404: "Not Found", 502: "Bad Gateway"}[status]
+    response.reason = HTTPStatus(status).phrase
     if isinstance(payload, str):
         response._content = payload.encode()
     else:
@@ -185,13 +206,14 @@ def _response(prepared: PreparedRequest, status: int, payload: dict[str, Any] | 
 
 @pytest.fixture
 def api(monkeypatch: pytest.MonkeyPatch) -> FakeElhub:
-    """The fake transport, for every `requests` session in the process."""
+    """The fake transport, for every `requests` session in the process, and a clock only sleeping moves."""
     fake = FakeElhub()
 
     def send(self: HTTPAdapter, request: PreparedRequest, **kwargs: Any) -> Response:
         return fake.send(request)
 
     monkeypatch.setattr(HTTPAdapter, "send", send)
+    monkeypatch.setattr(time, "sleep", fake.sleep)
     return fake
 
 

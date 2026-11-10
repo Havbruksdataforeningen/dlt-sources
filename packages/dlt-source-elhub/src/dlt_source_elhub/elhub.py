@@ -12,7 +12,9 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 import dlt
+from dlt.sources.helpers.requests import Client
 from dlt.sources.helpers.rest_client.client import RESTClient
+from requests import HTTPError, Response, Session
 
 from dlt_source_elhub.columns import METERING_POINT_COLUMNS, METERING_VALUES_HOUR_COLUMNS
 from dlt_source_elhub.maskinporten import MaskinportenAuth, MaskinportenCredentials
@@ -30,6 +32,21 @@ ALL_RETAINED_HISTORY = "2000-01-01T00:00:00+01:00"
 with everything it retains, 3 years and 41 days."""
 
 
+def _session(request_max_attempts: int, request_max_retry_delay: float) -> Session:
+    session = Client(
+        raise_for_status=False,
+        request_max_attempts=request_max_attempts,
+        request_max_retry_delay=request_max_retry_delay,
+    ).session
+    session.hooks["response"].append(_warn_when_rate_limited)
+    return session
+
+
+def _warn_when_rate_limited(response: Response, *args: Any, **kwargs: Any) -> None:
+    if response.status_code == 429:
+        logger.warning("Elhub rate limit: 429, asking again shortly")
+
+
 def _query(extra: dict[str, Any] | None = None, **named: Any) -> dict[str, Any]:
     params = {key: value for key, value in named.items() if value is not None}
     if extra:
@@ -42,6 +59,8 @@ def _items(client: RESTClient, path: str, params: dict[str, Any]) -> list[dict[s
     response = client.get(path, params={"dataset": DATASET, **params})
     if response.status_code == 204:
         return []
+    if not response.ok:
+        raise HTTPError(f"{response.status_code} {response.reason} from Elhub: {response.text}", response=response)
     data = response.json()["data"]
     return data if isinstance(data, list) else [data]
 
@@ -89,6 +108,8 @@ def elhub_source(
     scope: str = "elhub:enduser",
     user_agent: str = "dlt-source-elhub",
     headers: dict[str, str] | None = None,
+    request_max_attempts: int = 15,
+    request_max_retry_delay: float = 30,
 ):
     """Elhub Energy Data API dlt source; the two resources share one client and one token.
 
@@ -100,11 +121,17 @@ def elhub_source(
             after this instant. Default: everything Elhub retains.
         user_agent: Elhub answers 403 without one. Name yourself.
         headers: Added to every request, e.g. `X-Elhub-GLN` and `On-Behalf-Of` under another scope.
+        request_max_attempts: Attempts per request before a `429` or `5xx` is raised.
+        request_max_retry_delay: Longest pause between attempts, in seconds; they start at one
+            second and double. Elhub answers `429`, with no `Retry-After`, for about two minutes
+            once a client passes 100 calls (specs/README.md). The defaults, 15 and 30, keep asking
+            for about five minutes, at most 30 seconds after the refusal lifts.
     """
     client = RESTClient(
         base_url=base_url,
         headers={"Accept": "application/json", "User-Agent": user_agent, **(headers or {})},
         auth=MaskinportenAuth(credentials, scope, consumer_org),
+        session=_session(request_max_attempts, request_max_retry_delay),
     )
 
     @dlt.resource(write_disposition="merge", primary_key="id", columns=METERING_POINT_COLUMNS)
