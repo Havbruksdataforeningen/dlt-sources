@@ -1,4 +1,4 @@
-"""Elhub's rate limit: about 100 calls, then `429` for about two minutes (specs/README.md)."""
+"""Elhub's rate limit, as measured in specs/README.md: `429` with no `Retry-After` until it lifts."""
 
 import pytest
 from dlt.pipeline.exceptions import PipelineStepFailed
@@ -16,7 +16,7 @@ VALUE = {
     "insertDateTime": "2026-02-28T02:04:25+01:00",
 }
 REFUSED_FOR = 125
-"""Seconds Elhub refused after call 101, measured 2026-11-10."""
+"""Seconds Elhub refused in the measurement."""
 
 
 def test_a_backfill_waits_out_the_rate_limit_and_loads_everything(api: FakeElhub, caplog: pytest.LogCaptureFixture):

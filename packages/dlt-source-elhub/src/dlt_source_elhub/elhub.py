@@ -123,9 +123,8 @@ def elhub_source(
         headers: Added to every request, e.g. `X-Elhub-GLN` and `On-Behalf-Of` under another scope.
         request_max_attempts: Attempts per request before a `429` or `5xx` is raised.
         request_max_retry_delay: Longest pause between attempts, in seconds; they start at one
-            second and double. Elhub answers `429`, with no `Retry-After`, for about two minutes
-            once a client passes 100 calls (specs/README.md). The defaults, 15 and 30, keep asking
-            for about five minutes, at most 30 seconds after the refusal lifts.
+            second and double. The defaults outlast Elhub's rate limit as measured in
+            specs/README.md; change them if Elhub changes it.
     """
     client = RESTClient(
         base_url=base_url,

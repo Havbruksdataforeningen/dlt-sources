@@ -12,9 +12,8 @@ user_agent = "my-company-elhub-pipeline"
 # everything Elhub retains (3 years and 41 days, one request per point).
 # initial_insert_date_time = "2026-10-01T00:00:00+02:00"
 
-# How long a 429 or 5xx is retried. Past about 100 calls Elhub answers 429 for about two minutes,
-# with no Retry-After (measured 2026-11-10). Pauses start at 1 s and double up to the delay:
-# 15 attempts with at most 30 s between them keep asking for about five minutes.
+# How long a 429 or 5xx is retried. The defaults outlast Elhub's rate limit as measured in
+# specs/README.md; change them if Elhub changes it.
 # request_max_attempts = 15
 # request_max_retry_delay = 30
 

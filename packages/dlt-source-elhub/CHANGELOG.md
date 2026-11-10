@@ -6,7 +6,7 @@ All notable changes to `dlt-source-elhub`, written for people using the package.
 
 ### Fixed
 
-- A backfill waits out Elhub's rate limit instead of failing. Past about 100 calls Elhub answers `429` for two minutes; the source asks again at most every 30 seconds for about five minutes, logging a WARNING each time. Before, it gave up after 15 seconds, so a three-year backfill failed. Should Elhub change its limit, the new source params `request_max_attempts` and `request_max_retry_delay` set how long. [Rate limiting](REFERENCE.md#what-the-source-does-not-expose), #88.
+- A backfill waits out Elhub's rate limit instead of failing on the first `429`, with a WARNING each time it is refused. Should Elhub change its limit, the new source params `request_max_attempts` and `request_max_retry_delay` set how long it waits. [Rate limiting](REFERENCE.md#what-the-source-does-not-expose), #88.
 - An error status from Elhub raises `HTTPError` with the status and Elhub's body. Before, it surfaced as a JSON decode error or `KeyError: 'data'`, without either.
 
 ## [0.2.0] - 2026-11-10

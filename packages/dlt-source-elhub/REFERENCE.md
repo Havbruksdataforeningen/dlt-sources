@@ -37,7 +37,7 @@ source.metering_values_hour.bind(start_date="2023-11-11", end_date="2026-11-10")
 
 The window is sent as given. A date is `YYYY-MM-DD`, midnight in Europe/Oslo, or an ISO 8601 instant with an offset. `endDate` is documented as inclusive, but a midnight `endDate` does not return the hour that starts at it ([measured](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-elhub/specs/README.md#api-quirks-worth-knowing)), so treat the pair as half-open on `startTime`. There is no window splitting to do: with an id the API takes the whole retained range in one request.
 
-The ids a backfill reads are the ones the list call returns, and it returns the points with values in its window: the last 24 hours unless you bind one. A point the end user has lost, to another end user or because it closed, is listed only for the days it belonged to the end user, and by id returns the values of that period. The API lists at most a day per request, so `metering_points` lists a wider window a day at a time, each point once: a three-year window is about 1,100 list calls before the one call per point, and at Elhub's rate limit about 25 minutes.
+The ids a backfill reads are the ones the list call returns, and it returns the points with values in its window: the last 24 hours unless you bind one. A point the end user has lost, to another end user or because it closed, is listed only for the days it belonged to the end user, and by id returns the values of that period. The API lists at most a day per request, so `metering_points` lists a wider window a day at a time, each point once: a three-year window is about 1,100 list calls before the one call per point, paced by Elhub's rate limit.
 
 Add `metering_point_ids` on `metering_points` to backfill a few points rather than all.
 
@@ -73,7 +73,7 @@ source.max_table_nesting = 2
 
 **Pagination.** The metering-points responses carry a `links.self` and no next link; a three-year history arrives as one response. The source reads each response whole.
 
-**Rate limiting.** Elhub answers `429` for about two minutes once a client passes 100 calls, with no `Retry-After` ([API quirks](specs/README.md#api-quirks-worth-knowing)). The source does not pace itself; on a `429` it asks again at most every 30 seconds for about five minutes and logs a WARNING each time, then raises. Elhub calls its limit an experiment, so both numbers are source params: `request_max_attempts` (15) and `request_max_retry_delay` (30 seconds), set in `[sources.elhub]` or as `SOURCES__ELHUB__REQUEST_MAX_ATTEMPTS`. dlt's `RUNTIME__REQUEST_*` settings do not reach the source's client.
+**Rate limiting.** Elhub refuses with `429` past its limit, with no `Retry-After` ([measured](specs/README.md#api-quirks-worth-knowing)). The source does not pace itself: it asks again, logging a WARNING each time, for as long as the source params `request_max_attempts` and `request_max_retry_delay` allow, then raises. Elhub calls its limit an experiment; if it changes, set them in `[sources.elhub]`. dlt's `RUNTIME__REQUEST_*` settings do not reach the source's client.
 
 ## Logging
 
