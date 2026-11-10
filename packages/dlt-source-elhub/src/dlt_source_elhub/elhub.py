@@ -61,13 +61,20 @@ def _items(
 
 def _get(client: RESTClient, path: str, params: dict[str, Any], max_attempts: int, max_retry_delay: float) -> Response:
     """A `429`, a `5xx` or no answer is asked anew, not re-sent, so each attempt carries a token renewed
-    when due: Elhub's rate limit, or a request left hanging, can outlast one (specs/README.md)."""
+    when due: Elhub's rate limit, or a request left hanging, can outlast one (specs/README.md). A `401` is
+    asked once more with a new token: one prepared before a laptop slept arrives expired."""
+    renewed = False
     for attempt in range(1, max_attempts):
         try:
             response = client.get(path, params=params)
         except UNANSWERED as error:
             logger.warning("Elhub did not answer (%s), asking again shortly", type(error).__name__)
         else:
+            if response.status_code == 401 and not renewed and isinstance(client.auth, MaskinportenAuth):
+                logger.warning("Elhub refused the token (401), asking again with a new one")
+                client.auth.renew()
+                renewed = True
+                continue
             if response.status_code not in RETRIED:
                 return response
             if response.status_code == 429:

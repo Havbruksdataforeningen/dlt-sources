@@ -150,6 +150,11 @@ class FakeElhub:
     issued_at: dict[str, float] = field(default_factory=dict)
     unanswered: int = 0
 
+    def expire_tokens(self) -> None:
+        """Every token issued so far is expired at Elhub before the client thinks so: a request prepared before
+        a laptop slept and sent after it woke."""
+        self.issued_at = dict.fromkeys(self.issued_at, -math.inf)
+
     def leave_unanswered(self, times: int) -> None:
         """The next `times` API calls time out, each after dlt's timeout on the clock."""
         self.unanswered = times

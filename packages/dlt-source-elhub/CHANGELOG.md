@@ -6,7 +6,7 @@ All notable changes to `dlt-source-elhub`, written for people using the package.
 
 ### Fixed
 
-- A request Elhub leaves unanswered no longer ends in `401 The provided access token has expired`. dlt retried a timeout by re-sending the request, token included; the source now asks anew, as for a `429`, with a renewed token, and logs a WARNING. #94.
+- A request Elhub leaves unanswered no longer ends in `401 The provided access token has expired`. dlt retried a timeout by re-sending the request, token included; the source now asks anew, as for a `429`, with a renewed token, and logs a WARNING. A `401` is asked once more with a new token, so a request prepared before a laptop slept survives its waking. #94.
 
 ## [0.3.1] - 2026-11-10
 
