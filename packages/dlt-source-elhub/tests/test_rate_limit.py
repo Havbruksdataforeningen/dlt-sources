@@ -3,7 +3,7 @@
 import pytest
 from dlt.pipeline.exceptions import PipelineStepFailed
 
-from tests.conftest import API_PATH, FakeElhub, make_pipeline, payload_for, row_count, run, source
+from tests.conftest import API_PATH, TOKEN_LIFETIME, FakeElhub, make_pipeline, payload_for, row_count, run, source
 
 POINT = "707057500000000001"
 LISTING = {"data": [{"type": "metering-points", "id": POINT}]}
@@ -33,6 +33,18 @@ def test_a_backfill_waits_out_the_rate_limit_and_loads_everything(api: FakeElhub
     assert len(api.calls(API_PATH)) > 2, "the refused day is asked again"
     assert row_count(pipeline, "metering_values_hour") == 1
     assert any(r.levelname == "WARNING" and "429" in r.getMessage() for r in caplog.records), "the wait says why"
+
+
+def test_a_wait_longer_than_a_token_lives_asks_again_with_a_renewed_one(api: FakeElhub):
+    api.route(API_PATH, LISTING)
+    api.route_point(POINT, payload_for(POINT, [VALUE]))
+    api.rate_limit(TOKEN_LIFETIME + 5)
+
+    pipeline = make_pipeline("outlasted_token")
+    run(pipeline, source())
+
+    assert api.token_responses > 1, "the wait outlasted the first token"
+    assert row_count(pipeline, "metering_values_hour") == 1
 
 
 def test_a_refusal_that_does_not_end_fails_with_elhubs_status_and_reason(api: FakeElhub):

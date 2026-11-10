@@ -4,6 +4,10 @@ All notable changes to `dlt-source-elhub`, written for people using the package.
 
 ## [Unreleased]
 
+### Fixed
+
+- Waiting out Elhub's rate limit no longer ends in `401 The provided access token has expired`. A retry re-sent the first request, token included, and the refusal outlasts a token's two minutes; each attempt now asks anew and carries a renewed token. #91.
+
 ## [0.3.0] - 2026-11-10
 
 ### Added
