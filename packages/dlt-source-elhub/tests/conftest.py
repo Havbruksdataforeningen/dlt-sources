@@ -3,7 +3,7 @@
 import inspect
 import json
 import os
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -28,6 +28,10 @@ TOKEN_PATH = "/token"  # noqa: S105  # a URL path, not a password
 
 TOKEN_LIFETIME = 120
 """`expires_in` the fake Maskinporten answers: Digdir's default, set per client in the self-service portal."""
+
+
+Payload = dict[str, Any] | None
+Route = Payload | Callable[[dict[str, str]], Payload]
 
 
 def load_mock(filename: str) -> dict[str, Any]:
@@ -105,18 +109,19 @@ class Recorded:
 
 @dataclass
 class FakeElhub:
-    """Routes `path -> payload` (`None` for `204`), answers the token endpoint, and records every request.
+    """Routes `path -> payload` (`None` for `204`, a callable for one that depends on the query), answers the
+    token endpoint, and records every request.
 
     An unrouted path is `404`, which the RESTClient raises, so a test fails loudly rather than loading nothing.
     """
 
-    routes: dict[str, Any] = field(default_factory=dict)
+    routes: dict[str, Route] = field(default_factory=dict)
     requests: list[Recorded] = field(default_factory=list)
     token_responses: int = 0
     refusal: tuple[int, dict[str, Any] | str] | None = None
     """What the token endpoint answers instead of a token: a status with Maskinporten's JSON, or a raw body."""
 
-    def route(self, path: str, payload: dict[str, Any] | None) -> None:
+    def route(self, path: str, payload: Route) -> None:
         self.routes[path] = payload
 
     def route_point(self, point_id: str, payload: dict[str, Any] | None) -> None:
@@ -156,6 +161,8 @@ class FakeElhub:
         if parts.path not in self.routes:
             return _response(prepared, 404, {"errors": [{"status": "404", "title": f"no route for {parts.path}"}]})
         payload = self.routes[parts.path]
+        if callable(payload):
+            payload = payload(self.requests[-1].params)
         return _response(prepared, 204, None) if payload is None else _response(prepared, 200, payload)
 
 

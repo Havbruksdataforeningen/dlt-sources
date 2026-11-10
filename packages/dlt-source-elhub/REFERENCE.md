@@ -27,17 +27,19 @@ Delete a point's entry and the next run loads that point's history again. Delete
 
 ### Backfilling
 
-Bind `start_date` and `end_date` on `metering_values_hour` and the request carries exactly that, and nothing from the state: the stored cursor is neither read nor advanced. Bind `metering_point_ids` on `metering_points` to backfill a few points rather than all:
+Bind `start_date` and `end_date` on `metering_values_hour` and the request carries exactly that, and nothing from the state: the stored cursor is neither read nor advanced. Bind the same window on `metering_points`, so the points read are the ones the end user had in it:
 
 ```python
 source = elhub_source()
-source.metering_points.bind(metering_point_ids=["707057500000000001"])
-source.metering_values_hour.bind(start_date="2026-10-01", end_date="2026-10-03")
+source.metering_points.bind(start_date="2023-11-11", end_date="2026-11-10")
+source.metering_values_hour.bind(start_date="2023-11-11", end_date="2026-11-10")
 ```
 
 The window is sent as given. A date is `YYYY-MM-DD`, midnight in Europe/Oslo, or an ISO 8601 instant with an offset. `endDate` is documented as inclusive, but a midnight `endDate` does not return the hour that starts at it ([measured](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-elhub/specs/README.md#api-quirks-worth-knowing)), so treat the pair as half-open on `startTime`. There is no window splitting to do: with an id the API takes the whole retained range in one request.
 
-The ids a backfill reads are the ones the list call returns, which are the points with values in the last 24 hours. A point that has stopped reporting is not listed, and so not backfilled; `metering_points` takes `start_date` and `end_date` of its own, at most a day apart, to list the points of another day.
+The ids a backfill reads are the ones the list call returns, and it returns the points with values in its window: the last 24 hours unless you bind one. A point the end user has lost, to another end user or because it closed, is listed only for the days it belonged to the end user, and by id returns the values of that period. The API lists at most a day per request, so `metering_points` lists a wider window a day at a time, each point once: a three-year window is about 1,100 list calls before the one call per point.
+
+Add `metering_point_ids` on `metering_points` to backfill a few points rather than all.
 
 ### Several companies
 
