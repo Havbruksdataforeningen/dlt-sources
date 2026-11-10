@@ -73,11 +73,11 @@ source.max_table_nesting = 2
 
 **Pagination.** The metering-points responses carry a `links.self` and no next link; a three-year history arrives as one response. The source reads each response whole.
 
-**Rate limiting.** Elhub refuses with `429` past its limit, with no `Retry-After` ([measured](specs/README.md#api-quirks-worth-knowing)). The source does not pace itself: it asks again, logging a WARNING each time, for as long as the source params `request_max_attempts` and `request_max_retry_delay` allow, then raises. Elhub calls its limit an experiment; if it changes, set them in `[sources.elhub]`. dlt's `RUNTIME__REQUEST_*` settings do not reach the source's client.
+**Rate limiting.** Elhub refuses with `429` past its limit, with no `Retry-After` ([measured](specs/README.md#api-quirks-worth-knowing)). The source does not pace itself: it asks again, as it does after a `5xx` or a request left unanswered, logging a WARNING each time, for as long as the source params `request_max_attempts` and `request_max_retry_delay` allow, then raises. Elhub calls its limit an experiment; if it changes, set them in `[sources.elhub]`. dlt's `RUNTIME__REQUEST_*` settings do not reach the source's client.
 
 ## Logging
 
-The package logs three things of its own. One line per metering point and run at INFO on `dlt_source_elhub.elhub`, with the point's id, how many values it returned and since when: dlt reports nothing for a point that returned nothing, and a pipeline that must notice an empty point hears it here. And at DEBUG on `dlt_source_elhub.maskinporten`, that a token was issued, with the scope and `consumer_org`. A WARNING on `dlt_source_elhub.elhub` for each `429`, so a run sitting out the rate limit says why. Never the token, the grant or the key. Everything else it does, it raises.
+The package logs three things of its own. One line per metering point and run at INFO on `dlt_source_elhub.elhub`, with the point's id, how many values it returned and since when: dlt reports nothing for a point that returned nothing, and a pipeline that must notice an empty point hears it here. And at DEBUG on `dlt_source_elhub.maskinporten`, that a token was issued, with the scope and `consumer_org`. A WARNING on `dlt_source_elhub.elhub` for each `429`, `5xx` or unanswered request it asks again, so a run sitting out the rate limit says why. Never the token, the grant or the key. Everything else it does, it raises.
 
 dlt logs every request on the logger named `dlt` at INFO, off by default. Two `[runtime]` settings are worth knowing, each with an env var (`RUNTIME__LOG_LEVEL` and so on):
 

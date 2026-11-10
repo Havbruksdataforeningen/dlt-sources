@@ -21,6 +21,7 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.specs.pluggable_run_context import PluggableRunContext
 from requests.adapters import HTTPAdapter
+from requests.exceptions import Timeout
 from requests.models import PreparedRequest, Response
 
 from dlt_source_elhub import MaskinportenCredentials, elhub_source, maskinporten
@@ -31,6 +32,8 @@ API_PATH = "/energy-data/v0/metering-points"
 TOKEN_PATH = "/token"  # noqa: S105  # a URL path, not a password
 
 TOKEN_LIFETIME = 120
+REQUEST_TIMEOUT = 60
+"""dlt's default, how long a request waits for an answer."""
 """`expires_in` the fake Maskinporten answers: Digdir's default, set per client in the self-service portal."""
 
 ELHUB_RATE_LIMITED = (
@@ -145,6 +148,11 @@ class FakeElhub:
     slept: float = 0.0
     rate_limited_until: float = 0.0
     issued_at: dict[str, float] = field(default_factory=dict)
+    unanswered: int = 0
+
+    def leave_unanswered(self, times: int) -> None:
+        """The next `times` API calls time out, each after dlt's timeout on the clock."""
+        self.unanswered = times
 
     def rate_limit(self, seconds: float = math.inf) -> None:
         """Answer every API call `429`, as Elhub does past its limit, until the client has slept `seconds`."""
@@ -191,6 +199,10 @@ class FakeElhub:
             token = f"token-{self.token_responses}"
             self.issued_at[token] = self.slept
             return _response(prepared, 200, {"access_token": token, "expires_in": TOKEN_LIFETIME})
+        if self.unanswered:
+            self.unanswered -= 1
+            self.slept += REQUEST_TIMEOUT
+            raise Timeout(f"no answer from {parts.path}")
         bearer = str(prepared.headers.get("Authorization", "")).removeprefix("Bearer ")
         if bearer in self.issued_at and self.slept >= self.issued_at[bearer] + TOKEN_LIFETIME:
             return _response(prepared, 401, ELHUB_TOKEN_EXPIRED)

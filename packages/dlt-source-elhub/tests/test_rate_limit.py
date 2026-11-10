@@ -47,6 +47,18 @@ def test_a_wait_longer_than_a_token_lives_asks_again_with_a_renewed_one(api: Fak
     assert row_count(pipeline, "metering_values_hour") == 1
 
 
+def test_a_request_left_hanging_is_asked_anew_with_a_renewed_token(api: FakeElhub):
+    api.route(API_PATH, LISTING)
+    api.route_point(POINT, payload_for(POINT, [VALUE]))
+    api.leave_unanswered(2)
+
+    pipeline = make_pipeline("left_hanging")
+    run(pipeline, source())
+
+    assert api.token_responses > 1, "two timeouts outlast a token"
+    assert row_count(pipeline, "metering_values_hour") == 1
+
+
 def test_a_refusal_that_does_not_end_fails_with_elhubs_status_and_reason(api: FakeElhub):
     api.route(API_PATH, LISTING)
     api.rate_limit()
