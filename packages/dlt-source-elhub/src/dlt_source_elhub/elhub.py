@@ -17,6 +17,7 @@ import dlt
 from dlt.sources.helpers.requests import Client
 from dlt.sources.helpers.rest_client.client import RESTClient
 from requests import HTTPError, Response
+from requests.exceptions import ChunkedEncodingError, ConnectionError, Timeout
 
 from dlt_source_elhub.columns import METERING_POINT_COLUMNS, METERING_VALUES_HOUR_COLUMNS
 from dlt_source_elhub.maskinporten import MaskinportenAuth, MaskinportenCredentials
@@ -35,6 +36,7 @@ with everything it retains, 3 years and 41 days."""
 
 
 RETRIED = frozenset({429, *range(500, 600)})
+UNANSWERED = (ConnectionError, Timeout, ChunkedEncodingError)
 
 
 def _query(extra: dict[str, Any] | None = None, **named: Any) -> dict[str, Any]:
@@ -58,17 +60,29 @@ def _items(
 
 
 def _get(client: RESTClient, path: str, params: dict[str, Any], max_attempts: int, max_retry_delay: float) -> Response:
-    """A `429` or `5xx` is asked anew, not re-sent, so each attempt carries a token renewed when due:
-    Elhub's rate limit can outlast one (specs/README.md)."""
-    response = client.get(path, params=params)
+    """A `429`, a `5xx` or no answer is asked anew, not re-sent, so each attempt carries a token renewed
+    when due: Elhub's rate limit, or a request left hanging, can outlast one (specs/README.md). A `401` is
+    asked once more with a new token: one prepared before a laptop slept arrives expired."""
+    renewed = False
     for attempt in range(1, max_attempts):
-        if response.status_code not in RETRIED:
-            break
-        if response.status_code == 429:
-            logger.warning("Elhub rate limit: 429, asking again shortly")
+        try:
+            response = client.get(path, params=params)
+        except UNANSWERED as error:
+            logger.warning("Elhub did not answer (%s), asking again shortly", type(error).__name__)
+        else:
+            if response.status_code == 401 and not renewed and isinstance(client.auth, MaskinportenAuth):
+                logger.warning("Elhub refused the token (401), asking again with a new one")
+                client.auth.renew()
+                renewed = True
+                continue
+            if response.status_code not in RETRIED:
+                return response
+            if response.status_code == 429:
+                logger.warning("Elhub rate limit: 429, asking again shortly")
+            else:
+                logger.warning("Elhub answered %d, asking again shortly", response.status_code)
         time.sleep(min(2 ** (attempt - 1), max_retry_delay))
-        response = client.get(path, params=params)
-    return response
+    return client.get(path, params=params)
 
 
 def _instant(text: str) -> datetime:
@@ -127,7 +141,7 @@ def elhub_source(
             after this instant. Default: everything Elhub retains.
         user_agent: Elhub answers 403 without one. Name yourself.
         headers: Added to every request, e.g. `X-Elhub-GLN` and `On-Behalf-Of` under another scope.
-        request_max_attempts: Attempts per request before a `429` or `5xx` is raised.
+        request_max_attempts: Attempts per request before a `429`, a `5xx` or no answer is raised.
         request_max_retry_delay: Longest pause between attempts, in seconds; they start at one
             second and double. The defaults outlast Elhub's rate limit as measured in
             specs/README.md; change them if Elhub changes it.
@@ -136,8 +150,8 @@ def elhub_source(
         base_url=base_url,
         headers={"Accept": "application/json", "User-Agent": user_agent, **(headers or {})},
         auth=MaskinportenAuth(credentials, scope, consumer_org),
-        # dlt's own retry re-sends the prepared request, expired token and all: statuses are left to `_get`.
-        session=Client(raise_for_status=False, status_codes=()).session,
+        # dlt's own retry re-sends the prepared request, expired token and all: retrying is left to `_get`.
+        session=Client(raise_for_status=False, status_codes=(), exceptions=()).session,
     )
     items = partial(_items, client, max_attempts=request_max_attempts, max_retry_delay=request_max_retry_delay)
 

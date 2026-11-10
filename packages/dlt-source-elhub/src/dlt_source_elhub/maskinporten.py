@@ -92,6 +92,10 @@ class MaskinportenAuth(AuthBase):
         request.headers["Authorization"] = f"Bearer {self._token}"
         return request
 
+    def renew(self) -> None:
+        """The next request obtains a new token: Elhub refused this one, expired by its clock if not by ours."""
+        self._token = None
+
     def grant(self) -> str:
         """`aud` needs the trailing slash; `jti` because Maskinporten refuses a grant it has seen."""
         now = int(time.time())
