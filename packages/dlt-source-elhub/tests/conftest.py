@@ -10,6 +10,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field
 from http import HTTPStatus
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 from urllib.parse import parse_qs, urlsplit
 
@@ -22,7 +23,7 @@ from dlt.common.configuration.specs.pluggable_run_context import PluggableRunCon
 from requests.adapters import HTTPAdapter
 from requests.models import PreparedRequest, Response
 
-from dlt_source_elhub import MaskinportenCredentials, elhub_source
+from dlt_source_elhub import MaskinportenCredentials, elhub_source, maskinporten
 
 MOCK_DIR = Path(__file__).parent / "mock_responses"
 
@@ -37,6 +38,16 @@ ELHUB_RATE_LIMITED = (
     "Please see our 'Terms of Service' on https://api.elhub.no/\n"
 )
 """Elhub's `429` body, verbatim (2026-11-10): plain text, no `Retry-After`."""
+
+ELHUB_TOKEN_EXPIRED = {
+    "errors": [
+        {
+            "status": "401",
+            "title": "The provided access token has expired. Please obtain a new token for continued access.",
+        }
+    ]
+}
+"""Elhub's answer to an expired token, as of 2026-11-10."""
 
 
 Payload = dict[str, Any] | None
@@ -122,7 +133,8 @@ class FakeElhub:
     token endpoint, and records every request.
 
     An unrouted path is `404`, which the source raises, so a test fails loudly rather than loading nothing.
-    Time passes only when the client sleeps: `slept` is that clock.
+    Time passes only when the client sleeps: `slept` is that clock, and a token older than `TOKEN_LIFETIME`
+    on it is `401`, as Elhub answers an expired one.
     """
 
     routes: dict[str, Route] = field(default_factory=dict)
@@ -132,6 +144,7 @@ class FakeElhub:
     """What the token endpoint answers instead of a token: a status with Maskinporten's JSON, or a raw body."""
     slept: float = 0.0
     rate_limited_until: float = 0.0
+    issued_at: dict[str, float] = field(default_factory=dict)
 
     def rate_limit(self, seconds: float = math.inf) -> None:
         """Answer every API call `429`, as Elhub does past its limit, until the client has slept `seconds`."""
@@ -175,8 +188,12 @@ class FakeElhub:
             if self.refusal is not None:
                 return _response(prepared, *self.refusal)
             self.token_responses += 1
-            token = {"access_token": f"token-{self.token_responses}", "expires_in": TOKEN_LIFETIME}
-            return _response(prepared, 200, token)
+            token = f"token-{self.token_responses}"
+            self.issued_at[token] = self.slept
+            return _response(prepared, 200, {"access_token": token, "expires_in": TOKEN_LIFETIME})
+        bearer = str(prepared.headers.get("Authorization", "")).removeprefix("Bearer ")
+        if bearer in self.issued_at and self.slept >= self.issued_at[bearer] + TOKEN_LIFETIME:
+            return _response(prepared, 401, ELHUB_TOKEN_EXPIRED)
         if self.slept < self.rate_limited_until:
             return _response(prepared, 429, ELHUB_RATE_LIMITED)
         if parts.path not in self.routes:
@@ -206,14 +223,17 @@ def _response(prepared: PreparedRequest, status: int, payload: dict[str, Any] | 
 
 @pytest.fixture
 def api(monkeypatch: pytest.MonkeyPatch) -> FakeElhub:
-    """The fake transport, for every `requests` session in the process, and a clock only sleeping moves."""
+    """The fake transport, for every `requests` session in the process, and a clock only sleeping moves,
+    which the token's expiry follows too."""
     fake = FakeElhub()
+    start = time.time()
 
     def send(self: HTTPAdapter, request: PreparedRequest, **kwargs: Any) -> Response:
         return fake.send(request)
 
     monkeypatch.setattr(HTTPAdapter, "send", send)
     monkeypatch.setattr(time, "sleep", fake.sleep)
+    monkeypatch.setattr(maskinporten, "time", SimpleNamespace(time=lambda: start + fake.slept))
     return fake
 
 

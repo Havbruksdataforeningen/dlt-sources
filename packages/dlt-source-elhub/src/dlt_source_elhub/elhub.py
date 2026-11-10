@@ -6,15 +6,17 @@ escape hatch merged into the query string last.
 """
 
 import logging
+import time
 from collections.abc import Iterator, Sequence
 from datetime import datetime, timedelta
+from functools import partial
 from typing import Any
 from zoneinfo import ZoneInfo
 
 import dlt
 from dlt.sources.helpers.requests import Client
 from dlt.sources.helpers.rest_client.client import RESTClient
-from requests import HTTPError, Response, Session
+from requests import HTTPError, Response
 
 from dlt_source_elhub.columns import METERING_POINT_COLUMNS, METERING_VALUES_HOUR_COLUMNS
 from dlt_source_elhub.maskinporten import MaskinportenAuth, MaskinportenCredentials
@@ -32,19 +34,7 @@ ALL_RETAINED_HISTORY = "2000-01-01T00:00:00+01:00"
 with everything it retains, 3 years and 41 days."""
 
 
-def _session(request_max_attempts: int, request_max_retry_delay: float) -> Session:
-    session = Client(
-        raise_for_status=False,
-        request_max_attempts=request_max_attempts,
-        request_max_retry_delay=request_max_retry_delay,
-    ).session
-    session.hooks["response"].append(_warn_when_rate_limited)
-    return session
-
-
-def _warn_when_rate_limited(response: Response, *args: Any, **kwargs: Any) -> None:
-    if response.status_code == 429:
-        logger.warning("Elhub rate limit: 429, asking again shortly")
+RETRIED = frozenset({429, *range(500, 600)})
 
 
 def _query(extra: dict[str, Any] | None = None, **named: Any) -> dict[str, Any]:
@@ -54,15 +44,31 @@ def _query(extra: dict[str, Any] | None = None, **named: Any) -> dict[str, Any]:
     return params
 
 
-def _items(client: RESTClient, path: str, params: dict[str, Any]) -> list[dict[str, Any]]:
+def _items(
+    client: RESTClient, path: str, params: dict[str, Any], max_attempts: int, max_retry_delay: float
+) -> list[dict[str, Any]]:
     """An empty result is `204 No Content` with no body, not `[]`."""
-    response = client.get(path, params={"dataset": DATASET, **params})
+    response = _get(client, path, {"dataset": DATASET, **params}, max_attempts, max_retry_delay)
     if response.status_code == 204:
         return []
     if not response.ok:
         raise HTTPError(f"{response.status_code} {response.reason} from Elhub: {response.text}", response=response)
     data = response.json()["data"]
     return data if isinstance(data, list) else [data]
+
+
+def _get(client: RESTClient, path: str, params: dict[str, Any], max_attempts: int, max_retry_delay: float) -> Response:
+    """A `429` or `5xx` is asked anew, not re-sent, so each attempt carries a token renewed when due:
+    Elhub's rate limit can outlast one (specs/README.md)."""
+    response = client.get(path, params=params)
+    for attempt in range(1, max_attempts):
+        if response.status_code not in RETRIED:
+            break
+        if response.status_code == 429:
+            logger.warning("Elhub rate limit: 429, asking again shortly")
+        time.sleep(min(2 ** (attempt - 1), max_retry_delay))
+        response = client.get(path, params=params)
+    return response
 
 
 def _instant(text: str) -> datetime:
@@ -130,8 +136,10 @@ def elhub_source(
         base_url=base_url,
         headers={"Accept": "application/json", "User-Agent": user_agent, **(headers or {})},
         auth=MaskinportenAuth(credentials, scope, consumer_org),
-        session=_session(request_max_attempts, request_max_retry_delay),
+        # dlt's own retry re-sends the prepared request, expired token and all: statuses are left to `_get`.
+        session=Client(raise_for_status=False, status_codes=()).session,
     )
+    items = partial(_items, client, max_attempts=request_max_attempts, max_retry_delay=request_max_retry_delay)
 
     @dlt.resource(write_disposition="merge", primary_key="id", columns=METERING_POINT_COLUMNS)
     def metering_points(
@@ -150,7 +158,7 @@ def elhub_source(
         wanted = set(metering_point_ids) if metering_point_ids is not None else None
         seen: set[str] = set()
         for day_start, day_end in _days(start_date, end_date):
-            for item in _items(client, "/metering-points", _query(params, startDate=day_start, endDate=day_end)):
+            for item in items("/metering-points", _query(params, startDate=day_start, endDate=day_end)):
                 if item["id"] in seen or (wanted is not None and item["id"] not in wanted):
                     continue
                 seen.add(item["id"])
@@ -185,7 +193,7 @@ def elhub_source(
         query = _query(params, insertDateTime=since, startDate=start_date, endDate=end_date)
         values = [
             {"meteringPointId": item["id"], **value}
-            for item in _items(client, f"/metering-points/{point_id}", query)
+            for item in items(f"/metering-points/{point_id}", query)
             for value in item.get("attributes", {}).get(VALUES_KEY, [])
         ]
         if not caller_owns_window:
