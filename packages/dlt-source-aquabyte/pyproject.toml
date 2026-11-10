@@ -99,5 +99,5 @@ filterwarnings = [
 ]
 
 [build-system]
-requires = ["setuptools>=77.0.3"]  # >=77 for PEP 639 license / license-files
+requires = ["setuptools>=84.1.0"]  # >=77 for PEP 639 license / license-files
 build-backend = "setuptools.build_meta"
