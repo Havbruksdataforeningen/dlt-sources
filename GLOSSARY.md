@@ -1,4 +1,4 @@
-# Context Map
+# Glossary
 
 This repository holds one context per source package, plus the shared language below. Each source package is its own context: it has its own supplier, its own glossary, and its own version. No package depends on another.
 

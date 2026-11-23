@@ -56,7 +56,7 @@ Read [`source-guidelines.md`](source-guidelines.md) before writing the source co
 
 **5. List the package where a reader starts.**
 
-A row in the table in [`README.md`](../README.md), and an entry in [`CONTEXT-MAP.md`](../CONTEXT-MAP.md).
+A row in the table in [`README.md`](../README.md), and an entry in [`GLOSSARY.md`](../GLOSSARY.md).
 
 **6. Run the checks CI runs.**
 

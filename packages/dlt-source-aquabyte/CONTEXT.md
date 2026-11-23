@@ -2,7 +2,7 @@
 
 Aquabyte supplies camera-based monitoring of farmed salmon in sea pens, and their API reports what the cameras observe. This package is true to that API: the terms below are Aquabyte's, and we keep their meaning even where a member company uses a different word internally.
 
-Shared repository terms are in [CONTEXT-MAP.md](../../CONTEXT-MAP.md).
+Shared repository terms are in [GLOSSARY.md](../../GLOSSARY.md).
 
 ## Language
 
