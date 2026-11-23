@@ -5,6 +5,7 @@ This repository holds one context per source package, plus the shared language b
 ## Contexts
 
 - [dlt-source-aquabyte](./packages/dlt-source-aquabyte/GLOSSARY.md) — Aquabyte, a supplier of camera-based monitoring of farmed salmon in sea pens. Their API reports sites, pens, biomass, lice, welfare, behaviour and environment.
+- [dlt-source-barentswatch](./packages/dlt-source-barentswatch/GLOSSARY.md) — BarentsWatch's Fish Health API, which republishes what fish farms report to the Norwegian Food Safety Authority: per locality and ISO week, lice counts, treatments, diseases, escapes and the licences behind the site. One of several BarentsWatch APIs; each gets its own source module inside this package, since they share an OAuth client, a base URL and the supplier's one-request-at-a-time rule.
 - [dlt-source-elhub](./packages/dlt-source-elhub/GLOSSARY.md) — Elhub, the Norwegian electricity market's data hub. Their Energy Data API reports an organisation's metering points and their metering values, behind Maskinporten.
 
 ## Relationships

@@ -1,0 +1,140 @@
+[
+  {
+    "localityWeekId": 9000101,
+    "isFiltered": true,
+    "locality": {
+      "no": 90001,
+      "name": "Testholmen",
+      "isOnLand": false
+    },
+    "geometry": {
+      "type": "Point",
+      "coordinates": [12.345678, 65.432109]
+    },
+    "municipality": {
+      "no": "9901",
+      "name": "Fiktivdal"
+    },
+    "hasSalmonoidLicense": true,
+    "isSlaughterHoldingCage": false,
+    "diseases": [],
+    "liceReport": {
+      "hasReported": true,
+      "isFallow": false,
+      "adultFemaleLice": {
+        "average": 0.42,
+        "averageOfPreviousWeek": 0.31,
+        "trend": "Increasing"
+      },
+      "mobileLice": {
+        "average": 1.15,
+        "averageOfPreviousWeek": 0.6,
+        "trend": "Increasing"
+      },
+      "stationaryLice": {
+        "average": 0.45,
+        "averageOfPreviousWeek": 0.5,
+        "trend": "Decreasing"
+      },
+      "totalLice": {
+        "average": 2.02,
+        "averageOfPreviousWeek": 1.41,
+        "trend": "Increasing"
+      },
+      "seaTemperature": 11.4
+    },
+    "liceTreatments": []
+  },
+  {
+    "localityWeekId": 9000201,
+    "isFiltered": true,
+    "locality": {
+      "no": 90002,
+      "name": "Prøvevika",
+      "isOnLand": false
+    },
+    "geometry": {
+      "type": "Point",
+      "coordinates": [12.987654, 65.123456]
+    },
+    "municipality": {
+      "no": "9901",
+      "name": "Fiktivdal"
+    },
+    "hasSalmonoidLicense": true,
+    "isSlaughterHoldingCage": false,
+    "diseases": [],
+    "liceReport": {
+      "hasReported": false,
+      "isFallow": true,
+      "adultFemaleLice": {
+        "average": null,
+        "averageOfPreviousWeek": null,
+        "trend": null
+      },
+      "mobileLice": {
+        "average": null,
+        "averageOfPreviousWeek": null,
+        "trend": null
+      },
+      "stationaryLice": {
+        "average": null,
+        "averageOfPreviousWeek": null,
+        "trend": null
+      },
+      "totalLice": {
+        "average": null,
+        "averageOfPreviousWeek": null,
+        "trend": null
+      },
+      "seaTemperature": null
+    },
+    "liceTreatments": []
+  },
+  {
+    "localityWeekId": 9000301,
+    "isFiltered": true,
+    "locality": {
+      "no": 90003,
+      "name": "Fiktivfjorden",
+      "isOnLand": false
+    },
+    "geometry": {
+      "type": "Point",
+      "coordinates": [12.5, 65.25]
+    },
+    "municipality": {
+      "no": "9901",
+      "name": "Fiktivdal"
+    },
+    "hasSalmonoidLicense": true,
+    "isSlaughterHoldingCage": false,
+    "diseases": ["PANKREASSYKDOM"],
+    "liceReport": {
+      "hasReported": true,
+      "isFallow": false,
+      "adultFemaleLice": {
+        "average": 0.61,
+        "averageOfPreviousWeek": 0.7,
+        "trend": "Decreasing"
+      },
+      "mobileLice": {
+        "average": 0.9,
+        "averageOfPreviousWeek": 1.2,
+        "trend": "Decreasing"
+      },
+      "stationaryLice": {
+        "average": 0.3,
+        "averageOfPreviousWeek": 0.3,
+        "trend": "Stable"
+      },
+      "totalLice": {
+        "average": 1.81,
+        "averageOfPreviousWeek": 2.2,
+        "trend": "Decreasing"
+      },
+      "seaTemperature": 10.9
+    },
+    "liceTreatments": ["IKKE_MEDIKAMENTELL"]
+  }
+]

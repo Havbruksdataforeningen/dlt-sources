@@ -1,0 +1,37 @@
+[
+  {
+    "aquaCultureRegistryVersion": 2,
+    "localityNo": 90001,
+    "name": "Testholmen",
+    "municipalityNo": "9901",
+    "municipality": "Fiktivdal"
+  },
+  {
+    "aquaCultureRegistryVersion": 2,
+    "localityNo": 90002,
+    "name": "Prøvevika",
+    "municipalityNo": "9901",
+    "municipality": "Fiktivdal"
+  },
+  {
+    "aquaCultureRegistryVersion": 1,
+    "localityNo": 90003,
+    "name": "Fiktivfjorden",
+    "municipalityNo": "9902",
+    "municipality": "Eksempelvik"
+  },
+  {
+    "aquaCultureRegistryVersion": 2,
+    "localityNo": 90004,
+    "name": "Eksempelbukta",
+    "municipalityNo": "9902",
+    "municipality": "Eksempelvik"
+  },
+  {
+    "aquaCultureRegistryVersion": 2,
+    "localityNo": 90005,
+    "name": "Utkastøya",
+    "municipalityNo": "9903",
+    "municipality": "Utkastøy"
+  }
+]
