@@ -2,7 +2,7 @@
 
 Elhub is the Norwegian data hub for the electricity market, and its Energy Data API reports what the grid companies meter. This package is true to that API: the terms below are Elhub's, and we keep their meaning even where a member company uses a different word internally.
 
-Shared repository terms are in [CONTEXT-MAP.md](../../CONTEXT-MAP.md).
+Shared repository terms are in [GLOSSARY-MAP.md](../../GLOSSARY-MAP.md).
 
 ## Language
 

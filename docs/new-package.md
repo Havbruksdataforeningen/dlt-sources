@@ -48,7 +48,7 @@ Only the last one raises an error. The other three are wrong quietly, so check t
 | `.dlt/config.toml.example`, `.dlt/secrets.toml.example` | Rewrite for your config keys. These two are the only `.dlt/` files that belong in git; the real `config.toml` and `secrets.toml` are gitignored |
 | `README.md` | Rewrite, keeping the `## Compatibility` table — it is how a consumer knows which API version the package targets |
 | `CHANGELOG.md` | Empty it down to an `## [Unreleased]` heading |
-| `CONTEXT.md` | Rewrite. See [`domain.md`](domain.md) for what belongs in it |
+| `GLOSSARY.md` | Rewrite. See [`domain.md`](domain.md) for what belongs in it |
 | `REFERENCE.md` | Rewrite, or drop it until the package has operational detail worth separating from the README |
 | `LICENSE` | Leave as it is |
 
@@ -56,7 +56,7 @@ Read [`source-guidelines.md`](source-guidelines.md) before writing the source co
 
 **5. List the package where a reader starts.**
 
-A row in the table in [`README.md`](../README.md), and an entry in [`CONTEXT-MAP.md`](../CONTEXT-MAP.md).
+A row in the table in [`README.md`](../README.md), and an entry in [`GLOSSARY-MAP.md`](../GLOSSARY-MAP.md).
 
 **6. Run the checks CI runs.**
 
