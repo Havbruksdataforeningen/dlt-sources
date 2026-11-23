@@ -1,11 +1,11 @@
-# Glossary
+# Glossary Map
 
 This repository holds one context per source package, plus the shared language below. Each source package is its own context: it has its own supplier, its own glossary, and its own version. No package depends on another.
 
 ## Contexts
 
-- [dlt-source-aquabyte](./packages/dlt-source-aquabyte/CONTEXT.md) — Aquabyte, a supplier of camera-based monitoring of farmed salmon in sea pens. Their API reports sites, pens, biomass, lice, welfare, behaviour and environment.
-- [dlt-source-elhub](./packages/dlt-source-elhub/CONTEXT.md) — Elhub, the Norwegian electricity market's data hub. Their Energy Data API reports an organisation's metering points and their metering values, behind Maskinporten.
+- [dlt-source-aquabyte](./packages/dlt-source-aquabyte/GLOSSARY.md) — Aquabyte, a supplier of camera-based monitoring of farmed salmon in sea pens. Their API reports sites, pens, biomass, lice, welfare, behaviour and environment.
+- [dlt-source-elhub](./packages/dlt-source-elhub/GLOSSARY.md) — Elhub, the Norwegian electricity market's data hub. Their Energy Data API reports an organisation's metering points and their metering values, behind Maskinporten.
 
 ## Relationships
 
