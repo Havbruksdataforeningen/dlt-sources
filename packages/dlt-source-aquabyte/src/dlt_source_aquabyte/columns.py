@@ -7,7 +7,6 @@ from dlt.common.schema.typing import TTableSchemaColumns
 
 # `nullable: False` marks the fields the spec requires and forbids to be null. Nested
 # fields get no hint, so `max_table_nesting` alone decides their shape.
-# `tests/test_mock_fidelity.py` checks every entry against the spec.
 
 SITE_COLUMNS: TTableSchemaColumns = {
     "id": {"data_type": "text", "nullable": False},

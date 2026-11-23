@@ -15,21 +15,21 @@ from dlt_source_aquabyte import MAX_WINDOW_DAYS, aquabyte_source, max_window_day
 from dlt_source_aquabyte.windows import _WINDOWLESS_RESOURCES
 from tests.conftest import (
     SOURCE_CONFIG,
-    Endpoint,
-    endpoint,
+    WindowedEndpoint,
     params_sent,
     resource_signature,
     run_source,
     serve,
+    windowed_endpoint,
 )
 
 # One time-based resource and one date-based one, which is the whole of the difference:
 # the same arithmetic on `fromTime`/`toTime` and on `fromDate`/`toDate`.
-ENVIRONMENTAL = endpoint("environmental")
-BIOMASS = endpoint("biomass")
+ENVIRONMENTAL = windowed_endpoint("environmental")
+BIOMASS = windowed_endpoint("biomass")
 
 
-def _run(mock_rest_client, endpoint: Endpoint, name: str, **bound):
+def _run(mock_rest_client, endpoint: WindowedEndpoint, name: str, **bound):
     """Serve the endpoint's mock, run its resource, and return the params of every request."""
     mock_rest_client.paginate.reset_mock()
     mock_rest_client.paginate.side_effect = serve({endpoint.path: endpoint.records})
@@ -39,7 +39,7 @@ def _run(mock_rest_client, endpoint: Endpoint, name: str, **bound):
     return params_sent(mock_rest_client, endpoint.path)
 
 
-def _window(endpoint: Endpoint, start: str, end: str | None = None):
+def _window(endpoint: WindowedEndpoint, start: str, end: str | None = None):
     """The `incremental_*` binding that carries this window."""
     return {endpoint.incremental_argument: dlt.sources.incremental(initial_value=start, end_value=end)}
 
@@ -143,7 +143,7 @@ def test_an_open_ended_date_incremental_ends_today(mock_rest_client):
 
 
 def test_an_open_ended_catch_up_wider_than_the_cap_splits(mock_rest_client):
-    """The case that made this a correctness bug: a cursor left far behind still loads."""
+    """A cursor left far behind still loads: without splitting, the API refuses it on every run."""
     start = (datetime.now(tz=UTC) - timedelta(days=20)).strftime("%Y-%m-%dT%H:%M:%SZ")
     sent = _run(mock_rest_client, ENVIRONMENTAL, "test_catch_up", period="15min", **_window(ENVIRONMENTAL, start))
 
@@ -160,17 +160,17 @@ def test_a_window_sent_through_params_is_left_alone(mock_rest_client):
         ENVIRONMENTAL,
         "test_params_window",
         period="15min",
-        params={"fromTime": "2020-01-01T00:00:00Z", "toTime": "2026-01-01T00:00:00Z"},
+        params={"fromTime": "2021-06-01T00:00:00Z", "toTime": "2026-01-01T00:00:00Z"},
     )
 
-    assert len(sent) == 1
+    assert [(one["fromTime"], one["toTime"]) for one in sent] == [("2021-06-01T00:00:00Z", "2026-01-01T00:00:00Z")]
 
 
 def test_date_sub_windows_use_the_whole_cap_without_overlapping(mock_rest_client):
-    """The API measures `toDate - fromDate`, confirmed at the boundary on 2026-08-28.
+    """The API measures `toDate - fromDate`, so a sub-window may be a full 366 wide.
 
-    So a sub-window may be a full 366 wide. `toDate` is inclusive, so the next one starts
-    the day after — which costs a day of width nowhere, and asks for no date twice.
+    `toDate` is inclusive, so the next one starts the day after — which costs a day of width
+    nowhere, and asks for no date twice.
     """
     sent = _run(mock_rest_client, BIOMASS, "test_whole_cap", **_window(BIOMASS, "2026-01-01", "2029-01-05"))
 
@@ -290,6 +290,33 @@ def test_a_corrected_window_cap_moves_the_splitting_and_the_published_answer_tog
 
     assert max_window_days("environmental", None) == 31, "the correction is at the default period"
     assert max(widths) == timedelta(days=31)
+
+
+def test_max_window_days_set_in_config_is_the_width_the_window_is_split_at(mock_rest_client, monkeypatch):
+    """Like every resource argument, it can live under `[sources.aquabyte.<resource>]`.
+
+    Bound in code, it is asserted for every resource in `test_resource_loading.py`.
+    """
+    monkeypatch.setenv("SOURCES__AQUABYTE__BIOMASS__MAX_WINDOW_DAYS", "100")
+
+    sent = _run(mock_rest_client, BIOMASS, "test_configured_cap", **_window(BIOMASS, "2026-01-01", "2026-06-30"))
+
+    assert [(one["fromDate"], one["toDate"]) for one in sent] == [
+        ("2026-01-01", "2026-04-11"),
+        ("2026-04-12", "2026-06-30"),
+    ]
+
+
+def test_a_max_window_days_below_one_is_refused(mock_rest_client):
+    """A window cap of zero days is a window that never advances."""
+    with pytest.raises(Exception, match="at least 1 day"):
+        _run(
+            mock_rest_client,
+            BIOMASS,
+            "test_zero_cap",
+            max_window_days=0,
+            **_window(BIOMASS, "2026-01-01", "2026-06-30"),
+        )
 
 
 def test_an_unknown_resource_gets_the_widest_window_cap_and_says_so(caplog):

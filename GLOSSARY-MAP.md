@@ -1,15 +1,16 @@
-# Context Map
+# Glossary Map
 
 This repository holds one context per source package, plus the shared language below. Each source package is its own context: it has its own supplier, its own glossary, and its own version. No package depends on another.
 
 ## Contexts
 
-- [dlt-source-aquabyte](./packages/dlt-source-aquabyte/CONTEXT.md) — Aquabyte, a supplier of camera-based monitoring of farmed salmon in sea pens. Their API reports sites, pens, biomass, lice, welfare, behaviour and environment.
-- [dlt-source-barentswatch](./packages/dlt-source-barentswatch/CONTEXT.md) — BarentsWatch's Fish Health API, which republishes what fish farms report to the Norwegian Food Safety Authority: per locality and ISO week, lice counts, treatments, diseases, escapes and the licences behind the site. One of several BarentsWatch APIs; each gets its own source module inside this package, since they share an OAuth client, a base URL and the supplier's one-request-at-a-time rule.
+- [dlt-source-aquabyte](./packages/dlt-source-aquabyte/GLOSSARY.md) — Aquabyte, a supplier of camera-based monitoring of farmed salmon in sea pens. Their API reports sites, pens, biomass, lice, welfare, behaviour and environment.
+- [dlt-source-barentswatch](./packages/dlt-source-barentswatch/GLOSSARY.md) — BarentsWatch's Fish Health API, which republishes what fish farms report to the Norwegian Food Safety Authority: per locality and ISO week, lice counts, treatments, diseases, escapes and the licences behind the site. One of several BarentsWatch APIs; each gets its own source module inside this package, since they share an OAuth client, a base URL and the supplier's one-request-at-a-time rule.
+- [dlt-source-elhub](./packages/dlt-source-elhub/GLOSSARY.md) — Elhub, the Norwegian electricity market's data hub. Their Energy Data API reports an organisation's metering points and their metering values, behind Maskinporten.
 
 ## Relationships
 
-- **Package → package**: none, deliberately. Packages share conventions, not code. A term that two packages both need belongs in this file, not in a shared library.
+- **Package → package**: none, deliberately. Packages share conventions, not code. A term that two packages both need belongs in this file, not in a shared library. `dlt-source-elhub` exposes `MaskinportenAuth`, which another Maskinporten-protected API would need too; a package for one copies it rather than depending on this one.
 - **Package → consumer**: a consumer installs one package from PyPI and never sees this repository. Terms below that describe the repository itself (such as workspace) are ours, not theirs.
 
 ## Shared language

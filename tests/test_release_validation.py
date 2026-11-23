@@ -15,6 +15,7 @@ import importlib.util
 import re
 import subprocess
 import tomllib
+from fnmatch import fnmatchcase
 from pathlib import Path
 
 import pytest
@@ -67,7 +68,7 @@ def changelog_disagreement(package: str, version: str, changelog: str, released:
         if "## [Unreleased]" not in changelog:
             return f"{package} has never been released, so CHANGELOG.md should collect entries under '## [Unreleased]' (docs/new-package.md)."
         return None
-    if f"## [{version}]" not in changelog:
+    if not validate_release.changelog_has_section(changelog, version):
         return f"{package} declares {version} in pyproject.toml with no '## [{version}]' section in CHANGELOG.md. Write the entry, or bump the version back (docs/release.md, step 3)."
     return None
 
@@ -108,7 +109,9 @@ def test_every_release_tag_has_the_changelog_section_it_was_cut_from():
     undescribed = [
         f"{package}/v{version}"
         for package, version in tags
-        if f"## [{version}]" not in (REPO_ROOT / "packages" / package / "CHANGELOG.md").read_text(encoding="utf-8")
+        if not validate_release.changelog_has_section(
+            (REPO_ROOT / "packages" / package / "CHANGELOG.md").read_text(encoding="utf-8"), version
+        )
     ]
 
     assert not undescribed, f"tagged, but described by no changelog section: {', '.join(undescribed)}"
@@ -207,10 +210,12 @@ def test_the_date_of_another_version_is_not_read_as_this_ones():
     )
 
 
-def test_the_repo_uses_the_tag_shape_the_release_workflow_selects_on():
-    """`release.yml` triggers on `dlt-source-*/v*`. A tag outside that shape publishes nothing."""
+@pytest.mark.parametrize("package", PACKAGES, ids=lambda path: path.name)
+def test_the_release_workflow_selects_the_tag_of_every_package(package: Path):
+    """`release.yml` triggers on a tag glob. A tag it does not select validates, and publishes nothing."""
     workflow = (REPO_ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
-    selector = re.search(r'^\s*-\s*"(dlt-source-\S+)"\s*$', workflow, re.MULTILINE)
+    selector = re.search(r'^\s+tags:\n(?:\s*#.*\n)*\s*-\s*"(\S+)"\s*$', workflow, re.MULTILINE)
+    tag = f"{package.name}/v{_declared_version(package)}"
 
     assert selector, "release.yml must select release tags by a quoted glob"
-    assert selector.group(1) == "dlt-source-*/v*"
+    assert fnmatchcase(tag, selector.group(1)), f"{tag} is not selected by {selector.group(1)}"

@@ -15,7 +15,7 @@ The columns, after dlt's snake_case (verified in DuckDB on 2026-09-08):
 | `locality_no`, `year`, `week` | The merge key, from the request path |
 | `locality` | `{no, name, isOnLand}` |
 | `geometry` | The locality's position, a GeoJSON Point |
-| `municipality`, `production_area` | Where the locality is, by municipality and by [production area](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-barentswatch/CONTEXT.md#places) |
+| `municipality`, `production_area` | Where the locality is, by municipality and by [production area](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-barentswatch/GLOSSARY.md#places) |
 | `aqua_culture_register` | The locality's entry in Fiskeridirektoratet's register: licences, licensees, capacity, species, organizations |
 | `control_areas`, `export_restriction_areas`, `pd_zone_id` | The disease-control regimes the locality falls under this week |
 | `diseases`, `farmed_fish_escapes` | Disease cases and escape incidents at the locality |

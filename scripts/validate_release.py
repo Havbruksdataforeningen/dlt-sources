@@ -55,6 +55,10 @@ def check_version_matches_pyproject(version: Version, version_str: str, project:
     return []
 
 
+def changelog_has_section(text: str, version_str: str) -> bool:
+    return f"## [{version_str}]" in text
+
+
 def check_changelog_has_entry(package: str, version: Version, version_str: str) -> list[str]:
     if version.is_prerelease:
         print("OK: pre-release — changelog entry not required yet")
@@ -66,7 +70,7 @@ def check_changelog_has_entry(package: str, version: Version, version_str: str) 
             "Create it and write the changelog entry before tagging (docs/release.md, step 3)."
         ]
     text = changelog.read_text(encoding="utf-8")
-    if f"## [{version_str}]" not in text:
+    if not changelog_has_section(text, version_str):
         return [
             f"packages/{package}/CHANGELOG.md has no '## [{version_str}]' section. "
             "Write the changelog entry before tagging (docs/release.md, step 3)."

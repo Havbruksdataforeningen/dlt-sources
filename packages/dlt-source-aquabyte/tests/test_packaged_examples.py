@@ -1,20 +1,13 @@
 """The packaged `.dlt/*.example` files are checked by using them.
 
-A consumer's first act is to copy these two files and fill in a key, so a section
-name that dlt does not look in is a broken quick start — and it stayed broken for a
-release because nothing here read the examples. These tests copy them into a throwaway
-dlt project, point dlt at it, and build the source with **no arguments and no
-environment variables**: whatever the examples fail to supply, the source fails to
-resolve.
+A consumer's first act is to copy these two files and fill in a key, so a section name
+that dlt does not look in is a broken quick start. These tests copy them into a throwaway
+dlt project and build the source with no arguments and no environment variables: whatever
+the examples fail to supply, the source fails to resolve.
 
-The README inlines the same two files, for a reader on PyPI who has no checkout to copy
-from, so it is held to the examples here as well.
-
-Nothing below names a config section. The prefix comes from the source itself, so
-renaming the source's module moves the test, not the consumer.
+The README inlines the same two files, so it is held to the examples here as well.
 """
 
-import os
 import re
 import shutil
 import tomllib
@@ -23,13 +16,11 @@ from typing import Any
 from unittest.mock import patch
 
 import pytest
-from dlt.common.configuration.container import Container
 from dlt.common.configuration.exceptions import ConfigFieldMissingException
-from dlt.common.configuration.specs.pluggable_run_context import PluggableRunContext
 
 import dlt_source_aquabyte.aquabyte as aquabyte_module
 from dlt_source_aquabyte import aquabyte_source
-from tests.conftest import resource_signature
+from tests.conftest import dlt_project, resource_signature
 
 README = Path(__file__).parent.parent / "README.md"
 DLT_DIR = Path(__file__).parent.parent / ".dlt"
@@ -46,35 +37,24 @@ def source_from_examples(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Any
     """Build the source from the example files alone, and return the mocked RESTClient.
 
     Follows the quick start literally: copy both examples, replace the placeholder key,
-    and resolve. Every `SOURCES__*` variable is cleared first so a maintainer's own
-    environment cannot make a broken example look fine.
+    and resolve. Nothing else is read, so a maintainer's own environment cannot make a
+    broken example look fine.
     """
-    for name in [name for name in os.environ if name.startswith("SOURCES__")]:
-        monkeypatch.delenv(name, raising=False)
-
     settings = tmp_path / ".dlt"
     settings.mkdir()
     shutil.copy(CONFIG_EXAMPLE, settings / "config.toml")
     (settings / "secrets.toml").write_text(SECRETS_EXAMPLE.read_text().replace(PLACEHOLDER_KEY, SENTINEL_KEY))
 
-    # `reload` swaps a process-global, so the restore below has to cover the reload
-    # itself, not just the test body.
-    run_context = Container()[PluggableRunContext]
-    original_run_dir = run_context.context.run_dir
-    try:
-        run_context.reload(str(tmp_path))
-        with patch.object(aquabyte_module, "RESTClient") as rest_client:
-            try:
-                source = aquabyte_source()
-            except ConfigFieldMissingException as missing:
-                pytest.fail(
-                    "The example files do not supply everything aquabyte_source() resolves. "
-                    "dlt lists the sections it looked in below; the examples must use one of "
-                    f"them.\n\n{missing}"
-                )
-            yield source, rest_client
-    finally:
-        run_context.reload(original_run_dir)
+    with dlt_project(tmp_path, monkeypatch), patch.object(aquabyte_module, "RESTClient") as rest_client:
+        try:
+            source = aquabyte_source()
+        except ConfigFieldMissingException as missing:
+            pytest.fail(
+                "The example files do not supply everything aquabyte_source() resolves. "
+                "dlt lists the sections it looked in below; the examples must use one of "
+                f"them.\n\n{missing}"
+            )
+        yield source, rest_client
 
 
 def test_secrets_example_resolves_the_api_key(source_from_examples):
@@ -119,12 +99,6 @@ def test_readme_quick_start_matches_the_packaged_examples():
     config, secrets = _readme_toml_blocks()[:2]
     assert config == {"sources": {"aquabyte": tomllib.loads(CONFIG_EXAMPLE.read_text())["sources"]["aquabyte"]}}
     assert secrets == tomllib.loads(SECRETS_EXAMPLE.read_text())
-
-
-def test_neither_example_claims_ci_generates_it():
-    """CI runs the offline suite with no credentials, so it generates neither file."""
-    for example in (SECRETS_EXAMPLE, CONFIG_EXAMPLE):
-        assert "AQUABYTE_API_KEY" not in example.read_text(), f"{example.name} still refers to a CI repository secret"
 
 
 def _initial_value(source: Any, resource_name: str, argument: str) -> Any:

@@ -1,0 +1,114 @@
+{
+  "meta": {
+    "created": "2026-10-13T12:22:47+02:00"
+  },
+  "links": {
+    "self": "https://api.elhub.no/energy-data/v0/metering-points?dataset=METERING_VALUES_HOUR_RESTRICTED"
+  },
+  "data": [
+    {
+      "type": "metering-points",
+      "id": "707057500000000001",
+      "attributes": {
+        "meteringValuesHour": [
+          {
+            "startTime": "2026-10-12T13:00:00+02:00",
+            "endTime": "2026-10-12T14:00:00+02:00",
+            "quantityKwh": 107.3,
+            "resolution": "PT60M",
+            "measurementName": "EH.ELECTRIC.KWH.1.3",
+            "productCode": 8716867000030,
+            "direction": "Out",
+            "endUserId": "999999991",
+            "insertDateTime": "2026-10-13T06:07:11+02:00"
+          },
+          {
+            "startTime": "2026-10-12T14:00:00+02:00",
+            "endTime": "2026-10-12T15:00:00+02:00",
+            "quantityKwh": 114.6,
+            "resolution": "PT60M",
+            "measurementName": "EH.ELECTRIC.KWH.1.3",
+            "productCode": 8716867000030,
+            "direction": "Out",
+            "endUserId": "999999991",
+            "insertDateTime": "2026-10-13T06:07:11+02:00"
+          },
+          {
+            "startTime": "2026-10-12T15:00:00+02:00",
+            "endTime": "2026-10-12T16:00:00+02:00",
+            "quantityKwh": 121.9,
+            "resolution": "PT60M",
+            "measurementName": "EH.ELECTRIC.KWH.1.3",
+            "productCode": 8716867000030,
+            "direction": "Out",
+            "endUserId": "999999991",
+            "insertDateTime": "2026-10-13T06:07:11+02:00"
+          },
+          {
+            "startTime": "2026-10-12T16:00:00+02:00",
+            "endTime": "2026-10-12T17:00:00+02:00",
+            "quantityKwh": 129.2,
+            "resolution": "PT60M",
+            "measurementName": "EH.ELECTRIC.KWH.1.3",
+            "productCode": 8716867000030,
+            "direction": "Out",
+            "endUserId": "999999991",
+            "insertDateTime": "2026-10-13T06:07:11+02:00"
+          }
+        ]
+      }
+    },
+    {
+      "type": "metering-points",
+      "id": "707057500000000002",
+      "attributes": {
+        "meteringValuesHour": [
+          {
+            "startTime": "2026-10-12T12:30:00+02:00",
+            "endTime": "2026-10-12T12:45:00+02:00",
+            "quantityKwh": 136.5,
+            "resolution": "PT15M",
+            "measurementName": "EH.ELECTRIC.KWH.1.4",
+            "productCode": 8716867000030,
+            "direction": "Out",
+            "endUserId": "999999991",
+            "insertDateTime": "2026-10-13T05:47:01+02:00"
+          },
+          {
+            "startTime": "2026-10-12T12:45:00+02:00",
+            "endTime": "2026-10-12T13:00:00+02:00",
+            "quantityKwh": 143.8,
+            "resolution": "PT15M",
+            "measurementName": "EH.ELECTRIC.KWH.1.4",
+            "productCode": 8716867000030,
+            "direction": "Out",
+            "endUserId": "999999991",
+            "insertDateTime": "2026-10-13T05:47:01+02:00"
+          },
+          {
+            "startTime": "2026-10-12T13:00:00+02:00",
+            "endTime": "2026-10-12T13:15:00+02:00",
+            "quantityKwh": 101.1,
+            "resolution": "PT15M",
+            "measurementName": "EH.ELECTRIC.KWH.1.4",
+            "productCode": 8716867000030,
+            "direction": "Out",
+            "endUserId": "999999991",
+            "insertDateTime": "2026-10-13T05:47:01+02:00"
+          },
+          {
+            "startTime": "2026-10-12T13:15:00+02:00",
+            "endTime": "2026-10-12T13:30:00+02:00",
+            "quantityKwh": 108.4,
+            "resolution": "PT15M",
+            "measurementName": "EH.ELECTRIC.KWH.1.4",
+            "productCode": 8716867000030,
+            "direction": "Out",
+            "endUserId": "999999991",
+            "insertDateTime": "2026-10-13T05:47:01+02:00"
+          }
+        ]
+      }
+    }
+  ]
+}

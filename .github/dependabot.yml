@@ -1,4 +1,5 @@
-# Keeps the SHA-pinned actions in .github/workflows current.
+# Keeps the SHA-pinned actions in .github/workflows and the locked Python
+# dependencies in uv.lock current.
 #
 # ci.yml and release.yml pin every action to a commit SHA, because a tag is a
 # mutable pointer its owner can move — the failure mode `tj-actions/changed-files`
@@ -9,6 +10,10 @@
 # Dependabot rewrites the SHA and the `# vX.Y.Z` comment beside it together. That
 # comment is load-bearing, not decoration: it is how Dependabot knows which
 # version a pin currently is, and how a human reads a pin at all.
+#
+# Both entries wait 7 days before proposing a new release. A compromised release
+# is usually caught and yanked within days; the wait keeps us from being among
+# the first to install it. Security updates ignore the wait and arrive at once.
 
 version: 2
 updates:
@@ -18,9 +23,27 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    cooldown:
+      default-days: 7
     # One pull request for all of them. Each update is a two-line diff and the
     # decision is the same for every action, so separate PRs would multiply the
     # review without adding anything to review.
     groups:
       actions:
+        patterns: ["*"]
+
+  - package-ecosystem: "uv"
+    # The workspace root, where the single uv.lock for every package lives.
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 7
+    # Update uv.lock only, never the version ranges in a package's pyproject.toml.
+    # Those ranges are what a consumer's resolver sees; raising a lower bound
+    # because a newer release exists would force every consumer to upgrade for
+    # nothing. uv.lock is only what CI and contributors test against.
+    versioning-strategy: lockfile-only
+    groups:
+      python:
         patterns: ["*"]

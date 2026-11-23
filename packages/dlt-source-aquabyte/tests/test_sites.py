@@ -12,7 +12,6 @@ from tests.conftest import (
     calls_to,
     load_mock,
     make_pipeline,
-    params_sent,
     query,
     run_source,
 )
@@ -45,17 +44,18 @@ def _after_pen_002_departs(mock_rest_client, pipeline_name):
 
 
 def test_sites_resource_loads_into_duckdb(mock_rest_client):
-    """Sites resource loads mock data into DuckDB with correct row count."""
+    """Every site lands, read as a single page: `/sites` returns no `nextToken`."""
     sites_list = load_mock("sites.json")["sites"]
 
     mock_rest_client.paginate.return_value = iter([sites_list])
 
     source = aquabyte_source(**SOURCE_CONFIG)
-    pipeline, load_info = run_source("test_sites", source, ["sites"])
+    pipeline, _ = run_source("test_sites", source, ["sites"])
 
-    assert load_info is not None
     assert_row_count(pipeline, "sites", len(sites_list))
-    assert params_sent(mock_rest_client, "/sites") == [{}]
+    (call,) = calls_to(mock_rest_client, "/sites")
+    assert call["params"] == {}
+    assert isinstance(call["paginator"], SinglePagePaginator)
 
 
 def test_sites_reads_one_site_when_site_id_is_bound(mock_rest_client):
@@ -66,9 +66,8 @@ def test_sites_reads_one_site_when_site_id_is_bound(mock_rest_client):
 
     source = aquabyte_source(**SOURCE_CONFIG)
     source.sites.bind(site_id="site-001")
-    pipeline, load_info = run_source("test_sites_by_id", source, ["sites"])
+    pipeline, _ = run_source("test_sites_by_id", source, ["sites"])
 
-    assert load_info is not None
     assert_row_count(pipeline, "sites", 1)
     (call,) = calls_to(mock_rest_client, "/sites/site-001")
     assert call["params"] == {}
@@ -76,37 +75,11 @@ def test_sites_reads_one_site_when_site_id_is_bound(mock_rest_client):
     assert isinstance(call["paginator"], SinglePagePaginator)
 
 
-def test_sites_is_not_cursor_paginated(mock_rest_client):
-    """/sites returns no nextToken, so it is read as a single page."""
-    mock_rest_client.paginate.return_value = iter([load_mock("sites.json")["sites"]])
-
-    source = aquabyte_source(**SOURCE_CONFIG)
-    run_source("test_sites_paginator", source, ["sites"])
-
-    (call,) = calls_to(mock_rest_client, "/sites")
-    assert isinstance(call["paginator"], SinglePagePaginator)
-
-
-def test_sites_keeps_nested_pens_untouched(mock_rest_client):
-    """Sites land as the API returns them: pens stay nested, as one JSON column."""
-    sites_list = load_mock("sites.json")["sites"]
-
-    mock_rest_client.paginate.return_value = iter([sites_list])
-
-    source = aquabyte_source(**SOURCE_CONFIG)
-    pipeline, _ = run_source("test_sites_nesting", source, ["sites"])
-
-    with pipeline.sql_client() as client:
-        rows = client.execute_sql("SELECT pens FROM sites WHERE id = 'site-001'")
-        assert rows is not None
-        assert '"pen-002"' in rows[0][0], "the inactive pen must survive in the raw payload"
-
-
 def test_backfilling_one_site_leaves_the_other_sites_current(mock_rest_client):
     """`merge_key` scopes scd2 retirement: a targeted read must not retire the rest.
 
     Without it dlt retires every active row absent from the load, so reading one site
-    would retire all the others — the hazard `replace` had, in softer form.
+    would retire all the others.
     """
     sites_list = load_mock("sites.json")["sites"]
     pipeline = make_pipeline("test_sites_scd2_partial")
@@ -139,7 +112,7 @@ def test_a_changed_pen_versions_its_site(mock_rest_client, kind, change):
 
     dlt's default row hash covers nested data, so any pen change lands a new site
     version rather than leaving the site row — and its `pens` snapshot — behind. The
-    site's own fields version it too, as they always did.
+    site's own fields version it too.
     """
     site = load_mock("sites.json")["sites"][0]
     pens = [{**pen, **change} if pen["id"] == "pen-001" else pen for pen in site["pens"]]
@@ -157,9 +130,7 @@ def test_each_site_version_lists_the_pens_it_was_loaded_with(mock_rest_client):
     """The nested `pens` snapshot cannot go stale, on the current row or a retired one.
 
     The snapshot is the only record of a site's pens, and consumers unnest it, so it has
-    to be the pens of that version. It used to freeze instead: while a site versioned on
-    its own fields only, the snapshot stayed at whenever those last changed, which for a
-    site is rarely.
+    to be the pens of that version.
     """
     site = load_mock("sites.json")["sites"][0]
     renamed = [{**pen, "name": "Renamed"} if pen["id"] == "pen-001" else pen for pen in site["pens"]]

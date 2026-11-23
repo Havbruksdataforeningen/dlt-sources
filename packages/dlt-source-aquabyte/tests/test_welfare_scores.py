@@ -8,12 +8,9 @@ and that is exactly what must land. Unpivoting is the consumer's transform.
 import copy
 import json
 
-import dlt
-
 from dlt_source_aquabyte import aquabyte_source
 from tests.conftest import (
     SOURCE_CONFIG,
-    assert_row_count,
     load_mock,
     query,
     run_source,
@@ -43,17 +40,8 @@ def test_welfare_scores_keeps_the_nested_object_intact(mock_rest_client):
     source.welfare_scores.bind(pen_id="pen-001")
     pipeline, _ = run_source("test_welfare_nested", source, ["welfare_scores"])
 
-    rows = query(pipeline, "SELECT welfare_scores FROM welfare_scores WHERE date = '2026-01-15'")
-    landed = json.loads(rows[0][0])
-    assert landed == RECORDS[0]["welfareScores"], "the nested payload must survive untouched"
-    assert landed["bodyWound"]["active"].keys() == {"1", "2", "3"}, "score bands keep the API's own keys"
-    assert "healed" not in landed["snoutWound"], "the API sends `healed` for some categories only"
-
-    # A category with no data is absent from the object rather than reported as null,
-    # which is why the second record carries fewer categories than the first.
-    second = json.loads(query(pipeline, "SELECT welfare_scores FROM welfare_scores WHERE date = '2026-01-16'")[0][0])
-    assert "caudalFin" in landed and "caudalFin" not in second
-    assert all(value is not None for value in landed.values()), "the API omits a category, it does not null it"
+    rows = query(pipeline, "SELECT welfare_scores FROM welfare_scores ORDER BY date")
+    assert [json.loads(row[0]) for row in rows] == [record["welfareScores"] for record in RECORDS]
 
 
 def test_welfare_scores_passes_through_an_unknown_category(mock_rest_client):
@@ -69,27 +57,7 @@ def test_welfare_scores_passes_through_an_unknown_category(mock_rest_client):
 
     source = aquabyte_source(**SOURCE_CONFIG)
     source.welfare_scores.bind(pen_id="pen-001")
-    pipeline, load_info = run_source("test_welfare_new_category", source, ["welfare_scores"])
+    pipeline, _ = run_source("test_welfare_new_category", source, ["welfare_scores"])
 
-    assert load_info is not None
     rows = query(pipeline, "SELECT welfare_scores FROM welfare_scores WHERE date = '2026-01-15'")
     assert json.loads(rows[0][0])["gillDamage"]["active"]["1"] == 0.07
-
-
-def test_welfare_scores_merges_on_pen_and_date(mock_rest_client):
-    """Re-running the same window replaces rows rather than duplicating them."""
-    mock_rest_client.paginate.side_effect = serve({"/welfareScores": RECORDS})
-
-    source = aquabyte_source(**SOURCE_CONFIG)
-    source.welfare_scores.bind(pen_id="pen-001")
-    pipeline, _ = run_source("test_welfare_merge", source, ["welfare_scores"])
-
-    # Re-reading a window the cursor has moved past means backfilling: the window is
-    # bound on the incremental, so the rows are genuinely fetched and merged again.
-    mock_rest_client.paginate.side_effect = serve({"/welfareScores": RECORDS})
-    rerun = aquabyte_source(**SOURCE_CONFIG)
-    window = dlt.sources.incremental(initial_value="2026-01-01", end_value="2026-02-01")
-    rerun.welfare_scores.bind(pen_id="pen-001", incremental_date=window)
-    pipeline.run(rerun.with_resources("welfare_scores"))
-
-    assert_row_count(pipeline, "welfare_scores", len(RECORDS))

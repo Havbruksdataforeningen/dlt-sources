@@ -38,4 +38,4 @@ Default label vocabulary: `needs-triage`, `needs-info`, `ready-for-agent`, `read
 
 ### Domain docs
 
-Multi-context: root `CONTEXT-MAP.md` (shared terms) + `CONTEXT.md` per package. See `docs/domain.md`.
+Multi-context: root `GLOSSARY-MAP.md` (shared terms) + `GLOSSARY.md` per package. See `docs/domain.md`.

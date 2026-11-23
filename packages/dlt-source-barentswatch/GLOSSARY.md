@@ -2,7 +2,7 @@
 
 BarentsWatch republishes what Norwegian fish farms report to the authorities, and their Fish Health API serves it per locality and ISO week. It is the first of the BarentsWatch APIs this package reads, and the terms below are its. Each source in the package is true to its own API: the terms below are BarentsWatch's, and we keep their meaning even where a member company uses a different word internally. Where the API's own field names are Norwegian regulatory concepts, the Norwegian term is given for recognition.
 
-Shared repository terms are in [CONTEXT-MAP.md](../../CONTEXT-MAP.md).
+Shared repository terms are in [GLOSSARY-MAP.md](../../GLOSSARY-MAP.md).
 
 ## Language
 

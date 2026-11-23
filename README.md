@@ -10,6 +10,7 @@ Shared [dlt](https://dlthub.com/) source packages for Havbruksdataforeningen mem
 |---|---|
 | [`dlt-source-aquabyte`](packages/dlt-source-aquabyte/) | Aquabyte — camera-based monitoring of farmed salmon (sites, pens, biomass, lice, welfare, environment) |
 | [`dlt-source-barentswatch`](packages/dlt-source-barentswatch/) | BarentsWatch — one source per API, `fishhealth_source` so far: the weekly lice, treatment, disease and licence report per aquaculture locality, in detail or summarised across a production area, as reported to the Norwegian Food Safety Authority |
+| [`dlt-source-elhub`](packages/dlt-source-elhub/) | Elhub — the metering points and hourly electricity metering values of your own organisation, via Maskinporten |
 
 ## Layout
 

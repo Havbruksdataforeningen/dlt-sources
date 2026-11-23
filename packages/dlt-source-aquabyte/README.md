@@ -1,5 +1,7 @@
 # dlt-source-aquabyte
 
+[![PyPI](https://img.shields.io/pypi/v/dlt-source-aquabyte.svg)](https://pypi.org/project/dlt-source-aquabyte/)
+
 A [dlt](https://dlthub.com/) source for the [Aquabyte API v3](https://api.aquabyte.ai/v3/docs): sites, biomass, lice counts, welfare scores, behaviour and environmental readings, into any dlt destination.
 
 **Records land as the API returns them** — nothing renamed, nothing dropped, no invented child tables. Column names are the API's own, in dlt's usual snake_case. Reshaping belongs in your transform layer, where you can change it without waiting for a release.
@@ -87,6 +89,7 @@ pipeline.run(source)
 | `pen_id` | Defaults to `"all"`, the API's own value for every pen in one request. Pass one id to read a single pen. |
 | `site_id` | The one path param. Binding it moves `sites` to the per-site endpoint; both write the same table. |
 | `params` | On every resource, merged into the query string last, so it wins over every named param. The escape hatch for a param the API grows later. |
+| `max_window_days` | On every resource with a cursor. The widest window one request asks for, in days. Leave it out and the package's own window cap applies ([reference](https://github.com/Havbruksdataforeningen/dlt-sources/blob/main/packages/dlt-source-aquabyte/REFERENCE.md#windows-are-split-to-fit-the-window-cap)). |
 
 Params can also be set in config, per resource:
 

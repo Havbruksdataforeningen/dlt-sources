@@ -1,7 +1,7 @@
 """Record shapes written by hand are checked against `specs/openapi.json`.
 
 Two things here describe what a record looks like, and neither is generated: the fixtures
-under `mock_responses/`, and the column hints in `aquabyte.py`. The spec is the authority
+under `mock_responses/`, and the column hints in `columns.py`. The spec is the authority
 for both. A fixture in a shape the API could not produce makes the whole offline suite
 blind to the real one, and a column hint naming a field the API does not send is a hint
 that silently does nothing.
@@ -22,24 +22,9 @@ import pytest
 from jsonschema import Draft202012Validator
 
 from dlt_source_aquabyte import aquabyte_source
-from tests.conftest import ALL_PEN_IDS, MOCK_DIR, SOURCE_CONFIG, load_mock
+from tests.conftest import ENDPOINTS, MOCK_DIR, SOURCE_CONFIG, Endpoint, load_mock
 
 SPEC = json.loads((Path(__file__).parent.parent / "specs" / "openapi.json").read_text())
-
-# endpoint -> the fixture standing in for its response, and the resource that reads it.
-ENDPOINTS = {
-    "/sites": ("sites.json", "sites"),
-    "/environmental": ("environmental.json", "environmental"),
-    "/environmental/latest": ("environmental_latest.json", "environmental_latest"),
-    "/biomass": ("biomass.json", "biomass"),
-    "/biomass/harvestReport": ("harvest_report.json", "harvest_report"),
-    "/liceCount": ("lice_count.json", "lice_count"),
-    "/behaviour/swimSpeed": ("swim_speed.json", "behaviour_swim_speed"),
-    "/behaviour/breathingIndex": ("breathing_index.json", "behaviour_breathing_index"),
-    "/welfareScores": ("welfare_scores.json", "welfare_scores"),
-}
-
-RESOURCE_ENDPOINTS = {resource: path for path, (_, resource) in ENDPOINTS.items()}
 
 # OpenAPI type -> the dlt data type a column hint gives it. Dates and timestamps stay text:
 # the source declares them as the API sends them and leaves parsing to the consumer.
@@ -86,34 +71,34 @@ def _records_key(envelope: dict[str, Any]) -> str:
     return key
 
 
-def _record_schema(resource_name: str) -> dict[str, Any]:
-    """The spec's schema for one record a resource loads."""
-    envelope = _response_schema(RESOURCE_ENDPOINTS[resource_name])
+def _record_schema(endpoint: Endpoint) -> dict[str, Any]:
+    """The spec's schema for one record the endpoint's resource loads."""
+    envelope = _response_schema(endpoint.path)
     return _resolve(envelope["properties"][_records_key(envelope)]["items"])
 
 
-@pytest.mark.parametrize(("path", "fixture_and_resource"), ENDPOINTS.items())
-def test_fixture_matches_its_endpoints_response_schema(path, fixture_and_resource):
-    filename, _ = fixture_and_resource
-    body = SPEC["paths"][path]["get"]["responses"]["200"]["content"]["application/json"]["schema"]
+@pytest.mark.parametrize("endpoint", ENDPOINTS, ids=lambda endpoint: endpoint.resource)
+def test_fixture_matches_its_endpoints_response_schema(endpoint):
+    body = SPEC["paths"][endpoint.path]["get"]["responses"]["200"]["content"]["application/json"]["schema"]
     validator = Draft202012Validator({**TIGHTENED_SPEC, **body})
     problems = [
-        f"{filename}.{error.json_path}: {error.message}" for error in validator.iter_errors(load_mock(filename))
+        f"{endpoint.mock_file}.{error.json_path}: {error.message}"
+        for error in validator.iter_errors(load_mock(endpoint.mock_file))
     ]
     assert not problems, "\n".join(problems)
 
 
-@pytest.mark.parametrize(("path", "fixture_and_resource"), ENDPOINTS.items())
-def test_fixture_has_records(path, fixture_and_resource):
+@pytest.mark.parametrize("endpoint", ENDPOINTS, ids=lambda endpoint: endpoint.resource)
+def test_fixture_has_records(endpoint):
     """An empty envelope would satisfy the schema and prove nothing downstream."""
-    filename, _ = fixture_and_resource
-    assert load_mock(filename)[_records_key(_response_schema(path))]
+    assert load_mock(endpoint.mock_file)[_records_key(_response_schema(endpoint.path))]
 
 
-@pytest.mark.parametrize("resource_name", RESOURCE_ENDPOINTS)
-def test_column_hints_match_the_spec(resource_name):
+@pytest.mark.parametrize("endpoint", ENDPOINTS, ids=lambda endpoint: endpoint.resource)
+def test_column_hints_match_the_spec(endpoint):
     """A hint is worth having only on a field the API sends, typed and nulled as declared."""
-    record = _record_schema(resource_name)
+    resource_name = endpoint.resource
+    record = _record_schema(endpoint)
     properties = record["properties"]
     hinted = _hinted_columns(resource_name)
 
@@ -139,19 +124,12 @@ def _dlt_data_type(declared: dict[str, Any]) -> str:
     return DLT_DATA_TYPES[_resolve(branches[0])["type"]]
 
 
-def test_sites_fixture_matches_the_pen_constants():
-    """`conftest` hardcodes the pen ids; the fixture is where they actually come from."""
-    sites = load_mock("sites.json")["sites"]
-    pens = [pen for site in sites for pen in site["pens"]]
-    assert sorted(pen["id"] for pen in pens) == sorted(ALL_PEN_IDS)
-
-
 def test_no_fixture_carries_an_external_identifier():
     """These two fields are declared by the API and were never sent — see `specs/README.md`.
 
-    An earlier fixture invented them, which made the suite assert a shape the live API
-    has not produced. They most likely arrive once an account populates them, so if that
-    happens, re-record from live and delete this test; do not add them back by hand.
+    A fixture carrying them asserts a shape the live API has not produced. They most likely
+    arrive once an account populates them, so if that happens, re-record from live and delete
+    this test; do not add them back by hand.
     """
     for path in sorted(MOCK_DIR.glob("*.json")):
         payload = json.dumps(json.loads(path.read_text()))
