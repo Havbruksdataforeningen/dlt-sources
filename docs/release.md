@@ -153,13 +153,13 @@ git push origin dlt-source-aquabyte/v0.2.0
 Two things to be careful about here:
 
 - **Push the one tag by name, never `git push --tags`.** GitHub sends no event at all when more than three tags arrive at once, so the release would silently not run.
-- **Pushing the tag is the point of no return.** PyPI never lets a version number be reused — not even after deleting it. If something is wrong, you fix it in a new version; you cannot re-release this one.
+- **Pushing the tag is the point of no return.** PyPI never lets a version number be reused — not even after deleting it. If something is wrong, you fix it in a new version; you cannot re-release this one. The tag cannot be moved or deleted either: the repo's `release tags` ruleset blocks both, so a published version always points at the commit it was built from.
 
 ## What happens after the push
 
 The workflow runs the same validator you ran in step 5, builds the package, and publishes it — a final version goes to PyPI, a pre-release version (like `0.2.0rc1`) goes to TestPyPI. Watch it under the repo's **Actions** tab, then check the result at `https://pypi.org/p/dlt-source-aquabyte`.
 
-A final version waits for approval in the `pypi` environment before it uploads; a pre-release goes straight out through `testpypi`, which has no protection rules. Be clear about what that approval is: the environment has one required reviewer and `prevent_self_review: false`, so with a single maintainer you approve your own run. It is a deliberate pause — a last chance to stop before the upload becomes permanent — not a second pair of eyes. Turning `prevent_self_review` on would block every release until there is a second maintainer.
+A final version waits for approval in the `pypi` environment before it uploads; a pre-release goes straight out through `testpypi`, which needs no approval. Both environments accept a deployment only from a tag matching `dlt-source-*/v*`, so a workflow run on a branch cannot publish. Be clear about what that approval is: the environment has one required reviewer and `prevent_self_review: false`, so with a single maintainer you approve your own run. It is a deliberate pause — a last chance to stop before the upload becomes permanent — not a second pair of eyes. Turning `prevent_self_review` on would block every release until there is a second maintainer.
 
 ## First release of a package
 
